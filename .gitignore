@@ -1,0 +1,28 @@
+# Build output
+dist/
+*.tsbuildinfo
+
+# Dependencies
+node_modules/
+
+# InteractKit generated
+.interactkit/
+__generated__/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Config secrets
+config/local.json
+config/local-*.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+*.swp
+*.swo

@@ -1,0 +1,22 @@
+{
+  "name": "@interactkit/sample-app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "interactkit build",
+    "dev": "interactkit dev",
+    "start": "interactkit start"
+  },
+  "dependencies": {
+    "@interactkit/sdk": "workspace:*",
+    "class-validator": "^0.14.1",
+    "reflect-metadata": "^0.2.2",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@interactkit/cli": "workspace:*",
+    "@types/node": "^25.5.0",
+    "typescript": "^5.5.0"
+  }
+}

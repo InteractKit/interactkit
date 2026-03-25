@@ -1,0 +1,20 @@
+{
+  "name": "@interactkit/cli",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "interactkit": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@interactkit/sdk": "workspace:*",
+    "ts-morph": "^24.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "typescript": "^5.5.0"
+  }
+}

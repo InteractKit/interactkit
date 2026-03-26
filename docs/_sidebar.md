@@ -1,0 +1,15 @@
+- [Home](/)
+- **Learn**
+  - [Why InteractKit](why.md)
+  - [Getting Started](getting-started.md)
+- **Core**
+  - [Entities](entities.md)
+  - [LLM Entities](llm.md)
+  - [Hooks](hooks.md)
+- **Infrastructure**
+  - [Database, Pub/Sub, Logging](infrastructure.md)
+  - [Codegen & Build](codegen.md)
+  - [Deployment](deployment.md)
+- **Advanced**
+  - [Testing](testing.md)
+  - [Extensions](extensions.md)

@@ -4,7 +4,8 @@ import type { MethodInfo } from '../types.js';
 import type { FieldMeta } from '../mappers/validator-mapper.js';
 
 export function extractMethod(method: MethodDeclaration, entityType: string): MethodInfo {
-  const eventName = `${entityType}.${method.getName()}`;
+  const methodName = method.getName();
+  const eventName = `${entityType}.${methodName}`;
   const params = method.getParameters();
   const fieldMeta: Record<string, FieldMeta> = {};
 
@@ -22,5 +23,7 @@ export function extractMethod(method: MethodDeclaration, entityType: string): Me
   const resultText = resultType.getText();
   const resultZod = resultText === 'void' ? 'z.void()' : typeToZod(resultType);
 
-  return { eventName, inputZod, resultZod, fieldMeta };
+  const hasTool = method.getDecorator('Tool') !== undefined;
+
+  return { eventName, methodName, inputZod, resultZod, fieldMeta, hasTool };
 }

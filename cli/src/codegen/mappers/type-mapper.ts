@@ -6,7 +6,7 @@ const MAX_DEPTH = 10;
  * Recursively converts a ts-morph Type into a Zod code string.
  */
 export function typeToZod(type: Type, depth = 0): string {
-  if (depth > MAX_DEPTH) return 'z.unknown()';
+  if (depth > MAX_DEPTH || !type) return 'z.unknown()';
 
   // Primitives
   if (type.isString()) return 'z.string()';
@@ -128,5 +128,10 @@ function getPropertyType(prop: MorphSymbol, parentType: Type): Type {
       return (decl as { getType(): Type }).getType();
     }
   }
-  return prop.getTypeAtLocation(prop.getValueDeclarationOrThrow());
+  const valueDecl = prop.getValueDeclaration();
+  if (valueDecl) {
+    return prop.getTypeAtLocation(valueDecl);
+  }
+  // Symbol has no value declaration (e.g. type-only from external libs) — return null to signal z.unknown()
+  return null as unknown as Type;
 }

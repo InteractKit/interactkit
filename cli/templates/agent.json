@@ -1,0 +1,67 @@
+{
+  "name": "Agent",
+  "label": "Agent          root + brain + memory + HTTP API",
+  "description": "An InteractKit agent with an LLM brain, persistent memory, and an HTTP endpoint.",
+  "readme": "# {{name}}\n\n{{description}}\n\n## Entity tree\n\n```\n{{tree}}\n```\n\n## Setup\n\n```bash\n{{setup}}\n```\n\nAdd your LLM API key to `.env`, then uncomment the executor import in `src/entities/brain.ts`.\n\n## Run\n\n```bash\npnpm dev\n```\n\n## Usage\n\nChat with the agent:\n\n```bash\ncurl localhost:3000/chat -d '{\"message\": \"hello\"}'\n```\n",
+  "root": { "file": "agent", "class": "Agent" },
+  "extraDeps": {
+    "@interactkit/http": "^0.2.0"
+  },
+  "entities": [
+    {
+      "file": "agent",
+      "class": "Agent",
+      "extends": "BaseEntity",
+      "description": "Root agent entity with HTTP API",
+      "components": [
+        { "name": "brain", "class": "Brain", "file": "brain" },
+        { "name": "memory", "class": "Memory", "file": "memory" }
+      ],
+      "hooks": [
+        { "type": "Init", "body": "console.log(`[agent] booted (${this.id})`);" },
+        { "type": "HttpRequest", "from": "@interactkit/http", "config": "{ port: 3000, path: '/chat' }", "body": "try {\n      const { message } = JSON.parse(input.body);\n      const result = await this.brain.invoke({ message });\n      input.respond(200, JSON.stringify({ result }));\n    } catch (err: any) {\n      input.respond(500, JSON.stringify({ error: err.message }));\n    }" }
+      ]
+    },
+    {
+      "file": "brain",
+      "class": "Brain",
+      "extends": "LLMEntity",
+      "description": "LLM-powered brain",
+      "systemPrompt": "You are a helpful assistant. Use memory to remember things across conversations.",
+      "refs": [
+        { "name": "memory", "class": "Memory", "file": "memory" }
+      ],
+      "hooks": [{ "type": "Init", "body": "console.log(`[brain] ready (${this.id})`);" }],
+      "tools": [
+        {
+          "name": "think",
+          "description": "Think about something and store the result",
+          "input": "{ query: string }",
+          "returns": "Promise<string>",
+          "body": "const result = `Thinking about: ${input.query}`;\n    await this.memory.store({ text: result });\n    return result;"
+        }
+      ]
+    },
+    {
+      "file": "memory",
+      "class": "Memory",
+      "extends": "BaseEntity",
+      "description": "Stores and retrieves information",
+      "state": [
+        { "name": "entries", "type": "string[]", "default": "[]", "description": "Stored entries" }
+      ],
+      "hooks": [{ "type": "Init", "body": "console.log(`[memory] ready — ${this.entries.length} entries loaded`);" }],
+      "tools": [
+        { "name": "store", "description": "Store something for later", "input": "{ text: string }", "returns": "Promise<void>", "body": "this.entries.push(input.text);" },
+        { "name": "search", "description": "Search stored entries", "input": "{ query: string }", "returns": "Promise<string[]>", "body": "return this.entries.filter(e => e.toLowerCase().includes(input.query.toLowerCase()));" },
+        { "name": "getAll", "description": "Get all entries", "input": null, "returns": "Promise<string[]>", "body": "return [...this.entries];" },
+        { "name": "count", "description": "Get entry count", "input": null, "returns": "Promise<number>", "body": "return this.entries.length;" }
+      ]
+    }
+  ],
+  "tree": [
+    "Agent (root — HTTP on :3000)",
+    "  ├── Brain (LLMEntity)",
+    "  └── Memory"
+  ]
+}

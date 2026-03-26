@@ -1,0 +1,28 @@
+{
+  "name": "@interactkit/test",
+  "version": "0.1.0",
+  "description": "Testing utilities for InteractKit entities",
+  "type": "module",
+  "license": "MIT",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": ["dist", "README.md"],
+  "scripts": {
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@interactkit/sdk": "workspace:*"
+  },
+  "peerDependencies": {
+    "reflect-metadata": "^0.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "reflect-metadata": "^0.2.2",
+    "typescript": "^5.5.0"
+  }
+}

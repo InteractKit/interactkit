@@ -46,15 +46,17 @@ export class PrismaDatabaseAdapter implements DatabaseAdapter {
   async get(entityId: string): Promise<Record<string, unknown> | null> {
     await this.ensureConnected();
     const row = await this.prisma.entityState.findUnique({ where: { id: entityId } });
-    return row?.state ?? null;
+    if (!row?.state) return null;
+    return typeof row.state === 'string' ? JSON.parse(row.state) : row.state;
   }
 
   async set(entityId: string, state: Record<string, unknown>): Promise<void> {
     await this.ensureConnected();
+    const serialized = JSON.stringify(state);
     await this.prisma.entityState.upsert({
       where: { id: entityId },
-      update: { state },
-      create: { id: entityId, state },
+      update: { state: serialized },
+      create: { id: entityId, state: serialized },
     });
   }
 

@@ -32,9 +32,9 @@ export function classifyProperty(
     }
   }
 
-  // EntityStream<T>
+  // EntityStream<T> — by type annotation or @Stream() decorator
   const streamMatch = typeNodeText.match(/^EntityStream<(.+)>$/);
-  if (streamMatch) {
+  if (streamMatch || prop.getDecorator('Stream')) {
     const payloadType = prop.getType().getTypeArguments()[0];
     const payloadZod = payloadType ? typeToZod(payloadType) : 'z.unknown()';
     return { kind: 'stream', payloadZod };

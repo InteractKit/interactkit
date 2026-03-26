@@ -1,6 +1,7 @@
 import type { BaseEntity } from '../entity/types.js';
 import type { DatabaseAdapter } from '../database/adapter.js';
 import type { EventEnvelope } from './types.js';
+import { CURRENT_ENVELOPE } from '../entity/context.js';
 
 interface EntityEntry {
   instance: BaseEntity;
@@ -34,6 +35,15 @@ export class EventDispatcher {
   }
 
   /**
+   * Add a method to an already-registered entity (used by MCP to add discovered tools at boot).
+   */
+  addMethod(entityId: string, methodKey: string, method: Function): void {
+    const entry = this.entities.get(entityId);
+    if (!entry) throw new Error(`Cannot add method: entity not found: ${entityId}`);
+    entry.methods.set(methodKey, method);
+  }
+
+  /**
    * Dispatch an event envelope to the target entity's method.
    */
   async dispatch(envelope: EventEnvelope): Promise<unknown> {
@@ -57,6 +67,11 @@ export class EventDispatcher {
         }
         payload = parsed.data;
       }
+    }
+
+    // Attach envelope to input so EntityContext can read it
+    if (payload && typeof payload === 'object') {
+      (payload as any)[CURRENT_ENVELOPE] = envelope;
     }
 
     // Call the method

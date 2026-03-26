@@ -1,102 +1,165 @@
 # Entities
 
-## @Entity decorator
+An entity is a class that does one thing. A Browser browses. A Memory stores things. A Mailer sends emails.
 
-Every entity class needs `@Entity` and must extend `BaseEntity`:
+Each entity has:
+- **State:** data that gets saved automatically
+- **Tools:** methods that other entities (or an LLM) can call
+- **Children:** other entities it contains
+- **Hooks:** reactions to events, timers, or startup
+
+## Defining an Entity
 
 ```typescript
-@Entity({ type: 'person', persona: true })
-class Person extends BaseEntity {
-  name = 'Alice';
+@Entity()
+class Browser extends BaseEntity {
+  @State({ description: 'Search history' })
+  private history: string[] = [];
+
+  @Tool({ description: 'Search the web' })
+  async search(input: { query: string }): Promise<string[]> {
+    this.history.push(input.query);
+    return await doSearch(input.query);
+  }
 }
 ```
 
-| Option | Type | Description |
-|--------|------|-------------|
-| `type` | `string` | **Required.** Unique entity type name. |
-| `persona` | `boolean` | Marks entity as a persona (used by dashboard). |
-| `database` | `constructor` | DatabaseAdapter override. Sub-entities inherit. |
-| `pubsub` | `constructor` | PubSubAdapter override. Sub-entities inherit. |
-| `logger` | `constructor` | LogAdapter override. Sub-entities inherit. |
+Options you can pass to `@Entity()`:
 
-## Property classification
+| Option | What it does |
+|--------|-------------|
+| `description` | Human-readable description |
+| `database` | Database adapter (children inherit it) |
+| `pubsub` | Pub/sub adapter (children inherit it) |
+| `logger` | Log adapter (children inherit it) |
 
-The SDK infers the role of each property from its type — no extra decorators needed:
+---
 
-| Property type | Role | Example |
-|---------------|------|---------|
-| Primitive (`string`, `number`, `boolean`, etc.) | **State** — persisted, editable | `name = 'Alice'` |
-| Entity class | **Component** — child entity, proxied via event bus | `brain: Brain` |
-| `EntityRef<T>` | **Ref** — cross-reference to a sibling entity | `phone: EntityRef<Phone>` |
-| `EntityStream<T>` | **Stream** — typed data flow from child to parent | `output: EntityStream<string>` |
+## State (`@State`)
 
-## Components
-
-Mark child entity properties with `@Component()`. The SDK instantiates the child and creates a proxy:
+Any property with `@State()` gets saved to the database automatically.
 
 ```typescript
-@Entity({ type: 'brain' })
+@State({ description: 'Bot name' })
+private name = 'Atlas';
+
+@State({ description: 'Message count' })
+private messageCount = 0;
+```
+
+### Editable in a UI (`@Configurable`)
+
+```typescript
+@State({ description: 'Bot name' })
+@Configurable({ label: 'Bot Name', group: 'General' })
+private name = 'Atlas';
+```
+
+### Secrets (`@Secret`)
+
+Masked in UIs and logs:
+
+```typescript
+@State({ description: 'API key' })
+@Secret()
+private apiKey!: string;
+```
+
+### Validation
+
+Use standard `class-validator` decorators:
+
+```typescript
+@State({ description: 'Username' })
+@MinLength(3) @MaxLength(50)
+private username!: string;
+```
+
+---
+
+## Tools (`@Tool`)
+
+Tools are the entity's public API. Every public method needs `@Tool`:
+
+```typescript
+@Tool({ description: 'Send an email' })
+async send(input: { to: string; body: string }): Promise<string> {
+  return 'Sent!';
+}
+```
+
+The description tells other entities (and LLMs) what the tool does. If you forget `@Tool` on a public method, the build fails.
+
+---
+
+## Components (`@Component`): Children
+
+An entity can contain other entities as children:
+
+```typescript
+@Entity()
+class Agent extends BaseEntity {
+  @Component() private brain!: Brain;
+  @Component() private memory!: Memory;
+  @Component() private browser!: Browser;
+}
+```
+
+Call child methods normally. InteractKit routes them through an event bus behind the scenes:
+
+```typescript
+const results = await this.browser.search({ query: 'restaurants' });
+```
+
+---
+
+## Refs (`@Ref`): Sibling References
+
+Sometimes a child needs to talk to a sibling. Use `@Ref()`:
+
+```typescript
+@Entity()
+class Agent extends BaseEntity {
+  @Component() private brain!: Brain;
+  @Component() private memory!: Memory;
+}
+
+@Entity()
 class Brain extends BaseEntity {
-  async think(input: { query: string }): Promise<string> {
-    return `Answer to: ${input.query}`;
-  }
-}
+  @Ref() private memory!: Memory;  // points to sibling
 
-@Entity({ type: 'person' })
-class Person extends BaseEntity {
-  @Component() brain!: Brain;  // child component
-
-  async ask(input: { question: string }) {
-    return this.brain.think({ query: input.question });
-    // Transparently routed through the event bus
+  @Tool({ description: 'Remember something' })
+  async remember(input: { text: string }) {
+    await this.memory.store({ text: input.text });
   }
 }
 ```
 
-## @Ref — sibling references
+The build verifies the ref target exists as a sibling.
 
-`@Ref()` lets a child entity reference a sibling. The parent wires it automatically:
+---
 
-```typescript
-@Entity({ type: 'person' })
-class Person extends BaseEntity {
-  @Component() brain!: Brain;
-  @Component() phone!: Phone;
-}
+## Streams (`EntityStream`): Child-to-Parent Data
 
-@Entity({ type: 'brain' })
-class Brain extends BaseEntity {
-  @Ref() phone!: Phone;  // ref to sibling — codegen validates at build time
-
-  async handleCall() {
-    await this.phone.speak('Hello!');  // same proxy pattern as components
-  }
-}
-```
-
-Codegen validates that the ref target exists as a sibling in the same parent. If not, build fails.
-
-## EntityStream — child-to-parent data flow
-
-Streams let child entities push typed data upstream:
+Streams let a child push data up to its parent in real time:
 
 ```typescript
-@Entity({ type: 'sensor' })
+@Entity()
 class Sensor extends BaseEntity {
-  readings: EntityStream<number>;
+  private readings!: EntityStream<number>;
 
-  @Hook()
-  async onTick(input: TickInput<{ intervalMs: 1000 }>) {
+  @Hook(Tick.Runner({ intervalMs: 1000 }))
+  async onTick(input: Tick.Input) {
     this.readings.emit(Math.random() * 100);
   }
 }
 
-@Entity({ type: 'monitor' })
+@Entity()
 class Monitor extends BaseEntity {
-  sensor: Sensor;
+  @Component() private sensor!: Sensor;
 
-  @Hook()
-  async onInit(input: InitInput) {
+  @Hook(Init.Runner())
+  async onInit(input: Init.Input) {
     this.sensor.readings.on('data', (value) => {
       console.log('Reading:', value);
     });
@@ -104,67 +167,36 @@ class Monitor extends BaseEntity {
 }
 ```
 
-Stream lifecycle: `start()` → `data()` (multiple) → `end()`. Or use `emit()` for one-shot (start + data + end).
-
-## @Configurable — UI-editable state
-
-Mark properties as configurable for the dashboard:
-
-```typescript
-@Entity({ type: 'bot' })
-class Bot extends BaseEntity {
-  @Configurable({ label: 'Bot Name', group: 'General' })
-  name = 'DefaultBot';
-
-  @Configurable({ label: 'Response Delay (ms)', group: 'Tuning' })
-  delayMs = 1000;
-}
-```
-
-Codegen extracts these into `ConfigurableFields` in the generated registry.
-
-## @Secret — sensitive fields
-
-```typescript
-import { Secret } from '@interactkit/sdk';
-
-@Entity({ type: 'api-client' })
-class ApiClient extends BaseEntity {
-  @Secret()
-  apiKey: string;  // masked in UI and logs
-}
-```
-
-## Validation with class-validator
-
-Use standard class-validator decorators on state properties:
-
-```typescript
-import { MaxLength, MinLength, IsEmail, Min, Max } from 'class-validator';
-
-@Entity({ type: 'user' })
-class User extends BaseEntity {
-  @MinLength(3) @MaxLength(50)
-  username: string;
-
-  @IsEmail()
-  email: string;
-
-  @Min(0) @Max(100)
-  score: number;
-}
-```
-
-Codegen reads these to generate Zod validators in the registry.
+---
 
 ## Entity IDs
 
-IDs are auto-generated and scoped to the parent:
+Every entity gets an auto-generated ID scoped to its parent:
 
 ```
-person:a1b2c3
-person:a1b2c3/brain:d4e5f6
-person:a1b2c3/phone:g7h8i9
+agent:a1b2c3
+agent:a1b2c3/brain:d4e5f6
+agent:a1b2c3/memory:g7h8i9
 ```
 
-Access via `this.id` (readonly). You never set IDs manually.
+Access it with `this.id`. You never set IDs manually.
+
+---
+
+## All Properties Must Be Private
+
+The only public things on an entity are `@Tool` methods. State, components, refs, and streams are all `private`. This keeps entities cleanly separated. They only interact through tools.
+
+---
+
+## LLM Entities
+
+If an entity needs an LLM brain, extend `LLMEntity` instead of `BaseEntity`. This gives you a built-in `invoke()` method, conversation context, and automatic visibility of all refs and tools to the LLM. See [LLM Entities](./llm.md) for full details.
+
+---
+
+## What's Next?
+
+- [LLM Entities](./llm.md): give an entity an LLM brain
+- [Hooks](./hooks.md): make entities react to timers, schedules, and events
+- [Infrastructure](./infrastructure.md): database, pub/sub, and logging adapters

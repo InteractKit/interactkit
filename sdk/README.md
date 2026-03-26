@@ -3,23 +3,23 @@
 A framework for building persistent, event-driven entity systems. Write plain TypeScript classes — the SDK handles state persistence, inter-entity communication, lifecycle hooks, LLM integration, and horizontal scaling.
 
 ```typescript
-@LLMEntity()
-@Entity({ type: 'agent', database: PrismaDatabaseAdapter })
-class Agent extends BaseEntity {
-  @Component() brain!: Brain;
-  @Component() phone!: Phone;
+@Entity({ database: PrismaDatabaseAdapter })
+class Agent extends LLMEntity {
+  @Component() private brain!: Brain;
+  @Component() private phone!: Phone;
 
-  @Context() context = new LLMContext();
-  @Executor() llm = new ChatOpenAI({ model: 'gpt-4' });  // any LangChain BaseChatModel
+  @SystemPrompt()
+  private get systemPrompt() { return 'You are a helpful agent.'; }
 
-  @LLMTool({ description: 'Search memory for relevant info' })
+  @Executor() private llm = new ChatOpenAI({ model: 'gpt-4' });  // any LangChain BaseChatModel
+
+  @Tool({ description: 'Search memory for relevant info' })
   async search(input: { query: string }) { return this.brain.recall(input); }
-
-  @LLMExecutionTrigger()  // body replaced by LLM loop: message → tools → response
-  async chat(params: LLMExecutionTriggerParams): Promise<string> { return ''; }
 }
 
-const ctx = await boot(Agent);
+// interactkit build --root=src/agent:Agent
+// interactkit start
+// Call agent.invoke({ message: 'find something' }) to trigger the LLM loop
 ```
 
 ## What it does
@@ -27,7 +27,7 @@ const ctx = await boot(Agent);
 - **State persistence** — entity state auto-saved/loaded via database adapters
 - **Inter-entity communication** — call methods on child components like normal functions, routed transparently through an event bus
 - **Lifecycle hooks** — cron, timers, init, events — just decorated methods
-- **LLM-powered entities** — `@LLMEntity`, `@LLMTool`, `@LLMExecutionTrigger` with LangChain `bindTools`/`invoke` compatibility
+- **LLM-powered entities** — extend `LLMEntity`, add `@SystemPrompt`, `@Executor`, and `@Tool` with LangChain `bindTools`/`invoke` compatibility
 - **Validation** — use class-validator decorators, codegen generates Zod schemas
 - **Build-time checks** — codegen validates entity refs, LLM config, hook params, component wiring
 - **Runtime configuration** — `@Configurable` properties with enum, validation, description support
@@ -36,19 +36,23 @@ const ctx = await boot(Agent);
 - **Auto-configuration** — adapters read from `node-config` or env vars, no manual wiring
 - **Extensible** — external packages provide custom hook types, runners, and entities via standard imports
 
-## Install
+## Quick start
 
 ```bash
-pnpm add @interactkit/sdk
-pnpm add -D @interactkit/cli
+interactkit init my-agent
+cd my-agent && pnpm install
+interactkit build --root=src/entities/agent:Agent
+interactkit start
 ```
 
 ## CLI
 
 ```bash
-interactkit build    # codegen + tsc → .interactkit/build/ + deployment.json
-interactkit dev      # build + watch mode
-interactkit start    # run the built app
+interactkit init <name>                                        # scaffold a new project
+interactkit add <entity|llm|component> <Name>                  # generate entity file
+interactkit build --root=src/path:ExportName                   # codegen + tsc + boot
+interactkit dev --root=src/path:ExportName                     # build + watch mode
+interactkit start                                              # run the built app
 ```
 
 ## Configuration
@@ -126,22 +130,23 @@ Entities using `InProcessBusAdapter` or `EntityStream` are grouped (must share a
 
 ```typescript
 @Entity({ type, persona?, database?, pubsub?, logger? })  // class
-@Component()                                                // property — child entity
-@Ref()                                                      // property — sibling reference
-@Hook()                                                     // method
+@State({ description })                                     // property — state (must be private)
+@Component()                                                // property — child entity (must be private)
+@Ref()                                                      // property — sibling reference (must be private)
+@Tool({ description })                                      // method — public API (required on all public methods)
+@Hook(Runner)                                               // method — runner determines when it fires
 @Configurable({ label, group?, enum?, validation?, ... })   // property
 @Secret()                                                   // property
 ```
 
 ### LLM decorators
 
+Used on classes extending `LLMEntity` (which extends `BaseEntity`):
+
 ```typescript
-@LLMEntity()                                    // class — marks as LLM-powered
-@Context()                                      // property — LLMContext instance
+@SystemPrompt()                                 // property/getter — system prompt (evaluated before each invocation)
 @Executor()                                     // property — LangChain BaseChatModel (bindTools/invoke)
-@LLMTool({ description, name? })                // method — exposed as LLM tool
-@LLMExecutionTrigger()                          // method — body replaced with LLM execution loop
-@LLMVisible()                                   // property — visible to LLM as context
+@Tool({ description })                          // method — LLM-callable tool (same decorator as structural)
 ```
 
 ### Property types
@@ -152,18 +157,15 @@ Entities using `InProcessBusAdapter` or `EntityStream` are grouped (must share a
 | Entity class (`@Component`) | Component (child, proxied via event bus) |
 | Entity class (`@Ref`) | Sibling reference (proxied via event bus) |
 | `EntityStream<T>` | Child-to-parent data stream |
-| `LLMContext` (`@Context`) | LLM conversation state |
 
-### Hook types
+### Hook namespaces
 
-| Type | Trigger |
-|------|---------|
-| `InitInput` | Once on boot |
-| `TickInput<{ intervalMs }>` | Fixed interval |
-| `CronInput<{ expression }>` | Cron schedule |
-| `EventInput<T>` | Named events |
-| `WebSocketInput<{ port }>` | WebSocket connections (extension) |
-| `HttpInput<{ port, path }>` | HTTP requests (extension) |
+| Namespace | Runner config | Trigger |
+|-----------|--------------|---------|
+| `Init` | `Init.Runner()` | Once on boot |
+| `Tick` | `Tick.Runner({ intervalMs })` | Fixed interval |
+| `Cron` | `Cron.Runner({ expression })` | Cron schedule |
+| `Event` | `Event.Runner()` | Named events |
 
 ### Adapters
 
@@ -177,10 +179,13 @@ Entities using `InProcessBusAdapter` or `EntityStream` are grouped (must share a
 ### Build-time validation
 
 The codegen catches at build time:
+- State property missing `@State` or not `private`
+- Stream property not `private`
+- Component/ref property not `private`
+- Public async method missing `@Tool`
 - Unknown component entity types
 - `@Ref` targets not reachable as siblings
 - `@Hook` methods without typed parameters
-- `@LLMEntity` missing `@Executor` or `@Context`
-- `@LLMExecutionTrigger` without tools
-- `@LLMTool` without description or not public async
-- Orphaned LLM decorators without `@LLMEntity`
+- `LLMEntity` subclass missing `@Executor`
+- `@Tool` without description or not public async
+- Orphaned LLM decorators without `extends LLMEntity`

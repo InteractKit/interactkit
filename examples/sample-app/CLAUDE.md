@@ -1,149 +1,71 @@
-# @affiliate-agent/app
+# @interactkit/sample-app
 
-World definition package — defines all entities, strategies, and scouts. Uses SDK decorators + types. Contains zero runtime logic.
+Sample app demonstrating all core InteractKit features. Five entities forming a simple agent with LLM-powered decision making.
 
-## What this package provides
+## Entity tree
 
-All entity definitions for the affiliate agent system. Entities are plain TypeScript classes that extend `BaseEntity`, use SDK wrapper types, and declare typed methods. The SDK codegen reads these to generate the runtime registry.
+```
+Agent (root, extends BaseEntity)
+  ├── Brain  (extends LLMEntity — @SystemPrompt, @Executor, @Ref → Mouth, @Ref → Memory)
+  ├── Mouth  (extends BaseEntity — @Stream transcript)
+  ├── Memory (extends BaseEntity — @Configurable capacity)
+  └── Sensor (extends BaseEntity — @Stream readings)
+```
 
 ## Entities
 
-### Channel entities (interact with external platforms)
+### Agent (`src/entities/agent.ts`)
 
-**RedditEntity** (`entities/reddit/entity.ts`)
-- Type: `reddit_account`
-- State: `session: Secret<string>`, `rateLimits: Record<string, number>`
-- Components: `humanizer: HumanizerEntity`, `affiliate: AffiliateEntity`
-- Methods: `discover(input)`, `postComment(input)`, `search(input)`
-- Streams: `sessionHealth: EntityStream<...>`, `rateLimited: EntityStream<...>`
-- Hooks: `@Hook() onSessionRefresh(CronInput<{ expression: '0 */6 * * *' }>)`
-- Client: `client.ts` — HTTP client for Reddit API (reuse from `src/platforms/reddit/client.ts`)
+Root entity. Owns all four children as `@Component`. Subscribes to child streams (`mouth.transcript`, `sensor.readings`) in `@Hook(Init.Runner())`. Delegates LLM chat to `brain.invoke()`.
 
-**TwitterEntity** (`entities/twitter/entity.ts`)
-- Type: `twitter_account`
-- Methods: `search(input)`, `post(input)`
-- Client: `client.ts` (reuse from `src/platforms/twitter/client.ts`)
+- State: `name` (configurable, validated `@MinLength(2) @MaxLength(50)`), `transcripts`, `sensorReadings`
+- Tools: `ask`, `readSensor`, `getTranscripts`, `introduce`, `reflect`, `getSpeechHistory`, `searchMemory`, `getMemoryCount`, `chat`
 
-**QuoraEntity** (`entities/quora/entity.ts`)
-- Type: `quora_account`
-- Methods: `search(input)`, `answer(input)`
-- Client: `client.ts` (reuse from `src/platforms/quora/client.ts`)
+### Brain (`src/entities/brain.ts`)
 
-### Processing entities (embedded as components)
+LLM entity (extends `LLMEntity`). Uses `@SystemPrompt()` on a getter that interpolates `personality` state. `@Executor()` points to `ChatAnthropic`. References `Mouth` and `Memory` as `@Ref` siblings -- their tools are automatically visible to the LLM.
 
-**HumanizerEntity** (`entities/humanizer.entity.ts`)
-- Type: `humanizer`
-- State: `writingStyle: WritingStyle` (slang, formality, typoRate, maxLength, trailOff, quirks, vocabulary)
-- Methods: `humanize({ text: string }): { text: string }`
-- Applies vocab swaps, slang injection, typos, trailing off, truncation
+- State: `personality` (configurable)
+- Decorators: `@SystemPrompt()` (getter), `@Executor()` (ChatAnthropic)
+- Refs: `mouth` (Mouth), `memory` (Memory)
+- Tools: `think` (stores thought in memory), `thinkAndSpeak` (thinks + speaks via mouth), `reflect` (returns all memories)
+- Inherited from LLMEntity: `invoke()`, `context`, `response` stream, `toolCall` stream
 
-**AffiliateEntity** (`entities/affiliate.entity.ts`)
-- Type: `affiliate`
-- State: `domain: Pattern<string, ...>`, `tag: MinLength<string, 1>`
-- Methods: `processLinks({ text: string }): { text: string }`
-- Scans text for URLs matching domain, injects affiliate tag param
+### Mouth (`src/entities/mouth.ts`)
 
-### Core entities
+Speech output entity. Emits spoken messages on the `transcript` stream. Maintains a `history` array of all spoken messages.
 
-**WorldEntity** (`entities/world.entity.ts`)
-- Type: `world`
-- Root of entity tree. Components: Reddit, Twitter, Quora, affiliates, personas.
-- State: season, trending topics, market events
+- State: `history`
+- Streams: `transcript: EntityStream<string>`
+- Tools: `speak`, `getHistory`
 
-**PersonaEntity** (`entities/persona.entity.ts`)
-- Type: `persona`, `persona: true`
-- State: `name`, `age`, `writingStyle`, etc.
-- Components: channel entities (Reddit/Twitter/Quora with humanizer+affiliate inside), `memory: MemoryStoreEntity`, `strategies: StrategyEntity`
-- Methods: `recommend(input)`
-- Hooks: `onTick(TickInput)`, `onContentDiscovered(EventInput<...>)`, `onMemoryDecay(CronInput<...>)`, `onInit(InitInput)`
+### Memory (`src/entities/memory.ts`)
 
-**MemoryStoreEntity** (`entities/memory-store.entity.ts`)
-- Type: `memory_store`
-- Methods: `record(input)`, `query(input)`, `decay(input)`
+Storage entity with configurable capacity and FIFO eviction. Stores string entries, supports keyword search.
 
-**CredentialEntity** (`entities/credential.entity.ts`)
-- Type: `credential`
-- State: `sessionCookie: Secret<string>`, `rateLimit: number`
+- State: `capacity` (configurable, validated `@Min(1) @Max(1000)`), `entries`
+- Tools: `store`, `search`, `getAll`, `count`
 
-**CommunityEntity** (`entities/community.entity.ts`)
-- Type: `community`
-- State: tone, formatting, context, recentPosts
+### Sensor (`src/entities/sensor.ts`)
 
-**ProductEntity** (`entities/product.entity.ts`)
-- Type: `product`
-- State: price, reviews, sentiment
+Simulated environmental sensor. Emits random readings on the `readings` stream and tracks total count.
 
-## Strategies (`strategies/`)
+- State: `label` (configurable), `readingCount`
+- Streams: `readings: EntityStream<number>`
+- Tools: `read`, `getReadingCount`
 
-Per-persona strategy implementations. Each evaluates content and returns a decision.
+## Key patterns demonstrated
 
-- `reactive/` — default, responds to product questions
-- `comparison/` — comparison/versus posts
-- `deal-hunter/` — price/deal posts
-- `seasonal/` — seasonal/holiday content
-- `follow-up/` — revisit old threads
+- **LLMEntity base class**: Brain extends `LLMEntity` instead of `BaseEntity`, getting `invoke()`, built-in context, and `response`/`toolCall` streams for free.
+- **@SystemPrompt() getter**: Dynamic system prompt that reads entity state (`this.personality`).
+- **@Ref sibling calls**: Brain calls `this.mouth.speak()` and `this.memory.store()` directly.
+- **@Stream + parent subscription**: Agent subscribes to `mouth.transcript` and `sensor.readings` in Init hook.
+- **@Configurable + class-validator**: UI-editable fields with standard validation decorators.
 
-## Scouts (`scouts/`)
+## Run
 
-Query generation strategies for scouter-role personas.
-
-- `trends.ts` — trending topics
-- `llmBrainstorm.ts` — LLM-generated queries
-- `seasonal.ts` — calendar-based
-- `dorks.ts` — search operators
-- `competitor.ts` — competitor sites
-- `nicheCommunity.ts` — niche community queries
-
-## Key design rules
-
-- **No Zod, no runtime logic** — just class definitions with SDK types
-- **No decorators on properties** — codegen infers state/component/stream from types
-- **Only `@Entity`, `@Hook`, `@Configurable`** decorators used
-- Methods that call components do so directly: `this.humanizer.humanize(...)` — codegen compiles to event bus
-- Each channel entity embeds its own humanizer + affiliate as components
-- Personas embed channel entities → call `this.reddit.postComment()` which internally runs the full processing chain
-
-## File structure
-
+```bash
+pnpm dev    # builds + runs (interactkit dev)
+pnpm build  # build only (interactkit build)
+pnpm start  # run built app (interactkit start)
 ```
-src/
-  entities/
-    reddit/
-      entity.ts
-      client.ts          # reuse from src/platforms/reddit/client.ts
-    twitter/
-      entity.ts
-      client.ts
-    quora/
-      entity.ts
-      client.ts
-    world.entity.ts
-    persona.entity.ts
-    humanizer.entity.ts
-    affiliate.entity.ts
-    community.entity.ts
-    product.entity.ts
-    memory-store.entity.ts
-    credential.entity.ts
-  strategies/
-    reactive/
-    comparison/
-    deal-hunter/
-    seasonal/
-    follow-up/
-  scouts/
-    trends.ts
-    llmBrainstorm.ts
-    seasonal.ts
-    dorks.ts
-    competitor.ts
-    nicheCommunity.ts
-  __generated__/         # gitignored — created by SDK codegen
-    type-registry.ts
-    index.ts
-  index.ts               # barrel export of all entities + strategies
-```
-
-## Dependencies
-
-- `@affiliate-agent/sdk` — decorators, base classes, types

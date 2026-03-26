@@ -1,29 +1,32 @@
 // Decorators
-export { Entity, Hook, Configurable, Component, Ref, getEntityMeta, getHookMeta, getConfigurableMeta, getRefMeta } from './entity/decorators.js';
-export type { ConfigurableOptions } from './entity/decorators.js';
+export { Entity, Hook, Configurable, State, Component, Ref, Stream, getEntityMeta, getHookMeta, getConfigurableMeta, getStateMeta, getRefMeta, getStreamMeta } from './entity/decorators.js';
+export type { ConfigurableOptions, StateOptions, EntityMeta, HookMetaEntry } from './entity/decorators.js';
 
 // Validation — @Secret is ours, everything else from class-validator
 export { Secret, getSecretMeta } from './entity/validators.js';
 
+// Entity context (runtime metadata access)
+export { EntityContextManager } from './entity/context.js';
+export type { CallerInfo } from './entity/context.js';
+
 // Base types
 export { BaseEntity } from './entity/types.js';
-export type { EntityOptions, EntityInstance, StateStore } from './entity/types.js';
+export { LLMEntity } from './llm/base.js';
+export type { EntityOptions, EntityConstructor, EntityClass, EntityInstance, StateStore } from './entity/types.js';
 export type { EntityRef } from './entity/types.js';
 
 // Stream
 export type { EntityStream } from './entity/stream.js';
 export { EntityStreamImpl } from './entity/stream.js';
 
-// Hook input types
-export type { CronInput, EventInput, InitInput, TickInput, WebSocketInput, HttpInput } from './hooks/types.js';
+// Hook namespaces (each contains .Input + .Runner(config))
+export { Init } from './hooks/init.js';
+export { Tick } from './hooks/tick.js';
+export { Cron } from './hooks/cron.js';
+export { Event } from './hooks/event.js';
 
-// Hook runner interface + built-in runners
-export type { HookRunner } from './hooks/runner.js';
-export { InitRunner } from './hooks/runners/init.js';
-export { TickRunner } from './hooks/runners/tick.js';
-export { CronRunner } from './hooks/runners/cron.js';
-export { EventRunner } from './hooks/runners/event.js';
-// WebSocketRunner, HttpRunner — provided by extension packages (e.g. @interactkit/http, @interactkit/ws)
+// Hook runner interface (for extension packages to implement custom hooks)
+export type { HookRunner, HookHandler } from './hooks/runner.js';
 
 // Adapter interfaces
 export type { PubSubAdapter } from './pubsub/adapter.js';
@@ -35,6 +38,7 @@ export { InProcessBusAdapter } from './pubsub/in-process.js';
 export { RedisPubSubAdapter } from './pubsub/redis.js';
 export { PrismaDatabaseAdapter } from './database/prisma.js';
 export { ConsoleLogAdapter } from './logger/console.js';
+export { DevLogAdapter } from './logger/dev.js';
 
 // Event types
 export type { EventEnvelope } from './events/types.js';
@@ -49,11 +53,15 @@ export type { BootOptions, RuntimeContext } from './entity/runtime.js';
 
 // LLM
 export {
-  LLMEntity, Context, Executor, LLMTool, LLMVisible, LLMExecutionTrigger,
-  getLLMEntityMeta, getLLMContextProp, getLLMExecutorProp, getLLMTools, getLLMVisible, getLLMTriggers,
-  LLMContext,
+  Context, Executor, Tool, SystemPrompt, LLMExecutionTrigger,
+  getLLMEntityMeta, getLLMContextProp, getLLMExecutorProp, getLLMSystemPromptProp, getLLMTools, getLLMTriggers,
+  setLLMTools, LLMContext, ConversationContext,
 } from './llm/index.js';
-export type { LLMEntityOptions, LLMToolOptions, LLMMessage, LLMExecutionTriggerParams } from './llm/index.js';
+export type { LLMEntityOptions, ToolOptions, LLMMessage, LLMContextOptions, LLMExecutionTriggerParams, ToolCallEvent } from './llm/index.js';
+
+// MCP
+export { MCP, getMCPMeta, MCPClientWrapper } from './mcp/index.js';
+export type { MCPOptions, MCPTransportConfig, MCPStdioTransport, MCPHttpTransport, MCPSseTransport, MCPToolInfo } from './mcp/index.js';
 
 // Registry singleton
 export { setRegistry, getRegistry } from './registry.js';

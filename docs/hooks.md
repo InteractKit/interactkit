@@ -1,115 +1,87 @@
 # Hooks
 
-Hooks are methods decorated with `@Hook()`. The hook type is inferred from the parameter type.
+Hooks let entities react to things: startup, timers, schedules, and events.
 
-## Built-in hook types
+Add `@Hook(Runner)` to a method. The runner tells InteractKit *when* to call it. Config goes in `Runner(config)`.
 
-### InitInput — runs once on boot
+## Init: Run on Startup
 
 ```typescript
-@Hook()
-async onInit(input: InitInput) {
-  console.log(`Entity ${input.entityId} booted`);
-  if (input.firstBoot) {
-    // No saved state — set up defaults
-  }
+@Hook(Init.Runner())
+async onInit(input: Init.Input) {
+  console.log(`Ready! First boot: ${input.firstBoot}`);
 }
 ```
 
-### TickInput — runs at a fixed interval
+Runs once when the entity starts. `firstBoot` tells you if this is a fresh start or a restart with saved state.
+
+## Tick: Run on an Interval
 
 ```typescript
-@Hook()
-async onTick(input: TickInput<{ intervalMs: 5000 }>) {
-  console.log(`Tick #${input.tick}, elapsed: ${input.elapsed}ms`);
+@Hook(Tick.Runner({ intervalMs: 5000 }))
+async onTick(input: Tick.Input) {
+  console.log(`Tick #${input.tick}`);
 }
 ```
 
-Config is encoded in the generic param. Default interval is 60s.
+Runs every 5 seconds. Default is 60 seconds if you don't specify.
 
-### CronInput — runs on a cron schedule
+## Cron: Run on a Schedule
 
 ```typescript
-@Hook()
-async onSchedule(input: CronInput<{ expression: '0 * * * *' }>) {
-  console.log(`Last run: ${input.lastRun}`);
+@Hook(Cron.Runner({ expression: '0 * * * *' }))
+async onSchedule(input: Cron.Input) {
+  console.log('Runs every hour');
 }
 ```
 
-### EventInput — reacts to named events
+Standard 5-field cron: `minute hour day month weekday`.
+
+## Event: React to Events
 
 ```typescript
-@Hook()
-async onEvent(input: EventInput<{ action: string }>) {
-  console.log(`Event: ${input.eventName} from ${input.source}`, input.payload);
+@Hook(Event.Runner())
+async onEvent(input: Event.Input<{ action: string }>) {
+  console.log(`Got event: ${input.eventName}`, input.payload);
 }
 ```
 
-### WebSocketInput / HttpInput — external ingress
+Fires when another entity publishes an event to the bus.
 
-These hook types are defined in the SDK but their **runners** are provided by extension packages:
+## Multiple Hooks
 
-```typescript
-// Requires @interactkit/ws extension
-@Hook()
-async onConnection(input: WebSocketInput<{ port: 8080 }>) {
-  console.log(`WS data from ${input.connectionId}:`, input.data);
-}
-
-// Requires @interactkit/http extension
-@Hook()
-async onWebhook(input: HttpInput<{ port: 3000, path: '/webhook', method: 'POST' }>) {
-  console.log('Webhook body:', input.body);
-}
-```
-
-## Built-in runners
-
-The SDK ships runners for core hook types:
-
-| Hook type | Runner | Behavior |
-|-----------|--------|----------|
-| `InitInput` | `InitRunner` | Fires once during boot |
-| `TickInput` | `TickRunner` | `setInterval` at configured `intervalMs` |
-| `CronInput` | `CronRunner` | Polls every 60s, matches 5-field cron expressions |
-| `EventInput` | `EventRunner` | Receives events from the bus |
-
-## How hooks work at runtime
-
-1. `boot()` reads `@Hook()` metadata from each entity class
-2. For each hook, the runtime determines the hook type from the parameter
-3. The matching `HookRunner<T>` is started with the config from the generic param
-4. When the runner calls `emit(data)`, the runtime invokes the entity's hook method
-
-## Multiple hooks per entity
-
-An entity can have multiple hooks of different (or the same) types:
+One entity can have as many hooks as it needs:
 
 ```typescript
-@Entity({ type: 'worker' })
+@Entity()
 class Worker extends BaseEntity {
-  @Hook()
-  async onInit(input: InitInput) { /* ... */ }
+  @Hook(Init.Runner())
+  async onInit(input: Init.Input) { /* setup */ }
 
-  @Hook()
-  async onTick(input: TickInput<{ intervalMs: 10000 }>) { /* ... */ }
+  @Hook(Tick.Runner({ intervalMs: 10000 }))
+  async onTick(input: Tick.Input) { /* periodic work */ }
 
-  @Hook()
-  async onSchedule(input: CronInput<{ expression: '0 9 * * 1' }>) { /* ... */ }
+  @Hook(Cron.Runner({ expression: '0 9 * * 1' }))
+  async onSchedule(input: Cron.Input) { /* every Monday 9am */ }
 }
 ```
 
-## Error handling
+## Custom Hooks (Extensions)
 
-Hooks follow the same error propagation as methods — use standard try/catch:
+Extension packages export their own `Runner` + `Input` under a namespace. Use them the same way:
 
 ```typescript
-@Hook()
-async onTick(input: TickInput<{ intervalMs: 5000 }>) {
-  try {
-    await this.brain.think({ query: 'next action' });
-  } catch (err) {
-    console.error('Brain failed:', err);
-  }
+import { Sms } from '@interactkit/twilio';
+
+@Hook(Sms.Runner({ phoneNumber: '+1234567890' }))
+async onSms(input: Sms.Input) {
+  console.log(`SMS from ${input.from}: ${input.body}`);
 }
 ```
+
+---
+
+## What's Next?
+
+- [Extensions](./extensions.md): build custom hook types as packages
+- [Infrastructure](./infrastructure.md): database, pub/sub, and logging

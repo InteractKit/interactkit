@@ -4,15 +4,16 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "interactkit build",
-    "dev": "interactkit dev",
+    "build": "interactkit build --root src/entities/agent:Agent",
+    "dev": "interactkit dev --root src/entities/agent:Agent",
     "start": "interactkit start"
   },
   "dependencies": {
     "@interactkit/sdk": "workspace:*",
+    "@langchain/anthropic": "^1.3.25",
+    "@langchain/core": "^1.1.36",
     "class-validator": "^0.14.1",
-    "reflect-metadata": "^0.2.2",
-    "zod": "^3.23.0"
+    "reflect-metadata": "^0.2.2"
   },
   "devDependencies": {
     "@interactkit/cli": "workspace:*",

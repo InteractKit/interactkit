@@ -1,0 +1,22 @@
+{
+  "name": "Blank",
+  "label": "Blank          just a root entity",
+  "description": "An empty InteractKit project.",
+  "readme": "# {{name}}\n\n{{description}}\n\n## Run\n\n```bash\n{{setup}}\npnpm dev\n```\n",
+  "root": { "file": "agent", "class": "Agent" },
+  "entities": [
+    {
+      "file": "agent",
+      "class": "Agent",
+      "extends": "BaseEntity",
+      "description": "Root entity",
+      "hooks": [{ "type": "Init", "body": "console.log(`[agent] booted (${this.id})`);" }],
+      "tools": [
+        { "name": "hello", "description": "Hello world", "input": null, "returns": "Promise<string>", "body": "return 'Hello from InteractKit!';" }
+      ]
+    }
+  ],
+  "tree": [
+    "Agent (root)"
+  ]
+}

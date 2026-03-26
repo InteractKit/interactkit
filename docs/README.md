@@ -1,12 +1,18 @@
-# InteractKit Documentation
+# InteractKit Docs
 
-| Guide | Description |
-|-------|-------------|
-| [Getting Started](getting-started.md) | First entity, boot, composition, config |
-| [Entities](entities.md) | Decorators, components, refs, streams, validation |
-| [Hooks](hooks.md) | Init, tick, cron, event hooks and custom hook types |
-| [LLM Entities](llm.md) | AI-powered entities with LangChain |
-| [Infrastructure](infrastructure.md) | Adapters, config, per-entity overrides |
-| [Deployment](deployment.md) | Deployment planning, scaling |
-| [Codegen](codegen.md) | CLI, registry, build-time validation |
-| [Extensions](extensions.md) | Custom hook types, runners, extension packages |
+Each entity does one thing. The LLM decides what to use and when.
+
+**Recommended order:** Start with [Why InteractKit](why.md), then [Getting Started](getting-started.md), then explore from there.
+
+| Guide | What you'll learn |
+|-------|-------------------|
+| [Why InteractKit](why.md) | The ideas, the composition pattern, what it unlocks |
+| [Getting Started](getting-started.md) | Build your first agent in 5 minutes |
+| [Entities](entities.md) | The building blocks: one class, one job |
+| [LLM Entities](llm.md) | Giving entities an LLM brain + MCP integration |
+| [Hooks](hooks.md) | Timers, schedules, events |
+| [Infrastructure](infrastructure.md) | Database, pub/sub, logging |
+| [Deployment](deployment.md) | Scaling your agents |
+| [Testing](testing.md) | bootTest, mockLLM, mockEntity |
+| [Codegen](codegen.md) | What the build generates |
+| [Extensions](extensions.md) | Custom integrations |

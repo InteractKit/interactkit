@@ -5,19 +5,20 @@ Demo app testing all InteractKit features with 21 passing tests.
 ## Entity tree
 
 ```
-Agent (root, @LLMEntity)
-  ├── Brain  (@LLMEntity, @Ref → Mouth, @Ref → Memory)
-  ├── Mouth  (EntityStream<string> for transcripts)
+Agent (root)
+  ├── Brain  (extends LLMEntity, @SystemPrompt, @Executor, @Ref → Mouth, @Ref → Memory)
+  ├── Mouth  (@Stream transcript: EntityStream<string>)
   ├── Memory (@Configurable capacity, store/search/count)
-  └── Sensor (EntityStream<number> for readings)
+  └── Sensor (@Stream readings: EntityStream<number>)
 ```
 
 ## Features tested
 
 - Entity tree structure (5 entities, scoped IDs)
 - Direct method calls on root
-- Parent → child calls via `@Component` proxy
-- Sibling calls via `@Ref` (Brain → Mouth, Brain → Memory)
+- Parent -> child calls via `@Component` proxy
+- Sibling calls via `@Ref` (Brain -> Mouth, Brain -> Memory)
+- `@Stream()` decorator with parent subscription via component proxy
 - EntityStream reusable `emit()`
 - `@Configurable` properties
 - `@Secret` fields
@@ -25,19 +26,17 @@ Agent (root, @LLMEntity)
 - Multiple sequential calls with state accumulation
 - Memory search across stored entries
 - Error propagation from child entities
-- `@LLMExecutionTrigger` with MockLLM
-- LLM tool calling loop (tool call → execute → feed back → response)
+- `LLMEntity` base class with `invoke()` and `ChatAnthropic` (LangChain)
+- LLM tool calling loop (tool call -> execute -> feed back -> response)
+- Built-in `response` and `toolCall` streams on LLMEntity
 
 ## Run
 
 ```bash
 # From monorepo root:
 pnpm install
-pnpm --filter @interactkit/sdk build
-pnpm --filter @interactkit/cli build
 cd examples/sample-app
-pnpm build
-pnpm start
+pnpm dev    # builds + runs
 ```
 
 ## Expected output

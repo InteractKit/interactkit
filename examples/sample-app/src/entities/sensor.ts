@@ -1,20 +1,23 @@
-import { Entity, BaseEntity, Hook, Configurable } from '@interactkit/sdk';
-import type { EntityStream, InitInput } from '@interactkit/sdk';
-import { Min } from 'class-validator';
+import { Entity, BaseEntity, Hook, Init, Configurable, State, Tool, Stream } from "@interactkit/sdk";
+import type { EntityStream } from "@interactkit/sdk";
 
-@Entity({ type: 'sensor' })
+@Entity({ description: 'Environmental data collection via tick hooks' })
 export class Sensor extends BaseEntity {
-  @Configurable({ label: 'Sensor Label', group: 'Config' })
-  label = 'temperature';
+  @State({ description: 'Human-readable sensor label' })
+  @Configurable({ label: "Sensor Label", group: "Config" })
+  private label = "temperature";
 
-  readings!: EntityStream<number>;
-  readingCount = 0;
+  @Stream() readings!: EntityStream<number>;
 
-  @Hook()
-  async onInit(input: InitInput) {
+  @State({ description: 'Total number of readings taken' })
+  private readingCount = 0;
+
+  @Hook(Init.Runner())
+  async onInit(input: Init.Input) {
     console.log(`    [sensor] "${this.label}" online`);
   }
 
+  @Tool({ description: 'Take a sensor reading' })
   async read(): Promise<number> {
     const value = Math.round(Math.random() * 100);
     this.readingCount++;
@@ -24,6 +27,7 @@ export class Sensor extends BaseEntity {
     return value;
   }
 
+  @Tool({ description: 'Get total number of readings taken' })
   async getReadingCount(): Promise<number> {
     return this.readingCount;
   }

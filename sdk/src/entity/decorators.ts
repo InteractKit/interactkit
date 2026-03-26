@@ -1,25 +1,46 @@
 import 'reflect-metadata';
 import type { EntityOptions } from './types.js';
+import type { HookRunner, HookHandler } from '../hooks/runner.js';
 
 // ─── Metadata Keys ────────────────────────────────────────
 const ENTITY_META_KEY = Symbol('entity:meta');
 const HOOK_META_KEY = Symbol('entity:hooks');
 const CONFIGURABLE_META_KEY = Symbol('entity:configurable');
+const STATE_META_KEY = Symbol('entity:state');
 const REF_META_KEY = Symbol('entity:refs');
+const STREAM_META_KEY = Symbol('entity:streams');
+
+// ─── Internal metadata (EntityOptions + derived type) ─────
+export interface EntityMeta extends EntityOptions {
+  /** Derived from class name (PascalCase → kebab-case). e.g. TwilioPhone → twilio-phone */
+  type: string;
+}
+
+function toKebabCase(name: string): string {
+  return name.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
+}
 
 // ─── @Entity ──────────────────────────────────────────────
-export function Entity(options: EntityOptions): ClassDecorator {
+export function Entity(options: EntityOptions = {}): ClassDecorator {
   return function (target: Function) {
-    Reflect.defineMetadata(ENTITY_META_KEY, options, target);
+    const meta: EntityMeta = { ...options, type: toKebabCase(target.name) };
+    Reflect.defineMetadata(ENTITY_META_KEY, meta, target);
   };
 }
 
+
 // ─── @Hook ────────────────────────────────────────────────
-export function Hook(): MethodDecorator {
+export interface HookMetaEntry {
+  method: string;
+  runnerClass: new (...args: any[]) => HookRunner<any>;
+  config: Record<string, unknown>;
+}
+
+export function Hook(handler: HookHandler): MethodDecorator {
   return function (target: object, propertyKey: string | symbol, _descriptor: PropertyDescriptor) {
     const ctor = target.constructor;
-    const hooks: string[] = Reflect.getOwnMetadata(HOOK_META_KEY, ctor) ?? [];
-    hooks.push(String(propertyKey));
+    const hooks: HookMetaEntry[] = Reflect.getOwnMetadata(HOOK_META_KEY, ctor) ?? [];
+    hooks.push({ method: String(propertyKey), runnerClass: handler.runnerClass, config: handler.config });
     Reflect.defineMetadata(HOOK_META_KEY, hooks, ctor);
   };
 }
@@ -51,6 +72,22 @@ export function Configurable(options: ConfigurableOptions): PropertyDecorator {
   };
 }
 
+// ─── @State ──────────────────────────────────────────────
+export interface StateOptions {
+  /** Human-readable description of what this state property holds */
+  description: string;
+}
+
+export function State(options: StateOptions): PropertyDecorator {
+  return function (target: object, propertyKey: string | symbol) {
+    const ctor = target.constructor;
+    const fields: Map<string, StateOptions> =
+      Reflect.getOwnMetadata(STATE_META_KEY, ctor) ?? new Map();
+    fields.set(String(propertyKey), options);
+    Reflect.defineMetadata(STATE_META_KEY, fields, ctor);
+  };
+}
+
 // ─── @Component ───────────────────────────────────────────
 // Marks a property as a child entity component.
 // Triggers TypeScript's design:type metadata emission
@@ -58,6 +95,18 @@ export function Configurable(options: ConfigurableOptions): PropertyDecorator {
 export function Component(): PropertyDecorator {
   return function (_target: object, _propertyKey: string | symbol) {
     // no-op — metadata emission is the side effect
+  };
+}
+
+// ─── @Stream ─────────────────────────────────────────────
+// Marks a property as an EntityStream. Streams are always public —
+// the parent entity can subscribe to them after boot.
+export function Stream(): PropertyDecorator {
+  return function (target: object, propertyKey: string | symbol) {
+    const ctor = target.constructor;
+    const streams: Set<string> = Reflect.getOwnMetadata(STREAM_META_KEY, ctor) ?? new Set();
+    streams.add(String(propertyKey));
+    Reflect.defineMetadata(STREAM_META_KEY, streams, ctor);
   };
 }
 
@@ -78,15 +127,24 @@ export function getRefMeta(target: Function): Set<string> {
   return Reflect.getOwnMetadata(REF_META_KEY, target) ?? new Set();
 }
 
+// ─── Reflection helper for streams ────────────────────────
+export function getStreamMeta(target: Function): Set<string> {
+  return Reflect.getOwnMetadata(STREAM_META_KEY, target) ?? new Set();
+}
+
 // ─── Reflection Helpers ───────────────────────────────────
-export function getEntityMeta(target: Function): EntityOptions | undefined {
+export function getEntityMeta(target: Function): EntityMeta | undefined {
   return Reflect.getOwnMetadata(ENTITY_META_KEY, target);
 }
 
-export function getHookMeta(target: Function): string[] {
+export function getHookMeta(target: Function): HookMetaEntry[] {
   return Reflect.getOwnMetadata(HOOK_META_KEY, target) ?? [];
 }
 
 export function getConfigurableMeta(target: Function): Map<string, ConfigurableOptions> {
   return Reflect.getOwnMetadata(CONFIGURABLE_META_KEY, target) ?? new Map();
+}
+
+export function getStateMeta(target: Function): Map<string, StateOptions> {
+  return Reflect.getOwnMetadata(STATE_META_KEY, target) ?? new Map();
 }

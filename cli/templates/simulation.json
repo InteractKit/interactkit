@@ -1,0 +1,130 @@
+{
+  "name": "Simulation",
+  "label": "Simulation     world + clock + 3 personas with brains + HTTP observer",
+  "description": "A simulated world with three independent personas, each with their own LLM brain and memory. Ticks every 30 seconds. HTTP endpoint to observe and interact.",
+  "readme": "# {{name}}\n\n{{description}}\n\n## Entity tree\n\n```\n{{tree}}\n```\n\n## Setup\n\n```bash\n{{setup}}\n```\n\nAdd your LLM API key to `.env`, then uncomment the executor import in `src/entities/person-brain.ts`.\n\n## Run\n\n```bash\npnpm dev\n```\n\nThe world ticks every 30 seconds. Each persona decides what to do on each tick.\n\n## Interact\n\nSend a message to a persona:\n\n```bash\ncurl localhost:3000/message -d '{\"to\": \"alice\", \"text\": \"What are you thinking about?\"}'\n```\n",
+  "root": { "file": "world", "class": "World" },
+  "extraDeps": {
+    "@interactkit/http": "^0.2.0"
+  },
+  "entities": [
+    {
+      "file": "world",
+      "class": "World",
+      "extends": "BaseEntity",
+      "description": "Simulated world with independent personas",
+      "components": [
+        { "name": "alice", "class": "PersonAlice", "file": "person-alice" },
+        { "name": "bob", "class": "PersonBob", "file": "person-bob" },
+        { "name": "carla", "class": "PersonCarla", "file": "person-carla" }
+      ],
+      "state": [
+        { "name": "tick", "type": "number", "default": "0", "description": "World tick count" }
+      ],
+      "hooks": [
+        { "type": "Init", "body": "console.log('[world] simulation started');" },
+        { "type": "Tick", "config": "{ intervalMs: 30000 }", "body": "this.tick++;\n    console.log(`[world] tick ${this.tick}`);\n    await this.alice.act();\n    await this.bob.act();\n    await this.carla.act();" },
+        { "type": "HttpRequest", "from": "@interactkit/http", "config": "{ port: 3000, path: '/message' }", "body": "try {\n      const { to, text } = JSON.parse(input.body);\n      const targets: Record<string, any> = { alice: this.alice, bob: this.bob, carla: this.carla };\n      const target = targets[to];\n      if (!target) { input.respond(404, JSON.stringify({ error: `Unknown persona: ${to}` })); return; }\n      const result = await target.hear({ text });\n      input.respond(200, JSON.stringify({ from: to, result }));\n    } catch (err: any) {\n      input.respond(500, JSON.stringify({ error: err.message }));\n    }" }
+      ]
+    },
+    {
+      "file": "person-alice",
+      "class": "PersonAlice",
+      "extends": "BaseEntity",
+      "description": "Alice — a curious and analytical persona",
+      "components": [
+        { "name": "brain", "class": "PersonBrain", "file": "person-brain" },
+        { "name": "memory", "class": "Memory", "file": "memory" }
+      ],
+      "state": [
+        { "name": "name", "type": "string", "default": "'Alice'", "description": "Persona name" },
+        { "name": "personality", "type": "string", "default": "'curious and analytical'", "description": "Personality traits" }
+      ],
+      "hooks": [{ "type": "Init", "body": "console.log(`[${this.name}] entered the world`);" }],
+      "tools": [
+        { "name": "hear", "description": "Hear something and respond", "input": "{ text: string }", "returns": "Promise<string>", "body": "await this.memory.store({ text: `Someone said: ${input.text}` });\n    return this.brain.invoke({ message: input.text });" },
+        { "name": "act", "description": "Decide what to do next", "input": null, "returns": "Promise<string>", "body": "return this.brain.invoke({ message: 'What do you want to do next?' });" }
+      ]
+    },
+    {
+      "file": "person-bob",
+      "class": "PersonBob",
+      "extends": "BaseEntity",
+      "description": "Bob — a friendly and creative persona",
+      "components": [
+        { "name": "brain", "class": "PersonBrain", "file": "person-brain" },
+        { "name": "memory", "class": "Memory", "file": "memory" }
+      ],
+      "state": [
+        { "name": "name", "type": "string", "default": "'Bob'", "description": "Persona name" },
+        { "name": "personality", "type": "string", "default": "'friendly and creative'", "description": "Personality traits" }
+      ],
+      "hooks": [{ "type": "Init", "body": "console.log(`[${this.name}] entered the world`);" }],
+      "tools": [
+        { "name": "hear", "description": "Hear something and respond", "input": "{ text: string }", "returns": "Promise<string>", "body": "await this.memory.store({ text: `Someone said: ${input.text}` });\n    return this.brain.invoke({ message: input.text });" },
+        { "name": "act", "description": "Decide what to do next", "input": null, "returns": "Promise<string>", "body": "return this.brain.invoke({ message: 'What do you want to do next?' });" }
+      ]
+    },
+    {
+      "file": "person-carla",
+      "class": "PersonCarla",
+      "extends": "BaseEntity",
+      "description": "Carla — a pragmatic and direct persona",
+      "components": [
+        { "name": "brain", "class": "PersonBrain", "file": "person-brain" },
+        { "name": "memory", "class": "Memory", "file": "memory" }
+      ],
+      "state": [
+        { "name": "name", "type": "string", "default": "'Carla'", "description": "Persona name" },
+        { "name": "personality", "type": "string", "default": "'pragmatic and direct'", "description": "Personality traits" }
+      ],
+      "hooks": [{ "type": "Init", "body": "console.log(`[${this.name}] entered the world`);" }],
+      "tools": [
+        { "name": "hear", "description": "Hear something and respond", "input": "{ text: string }", "returns": "Promise<string>", "body": "await this.memory.store({ text: `Someone said: ${input.text}` });\n    return this.brain.invoke({ message: input.text });" },
+        { "name": "act", "description": "Decide what to do next", "input": null, "returns": "Promise<string>", "body": "return this.brain.invoke({ message: 'What do you want to do next?' });" }
+      ]
+    },
+    {
+      "file": "person-brain",
+      "class": "PersonBrain",
+      "extends": "LLMEntity",
+      "description": "Brain for a simulated persona",
+      "systemPrompt": "You are a persona in a simulated world. Respond in character. Use memory to remember things.",
+      "refs": [
+        { "name": "memory", "class": "Memory", "file": "memory" }
+      ],
+      "tools": [
+        { "name": "think", "description": "Think about something", "input": "{ topic: string }", "returns": "Promise<string>", "body": "return `Thinking about: ${input.topic}`;" },
+        { "name": "remember", "description": "Remember something", "input": "{ text: string }", "returns": "Promise<void>", "body": "await this.memory.store(input);" }
+      ]
+    },
+    {
+      "file": "memory",
+      "class": "Memory",
+      "extends": "BaseEntity",
+      "description": "Stores and retrieves information",
+      "state": [
+        { "name": "entries", "type": "string[]", "default": "[]", "description": "Stored entries" }
+      ],
+      "hooks": [{ "type": "Init", "body": "console.log(`[memory] ready — ${this.entries.length} entries loaded`);" }],
+      "tools": [
+        { "name": "store", "description": "Store something for later", "input": "{ text: string }", "returns": "Promise<void>", "body": "this.entries.push(input.text);" },
+        { "name": "search", "description": "Search stored entries", "input": "{ query: string }", "returns": "Promise<string[]>", "body": "return this.entries.filter(e => e.toLowerCase().includes(input.query.toLowerCase()));" },
+        { "name": "getAll", "description": "Get all entries", "input": null, "returns": "Promise<string[]>", "body": "return [...this.entries];" },
+        { "name": "count", "description": "Get entry count", "input": null, "returns": "Promise<number>", "body": "return this.entries.length;" }
+      ]
+    }
+  ],
+  "tree": [
+    "World (root — ticks every 30s, HTTP on :3000)",
+    "  ├── Alice (curious and analytical)",
+    "  │   ├── Brain (LLMEntity)",
+    "  │   └── Memory",
+    "  ├── Bob (friendly and creative)",
+    "  │   ├── Brain (LLMEntity)",
+    "  │   └── Memory",
+    "  └── Carla (pragmatic and direct)",
+    "      ├── Brain (LLMEntity)",
+    "      └── Memory"
+  ]
+}

@@ -1,27 +1,60 @@
 {
   "name": "@interactkit/sdk",
-  "version": "0.1.0",
+  "version": "0.2.0",
+  "description": "Entity framework for building composable, event-driven agent systems",
   "type": "module",
+  "license": "MIT",
+  "keywords": [
+    "entity",
+    "agent",
+    "framework",
+    "decorators",
+    "llm",
+    "mcp"
+  ],
   "exports": {
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
     }
   },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "build": "tsc",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "pnpm build"
   },
   "dependencies": {
-    "class-validator": "^0.14.1",
+    "@langchain/core": "^1.1.36",
+    "@modelcontextprotocol/sdk": "^1.28.0",
     "config": "^4.4.1",
     "ioredis": "^5.10.1",
-    "reflect-metadata": "^0.2.2",
     "zod": "^3.23.0"
+  },
+  "peerDependencies": {
+    "class-validator": "^0.14.0",
+    "reflect-metadata": "^0.2.0"
+  },
+  "peerDependenciesMeta": {
+    "class-validator": {
+      "optional": false
+    },
+    "reflect-metadata": {
+      "optional": false
+    }
   },
   "devDependencies": {
     "@types/config": "^4.4.0",
     "@types/node": "^25.5.0",
+    "class-validator": "^0.14.1",
+    "reflect-metadata": "^0.2.2",
     "typescript": "^5.5.0"
   }
 }

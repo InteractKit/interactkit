@@ -27,10 +27,21 @@ The SDK has three layers: **Authoring** (what devs write), **Codegen** (pre-buil
 
 | Decorator | Target | Purpose |
 |-----------|--------|---------|
-| `@Entity({ type, persona?, database?, pubsub?, logger? })` | class | Marks a class as an entity. Root entities optionally pass infra config; sub-entities inherit from parent. |
-| `@Component()` | property | Marks a property as a child entity component (triggers type metadata emission) |
-| `@Hook()` | method | Marks a hook handler (hook type inferred from param type) |
-| `@Configurable({ label, group? })` | property | Marks state as UI-editable |
+| `@Entity({ type?, description?, persona?, database?, pubsub?, logger? })` | class | Marks a class as an entity. `type` is auto-derived from class name (PascalCase to snake_case) if omitted. Root entities optionally pass infra config; sub-entities inherit from parent. |
+| `@State({ description })` | property | Required on all state properties (must be `private`) — describes what the state holds |
+| `@Component()` | property | Marks a property as a child entity component (must be `private`) |
+| `@Stream()` | property | Marks an `EntityStream<T>` property. Streams are always public — parent entities can subscribe to them after boot |
+| `@Tool({ description })` | method | Required on all public async methods — describes what the method does |
+| `@Hook(Runner)` | method | Marks a hook handler — runner passed explicitly (e.g. `@Hook(Init.Runner())`) |
+| `@Configurable({ label, group? })` | property | Marks state as UI-editable (used alongside `@State`) |
+
+**LLM-specific** (only used on classes extending `LLMEntity`):
+
+| Decorator | Target | Purpose |
+|-----------|--------|---------|
+| `@SystemPrompt()` | property/getter | Marks a string property or getter as the system prompt. Evaluated before each LLM invocation. |
+| `@Executor()` | property | Marks the LLM executor instance (e.g. `new ChatAnthropic(...)`) |
+| `@Tool({ description })` | method | Exposes a method as an LLM-callable tool (same decorator as structural) |
 
 **Validation** — uses `class-validator` (full library available) plus SDK's `@Secret()`:
 
@@ -41,7 +52,64 @@ The SDK has three layers: **Authoring** (what devs write), **Codegen** (pre-buil
 
 ### BaseEntity
 
-All entities extend `BaseEntity`. The SDK hydrates state, wires components, and sets up streams.
+All entities extend `BaseEntity`. The SDK hydrates state, wires components, and sets up streams. `BaseEntity` has a `protected` constructor — entities must not define their own constructors. Use `@Hook(Init.Runner())` for initialization logic. Codegen enforces this at build time.
+
+### LLMEntity (extends BaseEntity)
+
+LLM-powered entities extend `LLMEntity` (from `sdk/src/llm/base.ts`) instead of `BaseEntity`. `LLMEntity` provides:
+
+- **Built-in `invoke()` method** — runs the LLM execution loop (prompt → tool calls → response). No need to declare it yourself.
+- **Built-in `protected context = new LLMContext()`** — manages conversation history. Override for custom config.
+- **Built-in streams** — `response: EntityStream<string>` and `toolCall: EntityStream<ToolCallEvent>` are pre-wired.
+- **All refs/state visible to LLM by default** — no opt-in decorator needed. Everything on the entity is visible to the LLM.
+- **`@SystemPrompt()`** — decorate a string property or getter to provide the system prompt, evaluated before each invocation.
+- **`@Executor()`** — marks the LLM executor instance.
+
+```typescript
+@Entity({ description: 'LLM-powered decision making' })
+class Brain extends LLMEntity {
+  @State({ description: 'Personality' })
+  private personality = 'curious';
+
+  @SystemPrompt()
+  private get systemPrompt() {
+    return `You are a ${this.personality} assistant.`;
+  }
+
+  @Executor()
+  private llm = new ChatAnthropic({ model: 'claude-sonnet-4-20250514' });
+
+  @Ref() private mouth!: Mouth;
+  @Ref() private memory!: Memory;
+
+  @Tool({ description: 'Think deeply' })
+  async think(input: { query: string }): Promise<string> { ... }
+}
+```
+
+### ConversationContext (shared LLM context)
+
+`ConversationContext` (from `sdk/src/llm/conversation.ts`) is an entity that provides opt-in shared conversation context between multiple `LLMEntity` instances. Composed as a `@Component` on a parent entity, then referenced via `@Ref` in each LLM entity that needs shared context.
+
+```typescript
+// Parent owns the shared context and multiple LLM entities
+class Agent extends BaseEntity {
+  @Component() private context!: ConversationContext;
+  @Component() private researchBrain!: ResearchBrain;
+  @Component() private writingBrain!: WritingBrain;
+}
+
+// Each LLM entity overrides its built-in context with the shared one
+class ResearchBrain extends LLMEntity {
+  @Ref() protected override context!: ConversationContext;
+  // ... executor, tools, etc.
+}
+
+class WritingBrain extends LLMEntity {
+  @Ref() protected override context!: ConversationContext;
+  // ... executor, tools, etc.
+}
+```
 
 ### Validation decorators
 
@@ -53,38 +121,43 @@ import { Secret } from '@interactkit/sdk';
 
 @Entity({ type: 'user' })
 class User extends BaseEntity {
+  @State({ description: 'API authentication key' })
   @Secret()
-  apiKey: string;
+  private apiKey!: string;
 
+  @State({ description: 'User bio' })
   @MaxLength(600)
-  bio: string;
+  private bio!: string;
 
+  @State({ description: 'Account username' })
   @MinLength(3) @MaxLength(50)
-  username: string;
+  private username!: string;
 
+  @State({ description: 'Contact email' })
   @IsEmail()
-  email: string;
+  private email!: string;
 
+  @State({ description: 'User score' })
   @Min(0) @Max(100)
-  score: number;
+  private score = 0;
 }
 ```
 
 Codegen reads class-validator metadata + `@Secret()` metadata to generate Zod validators for the registry. Any class-validator decorator works — the full library is available.
 
-### Hook input types
+### Hook namespaces
 
-Generic params encode compile-time config (cron expressions, intervals). Runtime values come from entity state. The SDK ships these built-in hook types, but **hook types are not hardcoded** — any interface used as a `@Hook()` parameter is a valid hook type (see Extensions).
+Each hook is a namespace with `.Input` (the data your method receives) and `.Runner(config)` (tells the runtime when to fire). Config goes in the Runner call — no hacky generic params.
 
 ```typescript
 // Built-in (shipped with @interactkit/sdk)
-interface CronInput<P extends { expression: string }>                    { lastRun: Date; }
-interface EventInput<T = unknown>                                        { eventName: string; payload: T; source: string; }
-interface InitInput                                                       { entityId: string; firstBoot: boolean; }
-interface TickInput<P extends { intervalMs: number } = { intervalMs: 60000 }> { tick: number; elapsed: number; }
-interface WebSocketInput<P extends { port: number; host?: string }>       { data: unknown; connectionId: string; }
-interface HttpInput<P extends { port: number; path?: string; method?: string }> { body: unknown; headers: Record<string, string>; params: Record<string, string>; }
+Init.Input    { entityId: string; firstBoot: boolean; }      Init.Runner()
+Tick.Input    { tick: number; elapsed: number; }              Tick.Runner({ intervalMs: 5000 })
+Cron.Input    { lastRun: Date; }                              Cron.Runner({ expression: '0 * * * *' })
+Event.Input   { eventName: string; payload: T; source: string; }  Event.Runner()
 ```
+
+Hook types are not hardcoded — extension packages export their own namespaces with `.Input` + `.Runner(config)`. The runner is explicit in `@Hook(Runner)`, so no codegen type-tracing is needed. This enables recursive package usage.
 
 ### EntityRef\<T\>
 
@@ -92,26 +165,53 @@ Typed cross-reference to a sibling or cousin entity. Parent sets the ref — cod
 
 ```typescript
 class Person extends BaseEntity {
-  brain: Brain;
-  phone: Phone;
+  @Component() private brain!: Brain;
+  @Component() private phone!: Phone;
 }
 
 class Brain extends BaseEntity {
-  phone: EntityRef<Phone>;  // sibling ref — codegen validates Phone exists under same parent
+  @Ref() private phone!: Phone;  // must be private — codegen validates
 
+  @Tool({ description: 'Handle a query' })
   async handleQuery(text: string) {
     await this.phone.speak("thinking...");  // same this.x.method() pattern
   }
 }
 ```
 
-**Build-time validation:** codegen walks the component tree and confirms `EntityRef<Phone>` is reachable from `Brain`'s parent. If not, build fails.
+**Build-time validation:** codegen walks the component tree and confirms the ref target is reachable from `Brain`'s parent. Both components and refs must be `private` — codegen enforces this to prevent multi-hop chaining (e.g. `this.brain.memory.recall()` is not possible). If validation fails, build fails.
 
 **Runtime wiring:** parent owns both children, so it auto-wires the ref during instantiation. No manual assignment.
 
 ### EntityStream\<T\>
 
 Typed upstream data flow from child → parent. Has `start/data/end` lifecycle. `emit(data)` is a convenience shortcut for start+data+end. Streams MUST be ended (runtime warns).
+
+Streams are marked with `@Stream()` and are **always public** — the parent entity can subscribe to child streams via the component proxy (e.g. `this.mouth.transcript.on('data', ...)`). The runtime auto-wires stream access on the component proxy after boot.
+
+```typescript
+// Child entity defines a stream
+class Mouth extends BaseEntity {
+  @Stream() transcript!: EntityStream<string>;
+
+  @Tool({ description: 'Speak a message' })
+  async speak(input: { message: string }): Promise<void> {
+    this.transcript.emit(input.message);
+  }
+}
+
+// Parent subscribes to child stream
+class Agent extends BaseEntity {
+  @Component() private mouth!: Mouth;
+
+  @Hook(Init.Runner())
+  async onInit(input: Init.Input) {
+    this.mouth.transcript.on('data', (text: unknown) => {
+      // handle transcript data
+    });
+  }
+}
+```
 
 ```typescript
 interface EntityStream<T> {
@@ -127,18 +227,18 @@ interface EntityStream<T> {
 
 ## 2. Codegen — pre-build analysis (ts-morph)
 
-`src/codegen/extract.ts` reads decorated entity source files and generates `__generated__/type-registry.ts`.
+`cli/src/codegen/extract/index.ts` reads decorated entity source files and generates `.interactkit/generated/type-registry.ts`.
 
 **What it extracts:**
 
 | Source | Output |
 |--------|--------|
-| `@Entity` metadata | type, persona flag |
+| `@Entity` metadata | type (auto-derived from class name PascalCase → snake_case if omitted), persona flag |
 | Primitive/wrapper-typed properties | State — Zod validators |
 | Entity-typed properties | Components — proxy wrappers for event bus |
-| `EntityStream<T>` properties | Streams |
+| `@Stream()` or `EntityStream<T>` properties | Streams (always public) |
 | `EntityRef<T>` properties | Cross-entity refs — build-time validated against component tree |
-| `@Hook()` methods | Hook dispatch table (incl. generic params) |
+| `@Hook(Runner)` methods | Hook dispatch table (runner + input type from decorator) |
 | `@Configurable()` properties | UI schema (label, group, type, validation) |
 | Public async methods (non-hook) | Auto-named `entityType.methodName` events |
 | Method param/return types | Event input/result Zod schemas |
@@ -181,24 +281,24 @@ Root entities carry optional `database`, `pubsub`, `logger`, and `runners` param
 
 ```typescript
 @Entity({
-  type: 'person',
+  // type auto-derived as 'person' from class name Person
   persona: true,
   database: PrismaClient,       // slow, scalable — shared state store
   pubsub: RedisPubSubAdapter,   // slow, scalable — horizontal scaling across instances
   logger: ConsoleLogAdapter,    // sees all serialized events + errors automatically
 })
 class Person extends BaseEntity {
-  brain: Brain;   // inherits Person's DB + pubsub + logger by default
-  phone: Phone;   // same
+  @Component() private brain!: Brain;   // inherits Person's DB + pubsub + logger by default
+  @Component() private phone!: Phone;   // same
 }
 
-@Entity({ type: 'brain' })
+@Entity()  // type auto-derived as 'brain'
 class Brain extends BaseEntity {
   // inherits parent's infra — no override needed
 }
 
 @Entity({
-  type: 'phone',
+  // type auto-derived as 'phone'
   pubsub: InProcessBusAdapter,  // override — fast, in-process for real-time voice
 })
 class Phone extends BaseEntity {
@@ -251,68 +351,69 @@ interface LogAdapter {
 
 ---
 
-## 5. Extensions — external packages provide entities + hooks
+## 5. Extensions — hook packages
 
-The SDK is open by design. External packages can provide entities, custom hook types, and hook runners. Users consume them via standard TypeScript imports — no plugin registry, no config files, no manual runner registration.
+The SDK is open by design. External packages export hook namespaces (`.Input` + `.Runner(config)`). Users attach them to their own entities with `@Hook`. No plugin registry, no config files.
 
-### Convention
+Extension packages live in `extensions/` in the monorepo. Each is published independently to npm under `@interactkit/*`. They declare `@interactkit/sdk` as a **peerDependency**.
 
-A package that exports a custom hook input type **must also export its runner from the same package**. The runner implements `HookRunner<T>` where `T` is the hook input type — codegen reads the generic param to map hook types to runners automatically. No naming convention required.
+### Built-in extensions
 
-### Example
+| Package | Hooks | What it does |
+|---------|-------|-------------|
+| `@interactkit/http` | `HttpRequest` | Spins up an HTTP server, fires on incoming requests |
+| `@interactkit/websocket` | `WsMessage`, `WsConnection` | WebSocket server, fires on messages and new connections |
+
+### Example — using `@interactkit/http`
 
 ```typescript
-// ─── @interactkit/twilio (external package) ───────────────
+import { HttpRequest } from '@interactkit/http';
 
-// Custom hook type — same pattern as built-in CronInput, TickInput, etc.
-export interface SmsInput<P extends { phoneNumber: string }> {
-  from: string;
-  body: string;
-}
+@Entity({ description: 'Webhook receiver' })
+class Webhook extends BaseEntity {
+  @State({ description: 'Received payloads' })
+  private payloads: string[] = [];
 
-// Runner — MUST be exported from the same package as SmsInput
-// Generic param tells codegen this runner handles SmsInput hooks
-export class SmsRunner implements HookRunner<SmsInput> {
-  async start(emit: (data: SmsInput<any>) => void, config: { phoneNumber: string }) {
-    // spins up Twilio webhook listener
-    // on incoming SMS: emit({ from: '+1...', body: 'hello' })
+  @Hook(HttpRequest.Runner({ port: 3100, path: '/webhook' }))
+  async onRequest(input: HttpRequest.Input) {
+    this.payloads.push(input.body);
+    input.respond(200, JSON.stringify({ ok: true }));
   }
-  async stop() { ... }
-}
 
-// Entity with custom hooks + methods
-@Entity({ type: 'twilio-phone' })
-export class TwilioPhone extends BaseEntity {
-  @Configurable({ label: 'Phone Number' })
-  phoneNumber: string;
-
-  @Hook()
-  async onSms(input: SmsInput<{ phoneNumber: '+1234567890' }>) { ... }
-
-  async call(input: { to: string }) { ... }
-  async sendSms(input: { to: string; body: string }) { ... }
+  @Tool({ description: 'Get received payloads' })
+  async getPayloads(): Promise<string[]> { return this.payloads; }
 }
 ```
 
+### Writing an extension
+
+A package exports a **namespace** containing `.Input` (interface) and `.Runner(config)` (factory):
+
 ```typescript
-// ─── Your app — just import and use ──────────────────────
+import type { HookRunner, HookHandler } from '@interactkit/sdk';
 
-import { TwilioPhone } from '@interactkit/twilio';
+export namespace MyHook {
+  export interface Input { data: string; }
 
-@Entity({ type: 'person' })
-class Person extends BaseEntity {
-  phone: TwilioPhone;   // codegen follows the import, extracts everything
-  brain: Brain;
+  class RunnerImpl implements HookRunner<Input> {
+    async start(emit: (data: Input) => void, config: Record<string, unknown>) {
+      // listen for external events, call emit() when they arrive
+    }
+    async stop() { /* tear down */ }
+  }
+
+  export function Runner(config: { /* your config */ }): HookHandler<Input> {
+    return { __hookHandler: true, runnerClass: RunnerImpl, config: config as any };
+  }
 }
-// No runner registration needed — runtime auto-imports SmsRunner from @interactkit/twilio
 ```
 
 ### What this means for codegen
 
 - **Codegen follows imports into node_modules** — ts-morph resolves types across packages. When it sees `phone: TwilioPhone`, it finds the `@Entity` decorator and extracts hooks/methods/state.
-- **Hook types are not hardcoded** — codegen treats any interface used as a `@Hook()` parameter as a valid hook type. Built-in types from `@interactkit/sdk` have built-in runners. External types are recorded with their source package + type name in the generated registry.
-- **Runtime auto-imports runners** — for each external hook type in the registry, codegen also scans the source package for classes implementing `HookRunner<ThatHookType>` and records the runner export name + package. Runtime auto-imports it.
-- **No special extension API** — the extension model is just TypeScript imports. `HookRunner<T>` generic param is the mapping.
+- **Hook types are not hardcoded** — codegen treats any interface used as a `@Hook(Runner)` parameter as a valid hook type.
+- **Runner is explicit** — the `@Hook` decorator receives the runner directly. No scanning node_modules for `HookRunner<T>` implementations. This is simpler and enables recursive package usage.
+- **No special extension API** — the extension model is just TypeScript imports + namespaces.
 
 ### HookRunner interface
 
@@ -321,9 +422,15 @@ interface HookRunner<T> {
   start(emit: (data: T) => void, config: Record<string, unknown>): Promise<void>;
   stop(): Promise<void>;
 }
+
+interface HookHandler<T = any> {
+  readonly __hookHandler: true;
+  readonly runnerClass: new (...args: any[]) => HookRunner<T>;
+  readonly config: Record<string, unknown>;
+}
 ```
 
-- `T` — the hook input type. Codegen reads the generic param to build the hook type → runner mapping.
+- `Runner(config)` returns a `HookHandler` — the `@Hook` decorator stores both the runner class and config in metadata.
 - `emit` — provided by the runtime. Runner calls it when external data arrives, runtime routes it to the entity's `@Hook` method.
 - Runner knows nothing about entities — it just listens for external events and emits typed data.
 
@@ -337,11 +444,16 @@ Validation is extensible via class-validator's built-in custom decorator support
 
 1. **Events are internal** — devs call `this.component.method(input)`, codegen compiles it to event bus calls. No event names/envelopes exposed.
 2. **No Zod in entity files** — devs write plain TS types. Codegen generates Zod.
-3. **Property roles inferred from types** — no `@State`, `@Component`, `@Stream`, `@Ref` decorators. Primitives = state, entity-typed = component, `EntityStream<T>` = stream, `EntityRef<T>` = cross-entity ref.
-4. **Validation via class-validator** — standard decorators (`@MaxLength`, `@IsEmail`, etc.) plus SDK's `@Secret()`. Codegen reads metadata to generate Zod.
-5. **Entity IDs are auto-generated** — runtime assigns unique IDs on instantiation. Sub-entity IDs are scoped to their parent (e.g. `person:abc123/brain:def456`). Devs never manage IDs manually.
-6. **Errors propagate upward naturally** — when `this.brain.think()` throws, the caller gets the error just like a normal function call. Devs use standard try/catch. The event bus serializes errors back through the same request/response path.
-7. **Entity set is static** — all entity instances are defined at build time. No dynamic spawning at runtime.
+3. **Only `@Tool` methods and `@Stream` properties are public** — state, components, and refs must be `private`. Streams are always public (parent subscribes to child streams). Only `@Tool`-decorated async methods can be public. This enforces encapsulation and single-hop communication (no `this.brain.memory.recall()`).
+4. **State requires `@State({ description })`** — every state property must have `@State({ description: '...' })` and be `private`. This ensures all state is documented and discoverable.
+5. **All public methods require `@Tool`** — every public async method must have `@Tool({ description: '...' })`. Hook methods are exempt.
+6. **Validation via class-validator** — standard decorators (`@MaxLength`, `@IsEmail`, etc.) plus SDK's `@Secret()`. Codegen reads metadata to generate Zod.
+7. **Entity IDs are auto-generated** — runtime assigns unique IDs on instantiation. Sub-entity IDs are scoped to their parent (e.g. `person:abc123/brain:def456`). Devs never manage IDs manually.
+8. **Errors propagate upward naturally** — when `this.brain.think()` throws, the caller gets the error just like a normal function call. Devs use standard try/catch. The event bus serializes errors back through the same request/response path.
+9. **Entity set is static** — all entity instances are defined at build time. No dynamic spawning at runtime.
+10. **No custom constructors** — `BaseEntity` has a `protected` constructor. Entities must not define their own constructors — codegen enforces this at build time. Use `@Hook(Init.Runner())` for initialization logic.
+11. **Entity type auto-derived** — when `type` is not specified in `@Entity()`, codegen derives it from the class name (PascalCase to snake_case, e.g. `ResearchBrain` becomes `research_brain`).
+12. **LLM entities extend `LLMEntity`, not `BaseEntity`** — `LLMEntity` provides `invoke()`, built-in context, built-in streams, and automatic LLM visibility. No `@LLMEntity()` decorator, no `@LLMVisible()`, no `@LLMExecutionTrigger()`, no `@Context()` needed.
 
 ---
 
@@ -356,9 +468,16 @@ src/
     runtime.ts               # Instantiation, state persistence, event routing
     stream.ts                # EntityStream<T> implementation
     types.ts                 # BaseEntity, EntityInstance, StateStore
+  llm/
+    base.ts                  # LLMEntity class (extends BaseEntity) — invoke(), built-in context/streams
+    conversation.ts          # ConversationContext entity — shared context between LLM entities
+    decorators.ts            # @SystemPrompt(), @Executor()
   hooks/
-    types.ts                 # CronInput, EventInput, InitInput, TickInput, WebSocketInput, HttpInput
-    runner.ts                # HookRunner<T> interface — implemented by built-in + external hook runners
+    init.ts                  # Init namespace (Input + Runner)
+    tick.ts                  # Tick namespace (Input + Runner)
+    cron.ts                  # Cron namespace (Input + Runner)
+    event.ts                 # Event namespace (Input + Runner)
+    runner.ts                # HookRunner<T> + HookHandler<T> interfaces
   events/
     bus.ts                   # PubSub adapter-based event bus
     dispatcher.ts            # Event routing + validation
@@ -381,19 +500,27 @@ src/
 
 ## Dependencies
 
+**Runtime (bundled):**
+
 | Package | Role |
 |---------|------|
-| `class-validator` | Validation decorators (same as NestJS DTOs) |
-| `zod` | Runtime validation (generated code) |
-| `@prisma/client` | Entity state persistence |
+| `zod` | Runtime validation (generated code, re-exported as `z`) |
 | `ioredis` | Redis pub/sub adapter |
-| `reflect-metadata` | Decorator metadata |
-| `ts-morph` (dev) | AST analysis for codegen |
-| `prisma` (dev) | Schema generation |
+| `config` | Configuration management |
+| `@modelcontextprotocol/sdk` | MCP client for tool discovery |
+
+**Peer dependencies (users install alongside SDK):**
+
+| Package | Role |
+|---------|------|
+| `class-validator` | Validation decorators (same as NestJS DTOs) — users import directly |
+| `reflect-metadata` | Decorator metadata — must be loaded before any entity code |
 
 ## Build
 
 ```bash
-pnpm codegen  # reads app/src → generates app/src/__generated__/
-pnpm build    # tsc
+interactkit build --root=src/entities/agent:Agent  # codegen + tsc + boot → .interactkit/
+interactkit start                                  # run the built app
+interactkit dev                                    # build + run + watch for changes (auto-restarts)
+pnpm build                                         # tsc only (no codegen)
 ```

@@ -1,87 +1,60 @@
 #!/usr/bin/env node
 
+import { Command } from 'commander';
 import { buildCommand } from './commands/build.js';
 import { devCommand } from './commands/dev.js';
 import { startCommand } from './commands/start.js';
+import { initCommand } from './commands/init.js';
+import { addCommand } from './commands/add.js';
 
-const HELP = `
-interactkit — CLI for InteractKit projects
+const program = new Command();
 
-Commands:
-  build     Run codegen + TypeScript compilation
-  dev       Run codegen + build in watch mode
-  start     Start the application
+program
+  .name('interactkit')
+  .description('CLI for InteractKit projects')
+  .version('0.1.0');
 
-Options:
-  --project, -p  Path to tsconfig.json (default: ./tsconfig.json)
-  --help, -h     Show this help
+program
+  .command('init <name>')
+  .description('Create a new InteractKit project')
+  .action(async (name: string) => {
+    await initCommand(name);
+  });
 
-Usage:
-  interactkit build
-  interactkit dev
-  interactkit start
-`.trim();
+program
+  .command('add <name>')
+  .description('Generate an entity file (use dots for nesting: researcher.Browser)')
+  .option('--llm', 'Generate an LLM entity extending LLMEntity')
+  .option('--attach <parent>', 'Auto-add as @Component to a parent entity')
+  .action(async (name: string, opts: { llm?: boolean; attach?: string }) => {
+    await addCommand(name, opts);
+  });
 
-async function main() {
-  const args = process.argv.slice(2);
-  const command = args[0];
+program
+  .command('build')
+  .description('Run codegen + TypeScript compilation')
+  .option('-p, --project <path>', 'Path to tsconfig.json', './tsconfig.json')
+  .option('-o, --outDir <path>', 'Codegen output directory', './.interactkit/generated')
+  .option('-r, --root <path:Export>', 'Root entity file and export (e.g. src/entities/agent:Agent)')
+  .action(async (opts) => {
+    await buildCommand({ project: opts.project, outDir: opts.outDir, root: opts.root });
+  });
 
-  if (!command || command === '--help' || command === '-h') {
-    console.log(HELP);
-    process.exit(0);
-  }
+program
+  .command('dev')
+  .description('Run codegen + build in watch mode')
+  .option('-p, --project <path>', 'Path to tsconfig.json', './tsconfig.json')
+  .option('-o, --outDir <path>', 'Codegen output directory', './.interactkit/generated')
+  .option('-r, --root <path:Export>', 'Root entity file and export (e.g. src/entities/agent:Agent)')
+  .action(async (opts) => {
+    await devCommand({ project: opts.project, outDir: opts.outDir, root: opts.root });
+  });
 
-  const flags = parseFlags(args.slice(1));
+program
+  .command('start')
+  .description('Start the built application')
+  .action(async () => {
+    await startCommand();
+  });
 
-  switch (command) {
-    case 'build':
-      await buildCommand(flags);
-      break;
-    case 'dev':
-      await devCommand(flags);
-      break;
-    case 'start':
-      await startCommand(flags);
-      break;
-    default:
-      console.error(`Unknown command: ${command}\n`);
-      console.log(HELP);
-      process.exit(1);
-  }
-}
-
-interface Flags {
-  project: string;
-  outDir: string;
-  entry: string;
-}
-
-function parseFlags(args: string[]): Flags {
-  const flags: Flags = {
-    project: './tsconfig.json',
-    outDir: './.interactkit/generated',
-    entry: './.interactkit/build/src/index.js',
-  };
-
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i];
-    const next = args[i + 1];
-    if ((arg === '--project' || arg === '-p') && next) {
-      flags.project = next;
-      i++;
-    } else if ((arg === '--outDir' || arg === '-o') && next) {
-      flags.outDir = next;
-      i++;
-    } else if ((arg === '--entry' || arg === '-e') && next) {
-      flags.entry = next;
-      i++;
-    }
-  }
-
-  return flags;
-}
-
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+program.parse();

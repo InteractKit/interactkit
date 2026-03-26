@@ -1,16 +1,35 @@
 {
   "name": "@interactkit/cli",
-  "version": "0.1.0",
+  "version": "0.2.0",
+  "description": "CLI for InteractKit — codegen, scaffolding, build, and dev server",
   "type": "module",
+  "license": "MIT",
+  "keywords": [
+    "interactkit",
+    "cli",
+    "codegen",
+    "entity"
+  ],
   "bin": {
     "interactkit": "./dist/index.js"
   },
+  "files": [
+    "dist",
+    "templates",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "build": "tsc",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "pnpm build"
   },
   "dependencies": {
-    "@interactkit/sdk": "workspace:*",
+    "@inquirer/prompts": "^8.3.2",
+    "commander": "^14.0.3",
     "ts-morph": "^24.0.0"
   },
   "devDependencies": {

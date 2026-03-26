@@ -1,59 +1,58 @@
 import {
-  Entity, BaseEntity, Hook, Configurable, Ref,
-  LLMEntity, Context, Executor, LLMTool, LLMVisible, LLMExecutionTrigger,
-  LLMContext,
-} from '@interactkit/sdk';
-import type { InitInput, LLMExecutionTriggerParams } from '@interactkit/sdk';
-import { Mouth } from './mouth.js';
-import { Memory } from './memory.js';
-import { MockLLM } from '../mock-llm.js';
+  Entity,
+  LLMEntity,
+  Hook,
+  Configurable,
+  State,
+  Ref,
+  Executor,
+  Tool,
+  SystemPrompt,
+  Init,
+} from "@interactkit/sdk";
+import { ChatAnthropic } from "@langchain/anthropic";
+import { Mouth } from "./mouth.js";
+import { Memory } from "./memory.js";
 
-@LLMEntity()
-@Entity({ type: 'brain' })
-export class Brain extends BaseEntity {
-  @Configurable({ label: 'Personality', group: 'Config' })
-  @LLMVisible()
-  personality = 'curious';
+@Entity({ description: "LLM-powered decision making" })
+export class Brain extends LLMEntity {
+  @State({ description: 'The personality trait that shapes LLM responses' })
+  @Configurable({ label: "Personality", group: "Config" })
+  private personality = "curious";
 
-  @Context()
-  context = new LLMContext();
+  @SystemPrompt()
+  private get systemPrompt() {
+    return `You are a ${this.personality} assistant. Use your tools to think, speak, and remember.`;
+  }
 
   @Executor()
-  llm = new MockLLM();  // swap with new ChatOpenAI({ model: 'gpt-4' }) for real use
+  private llm = new ChatAnthropic({ model: "claude-sonnet-4-20250514" });
 
-  // Sibling refs
-  @Ref() mouth!: Mouth;
-  @Ref() memory!: Memory;
+  @Ref() private mouth!: Mouth;
+  @Ref() private memory!: Memory;
 
-  @Hook()
-  async onInit(input: InitInput) {
+  @Hook(Init.Runner())
+  async onInit(input: Init.Input) {
     console.log(`    [brain] personality: ${this.personality}`);
   }
 
-  /**
-   * LLM execution trigger — body is replaced by the runtime.
-   * Runtime: appends message to @Context, runs LLM loop with @LLMTool methods, returns response.
-   */
-  @LLMExecutionTrigger()
-  async chat(params: LLMExecutionTriggerParams): Promise<string> {
-    return ''; // runtime takes over — this body is never executed
-  }
+  // chat() is inherited from LLMEntity — no need to define it
 
-  @LLMTool({ description: 'Think deeply about a query and return a response' })
+  @Tool({ description: "Think deeply about a query and return a response" })
   async think(input: { query: string }): Promise<string> {
     const response = `[${this.personality}] ${input.query} — interesting!`;
     await this.memory.store({ text: response });
     return response;
   }
 
-  @LLMTool({ description: 'Think about something and speak it aloud' })
+  @Tool({ description: "Think about something and speak it aloud" })
   async thinkAndSpeak(input: { query: string }): Promise<string> {
     const thought = await this.think(input);
     await this.mouth.speak({ message: thought });
     return thought;
   }
 
-  @LLMTool({ description: 'Recall all stored memories' })
+  @Tool({ description: "Recall all stored memories" })
   async reflect(): Promise<string[]> {
     return this.memory.getAll();
   }

@@ -7,6 +7,12 @@ export interface LLMMessage {
   content: string;
   name?: string;
   toolCallId?: string;
+  toolCalls?: Array<{ id: string; name: string; args: Record<string, unknown> }>;
+}
+
+export interface LLMContextOptions {
+  systemPrompt?: string;
+  maxHistory?: number;
 }
 
 export class LLMContext {
@@ -14,9 +20,9 @@ export class LLMContext {
   private systemPrompt: string;
   private maxHistory: number;
 
-  constructor(systemPrompt = '', maxHistory = 50) {
-    this.systemPrompt = systemPrompt;
-    this.maxHistory = maxHistory;
+  constructor(options: LLMContextOptions = {}) {
+    this.systemPrompt = options.systemPrompt ?? '';
+    this.maxHistory = options.maxHistory ?? 50;
   }
 
   /** Set/update the system prompt */

@@ -1,123 +1,85 @@
 # Codegen
 
-The SDK includes a build-time code generator that reads your entity source files and produces a type registry with Zod schemas.
+`interactkit build` reads your entity classes and generates a type registry with Zod schemas, validation, and a deployment plan.
 
-## Running codegen
+## Running It
 
 ```bash
-npx interactkit-codegen --project ./tsconfig.json --outDir ./src/__generated__
+interactkit build --root=src/entities/agent:Agent
 ```
 
-Or add it to your `package.json`:
+This does: codegen, TypeScript compile, boot setup. Outputs to `.interactkit/`
 
-```json
-{
-  "scripts": {
-    "codegen": "interactkit-codegen --project ./tsconfig.json"
-  }
-}
-```
-
-## CLI options
-
-| Flag | Default | Description |
+| Flag | Default | What it does |
 |------|---------|-------------|
+| `--root` | (required) | Entry point, `path:ExportName` |
 | `--project`, `-p` | `./tsconfig.json` | Path to tsconfig |
-| `--outDir`, `-o` | `./src/__generated__` | Output directory |
-| `--help`, `-h` | | Show help |
+| `--outDir`, `-o` | `./.interactkit/generated` | Output directory |
 
-## What it generates
+## What Gets Generated
 
-The codegen produces `__generated__/type-registry.ts` containing:
+Everything goes into `.interactkit/generated/type-registry.ts`:
 
-### Registry
+### Entity Registry
+
+A map of all entities, their state schemas, methods, components, and hooks:
 
 ```typescript
 export const Registry = {
   entities: {
-    'person': {
-      state: z.object({ name: z.string().max(50), score: z.number().min(0).max(100) }),
-      persona: true,
+    'browser': {
+      state: z.object({ history: z.array(z.string()) }),
       methods: {
-        'person.greet': {
-          input: z.object({ name: z.string() }),
-          result: z.string(),
-          fieldMeta: {},
-        },
+        'browser.search': { input: z.object({ query: z.string() }), result: z.array(z.string()) },
+        'browser.read': { input: z.object({ url: z.string() }), result: z.string() },
       },
-      components: ['brain', 'phone'],
-      streams: [],
-      refs: [],
-      hooks: [
-        { method: 'onInit', type: 'InitInput', config: {} },
-        { method: 'onTick', type: 'TickInput', config: { intervalMs: 5000 } },
-      ],
+      components: [],
+      hooks: [{ method: 'onInit', type: 'Init' }],
     },
   },
 } as const;
 ```
 
-### ConfigurableFields
+### Configurable Fields
+
+UI schema for `@Configurable` properties:
 
 ```typescript
 export const ConfigurableFields = {
-  'person': [
-    { key: 'name', label: 'Name', group: 'General', type: 'string', validation: z.string().max(50) },
+  'brain': [
+    { key: 'personality', label: 'Personality', group: 'Config', type: 'string' },
   ],
 } as const;
 ```
 
-### Utility types
+### Type Helpers
 
 ```typescript
-export type EntityType = 'person' | 'brain' | 'phone';
-export type MethodName = 'person.greet' | 'brain.think';
+export type EntityType = 'agent' | 'brain' | 'browser' | 'memory';
+export type MethodName = 'browser.search' | 'browser.read' | 'memory.store';
 ```
 
-## What it extracts
+### Deployment Plan
 
-| Source | Output |
-|--------|--------|
-| `@Entity` metadata | type, persona flag |
-| Primitive properties | State — Zod validators |
-| Entity-typed properties | Components list |
-| `EntityStream<T>` properties | Streams list |
-| `EntityRef<T>` properties | Refs list (build-time validated) |
-| `@Hook()` methods | Hook dispatch table with config from generic params |
-| `@Configurable()` properties | UI schema |
-| Public async methods | Event methods with input/result Zod schemas |
-| class-validator decorators | Zod refinements (`.max()`, `.email()`, etc.) |
-| `@Secret()` | fieldMeta `{ secret: true }` |
-| `@LLMEntity`, `@LLMTool`, `@LLMExecutionTrigger`, `@LLMVisible` | LLM metadata (tools, triggers, visible state) |
-| `@Entity({ pubsub, database })` | Infrastructure info for deployment planning |
+Also generates `deployment.json`. See [Deployment](./deployment.md).
 
-## Deployment plan
+## Build-time Checks
 
-`interactkit build` also generates `.interactkit/generated/deployment.json` — see [Deployment](./deployment.md).
+The build catches mistakes before your app runs:
 
-## Build-time validation
+| Problem | Result |
+|---------|--------|
+| State property missing `@State` | Build fails |
+| Property not `private` | Build fails |
+| `@Component` references unknown entity | Build fails |
+| `@Ref` target doesn't exist as sibling | Build fails |
+| Public method missing `@Tool` | Build fails |
+| `@Hook` without runner or typed parameter | Build fails |
+| `@LLMEntity` missing `@Executor` or `@Context` | Build fails |
+| `@LLMExecutionTrigger` without `@Tool` methods | Build fails |
 
-The codegen validates at build time:
+---
 
-- `@Component` references unknown entity type → error
-- `@Ref` target not reachable as sibling → error
-- `@Hook()` method without typed parameter → error
-- `@LLMEntity` missing `@Executor` or `@Context` → error
-- `@LLMExecutionTrigger` without `@LLMTool` methods → error
-- `@LLMTool` without description → error
-- LLM decorators without `@LLMEntity` → error
+## What's Next?
 
-## Registry singleton
-
-The CLI generates a `_entry.ts` bootstrap that calls `setRegistry()` before your code runs. You don't need to import the registry manually — `boot()` picks it up automatically:
-
-```typescript
-import { boot } from '@interactkit/sdk';
-const ctx = await boot(Agent);  // registry auto-resolved
-```
-
-## Build order
-
-```bash
-interactkit build   # codegen + tsc + deployment plan → .interactkit/
-```
+- [Deployment](./deployment.md): how to deploy units from the generated plan

@@ -1,4 +1,6 @@
 packages:
   - "sdk"
   - "cli"
+  - "test"
+  - "extensions/*"
   - "examples/*"

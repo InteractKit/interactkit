@@ -1,4 +1,4 @@
-import { ClassDeclaration, MethodDeclaration, Project } from 'ts-morph';
+import { ClassDeclaration, MethodDeclaration } from 'ts-morph';
 import type { HookInfo } from '../types.js';
 import { extractPackageName } from '../utils.js';
 
@@ -12,60 +12,51 @@ export function getHookMethodNames(cls: ClassDeclaration): Set<string> {
   return names;
 }
 
-export function extractHook(method: MethodDeclaration, project: Project): HookInfo | null {
-  const params = method.getParameters();
-  if (params.length === 0) return null;
+export function extractHook(method: MethodDeclaration): HookInfo | null {
+  const decorator = method.getDecorator('Hook');
+  if (!decorator) return null;
 
-  const paramType = params[0].getType();
-  const symbol = paramType.getSymbol() ?? paramType.getAliasSymbol();
-  if (!symbol) return null;
+  // Extract runner from decorator argument: @Hook(Init.Runner()) or @Hook(SomeRunner({ key: val }))
+  const args = decorator.getArguments();
+  let runnerExport: string | undefined;
+  let runnerSourcePackage: string | undefined;
 
-  const hookTypeName = symbol.getName();
-  const declarations = symbol.getDeclarations();
-  const declFile = declarations[0]?.getSourceFile().getFilePath() ?? '';
-  const sourcePackage = extractPackageName(declFile);
-
-  // Extract generic config from type arguments
-  const typeArgs = paramType.getTypeArguments?.() ?? paramType.getAliasTypeArguments?.() ?? [];
-  let genericConfig: string | undefined;
-  if (typeArgs.length > 0) {
-    genericConfig = typeArgs[0].getText();
+  if (args.length > 0) {
+    const arg = args[0];
+    // Resolve the call expression to find the Runner function's source
+    const argType = arg.getType();
+    const symbol = argType.getSymbol() ?? argType.getAliasSymbol();
+    if (symbol) {
+      const decls = symbol.getDeclarations();
+      if (decls.length > 0) {
+        const declFile = decls[0].getSourceFile().getFilePath();
+        runnerSourcePackage = extractPackageName(declFile) ?? undefined;
+      }
+    }
+    // Store the decorator argument text as the runner reference
+    runnerExport = arg.getText();
   }
 
-  // Find HookRunner<T> in same package
-  let runnerExport: string | undefined;
-  if (sourcePackage) {
-    runnerExport = findHookRunner(project, sourcePackage, hookTypeName);
+  // Extract input type from method parameter
+  const params = method.getParameters();
+  let hookTypeName: string | undefined;
+  let sourcePackage: string | undefined;
+
+  if (params.length > 0) {
+    const paramType = params[0].getType();
+    const paramSymbol = paramType.getSymbol() ?? paramType.getAliasSymbol();
+    if (paramSymbol) {
+      hookTypeName = paramSymbol.getName();
+      const declarations = paramSymbol.getDeclarations();
+      const declFile = declarations[0]?.getSourceFile().getFilePath() ?? '';
+      sourcePackage = extractPackageName(declFile) ?? undefined;
+    }
   }
 
   return {
     methodName: method.getName(),
-    hookTypeName,
-    genericConfig,
-    sourcePackage: sourcePackage ?? undefined,
+    hookTypeName: hookTypeName ?? 'unknown',
     runnerExport,
+    sourcePackage: runnerSourcePackage ?? sourcePackage,
   };
-}
-
-function findHookRunner(
-  project: Project,
-  packageName: string,
-  hookTypeName: string,
-): string | undefined {
-  for (const sourceFile of project.getSourceFiles()) {
-    if (!sourceFile.getFilePath().includes(`node_modules/${packageName}`)) continue;
-
-    for (const cls of sourceFile.getClasses()) {
-      for (const impl of cls.getImplements()) {
-        const exprText = impl.getExpression().getText();
-        if (exprText !== 'HookRunner') continue;
-
-        const typeArgs = impl.getTypeArguments();
-        if (typeArgs.length > 0 && typeArgs[0].getText() === hookTypeName) {
-          return cls.getName() ?? undefined;
-        }
-      }
-    }
-  }
-  return undefined;
 }

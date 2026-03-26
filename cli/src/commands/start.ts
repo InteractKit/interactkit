@@ -2,16 +2,12 @@ import { resolve } from 'node:path';
 import { existsSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 
-interface Flags {
-  entry: string;
-}
-
-export async function startCommand(_flags: Flags) {
+export async function startCommand() {
   const cwd = process.cwd();
   const entryPath = resolve(cwd, '.interactkit/build/src/_entry.js');
 
   if (!existsSync(entryPath)) {
-    console.error('No build found. Run `interactkit build` first.');
+    console.error('No build found. Run `interactkit build --root=src/entities/agent:Agent` first.');
     process.exit(1);
   }
 

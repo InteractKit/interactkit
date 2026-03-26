@@ -3,33 +3,42 @@ import { typeToZod } from '../mappers/type-mapper.js';
 import type { LLMInfo, MethodInfo } from '../types.js';
 import { extractStringProp } from '../utils.js';
 
+/** Check if a class extends LLMEntity (directly or indirectly). */
+function extendsLLMEntity(cls: ClassDeclaration): boolean {
+  const baseClass = cls.getBaseClass();
+  if (!baseClass) return false;
+  const baseName = baseClass.getName();
+  if (baseName === 'LLMEntity') return true;
+  return extendsLLMEntity(baseClass);
+}
+
 /** Extract LLM decorator metadata from a class. */
 export function extractLLMInfo(cls: ClassDeclaration, methods: MethodInfo[]): LLMInfo {
-  const isLLMEntity = !!cls.getDecorator('LLMEntity');
+  const isLLMEntity = extendsLLMEntity(cls) || !!cls.getDecorator('LLMEntity');
   if (!isLLMEntity) {
-    return { isLLMEntity: false, tools: [], triggers: [], visibleState: [] };
+    return { isLLMEntity: false, tools: [], triggers: [] };
   }
 
   let contextProp: string | undefined;
   let executorProp: string | undefined;
   const tools: LLMInfo['tools'] = [];
   const triggers: string[] = [];
-  const visibleState: string[] = [];
 
-  // Scan properties for @Context, @Executor, @LLMVisible
+  // Scan properties for @Context, @Executor
   for (const prop of cls.getProperties()) {
-    const name = prop.getName();
-    if (prop.getDecorator('Context')) contextProp = name;
-    if (prop.getDecorator('Executor')) executorProp = name;
-    if (prop.getDecorator('LLMVisible')) visibleState.push(name);
+    if (prop.getDecorator('Context')) contextProp = prop.getName();
+    if (prop.getDecorator('Executor')) executorProp = prop.getName();
   }
 
-  // Scan methods for @LLMTool
+  // Scan methods for @LLMTool or @Tool (in @LLMEntity, @Tool methods are also LLM tools)
   for (const method of cls.getMethods()) {
-    const toolDec = method.getDecorator('LLMTool');
-    if (!toolDec) continue;
+    const llmToolDec = method.getDecorator('LLMTool');
+    const toolDec = method.getDecorator('Tool');
+    if (!llmToolDec && !toolDec) continue;
+    if (method.getDecorator('LLMExecutionTrigger')) continue;
 
-    const args = toolDec.getArguments();
+    const dec = llmToolDec ?? toolDec!;
+    const args = dec.getArguments();
     const optionsText = args[0]?.getText() ?? '{}';
     const description = extractStringProp(optionsText, 'description') ?? method.getName();
     const name = extractStringProp(optionsText, 'name');
@@ -55,5 +64,5 @@ export function extractLLMInfo(cls: ClassDeclaration, methods: MethodInfo[]): LL
     }
   }
 
-  return { isLLMEntity, contextProp, executorProp, tools, triggers, visibleState };
+  return { isLLMEntity, contextProp, executorProp, tools, triggers };
 }

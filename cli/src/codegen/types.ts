@@ -1,12 +1,16 @@
 import type { FieldMeta } from './mappers/validator-mapper.js';
 
+export interface MCPInfo {
+  isMCPEntity: boolean;
+  transport?: string;  // raw text of the transport config object
+}
+
 export interface LLMInfo {
   isLLMEntity: boolean;
   contextProp?: string;
   executorProp?: string;
   tools: Array<{ method: string; description: string; name?: string; inputZod: string }>;
   triggers: string[];
-  visibleState: string[];
 }
 
 export interface InfraInfo {
@@ -30,6 +34,8 @@ export interface EntityInfo {
   methods: MethodInfo[];
   configurables: ConfigurableInfo[];
   llm: LLMInfo;
+  mcp: MCPInfo;
+  hasConstructor: boolean;
 }
 
 export interface PropertyInfo {
@@ -37,36 +43,44 @@ export interface PropertyInfo {
   zodCode: string;
   optional: boolean;
   fieldMeta: FieldMeta;
+  hasState: boolean;
+  hasSystemPrompt: boolean;
+  hasExecutor: boolean;
+  isPrivate: boolean;
 }
 
 export interface ComponentInfo {
   propertyName: string;
   entityType: string;
+  isPrivate: boolean;
 }
 
 export interface StreamInfo {
   propertyName: string;
   payloadZod: string;
+  isPrivate: boolean;
 }
 
 export interface RefInfo {
   propertyName: string;
   targetEntityType: string;
+  isPrivate: boolean;
 }
 
 export interface HookInfo {
   methodName: string;
   hookTypeName: string;
-  genericConfig?: string;
   sourcePackage?: string;
   runnerExport?: string;
 }
 
 export interface MethodInfo {
   eventName: string;
+  methodName: string;
   inputZod: string;
   resultZod: string;
   fieldMeta: Record<string, FieldMeta>;
+  hasTool: boolean;
 }
 
 export interface ConfigurableInfo {

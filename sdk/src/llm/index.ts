@@ -1,23 +1,30 @@
+// LLM base class
+export { LLMEntity } from './base.js';
+export type { ToolCallEvent } from './base.js';
+
 // LLM decorators
 export {
-  LLMEntity,
   Context,
   Executor,
-  LLMTool,
-  LLMVisible,
+  Tool,
+  SystemPrompt,
   LLMExecutionTrigger,
   getLLMEntityMeta,
   getLLMContextProp,
   getLLMExecutorProp,
+  getLLMSystemPromptProp,
   getLLMTools,
-  getLLMVisible,
   getLLMTriggers,
 } from './decorators.js';
-export type { LLMEntityOptions, LLMToolOptions } from './decorators.js';
+export type { LLMEntityOptions, ToolOptions } from './decorators.js';
+export { setLLMTools } from './decorators.js';
 
 // LLM context class
 export { LLMContext } from './context.js';
-export type { LLMMessage } from './context.js';
+export type { LLMMessage, LLMContextOptions } from './context.js';
+
+// Shareable conversation context entity
+export { ConversationContext } from './conversation.js';
 
 // LLM trigger params
 export type { LLMExecutionTriggerParams } from './trigger.js';

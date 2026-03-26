@@ -17,8 +17,8 @@ npm i -g @interactkit/cli
 Create a project:
 
 ```bash
-interactkit init my-agent
-cd my-agent
+interactkit init my-world
+cd my-world
 pnpm install
 ```
 

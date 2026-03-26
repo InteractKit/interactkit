@@ -8,8 +8,16 @@ InteractKit lets you build AI agents the same way you build any app -- write cla
 
 ## Get Running in 60 Seconds
 
+Install the CLI:
+
 ```bash
-npx @interactkit/cli init my-agent
+npm install -g @interactkit/cli
+```
+
+Create a project:
+
+```bash
+interactkit init my-agent
 cd my-agent
 pnpm install
 ```

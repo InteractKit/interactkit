@@ -110,6 +110,8 @@ SupportTeam
   └── SharedContext               <- shared history across all brains
 ```
 
+Multiple brains can share conversation history via `ConversationContext`. The parent owns it as a `@Component`, each brain overrides its built-in context with a `@Ref` to it. Switching between brains preserves the full conversation -- the user never repeats themselves. See [Shared Conversation Context](docs/llm.md#shared-conversation-context).
+
 ---
 
 ## What You Don't Write

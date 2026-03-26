@@ -87,6 +87,8 @@ ContentTeam
 
 The Planner calls `researcher.research()`, then `writer.write()`, then `reviewer.review()`. Each sub-agent handles its own domain with its own tools. The Researcher's Brain can call `browser.search()` and `memory.store()` without the Planner knowing or caring how research works internally.
 
+When multiple brains need to share conversation history -- so the Writer knows what the Researcher found without repeating context -- use `ConversationContext`. The parent owns it as a `@Component`, each brain references it via `@Ref`, and switching between brains preserves the full conversation. See [Shared Conversation Context](./llm.md#shared-conversation-context).
+
 You didn't write orchestration logic. Each LLM figures out what to do at its level.
 
 ### Simulations

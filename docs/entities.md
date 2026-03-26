@@ -186,6 +186,8 @@ class Brain extends BaseEntity {
 
 The build verifies the ref target exists as a sibling.
 
+Refs are also how multiple `LLMEntity` instances share a single conversation history via `ConversationContext`. See [Shared Conversation Context](./llm.md#shared-conversation-context).
+
 ---
 
 ## Streams (`EntityStream`): Child-to-Parent Data
@@ -240,7 +242,7 @@ The only public things on an entity are `@Tool` methods. State, components, refs
 
 ## LLM Entities
 
-If an entity needs an LLM brain, extend `LLMEntity` instead of `BaseEntity`. This gives you a built-in `invoke()` method, conversation context, and automatic visibility of all refs and tools to the LLM. See [LLM Entities](./llm.md) for full details.
+If an entity needs an LLM brain, extend `LLMEntity` instead of `BaseEntity`. This gives you a built-in `invoke()` method, conversation context, and automatic visibility of all refs and tools to the LLM. When multiple brains need to share conversation history (e.g. a research brain and a writing brain), use `ConversationContext` -- see [Shared Conversation Context](./llm.md#shared-conversation-context). Full details in [LLM Entities](./llm.md).
 
 ---
 

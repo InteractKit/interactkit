@@ -155,6 +155,8 @@ class Brain extends BaseEntity {
 
 Method calls between entities go through an event bus behind the scenes, so they work the same whether entities run in one process or across machines.
 
+When multiple LLM brains need to share the same conversation history, use `ConversationContext` as a shared `@Component` and reference it from each brain with `@Ref`. See [Shared Conversation Context](./llm.md#shared-conversation-context).
+
 ## Project Structure
 
 For small projects, keep entities flat:

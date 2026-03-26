@@ -1,6 +1,78 @@
 import { WebSocketServer, type WebSocket as WsSocket } from 'ws';
 import type { HookRunner, HookHandler } from '@interactkit/sdk';
 
+// ─── Centralized WebSocket Server Pool ─────────────────────
+// Shares a single WebSocketServer per port across all WS hook runners.
+// WsMessage and WsConnection hooks on the same port share the server
+// and client ID counter. Multiple handlers fan out to all listeners.
+
+type MessageHandler = (data: string, clientId: string, send: (msg: string) => void, close: () => void) => void;
+type ConnectionHandler = (clientId: string, send: (msg: string) => void, close: () => void) => void;
+
+interface ManagedWsServer {
+  wss: WebSocketServer;
+  clientCounter: number;
+  messageHandlers: Set<MessageHandler>;
+  connectionHandlers: Set<ConnectionHandler>;
+  refCount: number;
+}
+
+const wsPool = new Map<number, ManagedWsServer>();
+
+function acquireWsServer(port: number): ManagedWsServer {
+  let managed = wsPool.get(port);
+  if (!managed) {
+    const wss = new WebSocketServer({ port });
+    managed = {
+      wss,
+      clientCounter: 0,
+      messageHandlers: new Set(),
+      connectionHandlers: new Set(),
+      refCount: 0,
+    };
+    const m = managed;
+    wsPool.set(port, managed);
+
+    wss.on('connection', (ws: WsSocket) => {
+      const clientId = `ws-${++m.clientCounter}`;
+      const send = (msg: string) => ws.send(msg);
+      const close = () => ws.close();
+
+      for (const handler of m.connectionHandlers) {
+        handler(clientId, send, close);
+      }
+
+      ws.on('message', (raw: Buffer) => {
+        const data = raw.toString();
+        for (const handler of m.messageHandlers) {
+          handler(data, clientId, send, close);
+        }
+      });
+    });
+  }
+  managed.refCount++;
+  return managed;
+}
+
+function releaseWsServer(port: number, handler: MessageHandler | ConnectionHandler, type: 'message' | 'connection'): Promise<void> {
+  const managed = wsPool.get(port);
+  if (!managed) return Promise.resolve();
+
+  if (type === 'message') {
+    managed.messageHandlers.delete(handler as MessageHandler);
+  } else {
+    managed.connectionHandlers.delete(handler as ConnectionHandler);
+  }
+
+  managed.refCount--;
+  if (managed.refCount === 0) {
+    wsPool.delete(port);
+    for (const client of managed.wss.clients) client.close();
+    return new Promise<void>((resolve) => managed.wss.close(() => resolve()));
+  }
+  return Promise.resolve();
+}
+
 // ─── WsMessage Hook ─────────────────────────────────────
 // Fires on every incoming WebSocket message.
 
@@ -17,33 +89,22 @@ export namespace WsMessage {
   }
 
   class RunnerImpl implements HookRunner<Input> {
-    private wss: WebSocketServer | null = null;
+    private port = 0;
+    private handler: MessageHandler | null = null;
 
     async start(emit: (data: Input) => void, config: Record<string, unknown>) {
-      const port = config.port as number;
-      let clientCounter = 0;
-
-      this.wss = new WebSocketServer({ port });
-
-      this.wss.on('connection', (ws: WsSocket) => {
-        const clientId = `ws-${++clientCounter}`;
-
-        ws.on('message', (raw: Buffer) => {
-          emit({
-            data: raw.toString(),
-            clientId,
-            send: (msg: string) => ws.send(msg),
-            close: () => ws.close(),
-          });
-        });
-      });
+      this.port = config.port as number;
+      this.handler = (data, clientId, send, close) => {
+        emit({ data, clientId, send, close });
+      };
+      const managed = acquireWsServer(this.port);
+      managed.messageHandlers.add(this.handler);
     }
 
     async stop() {
-      if (this.wss) {
-        for (const client of this.wss.clients) client.close();
-        await new Promise<void>((resolve) => this.wss!.close(() => resolve()));
-        this.wss = null;
+      if (this.handler) {
+        await releaseWsServer(this.port, this.handler, 'message');
+        this.handler = null;
       }
     }
   }
@@ -72,29 +133,22 @@ export namespace WsConnection {
   }
 
   class RunnerImpl implements HookRunner<Input> {
-    private wss: WebSocketServer | null = null;
+    private port = 0;
+    private handler: ConnectionHandler | null = null;
 
     async start(emit: (data: Input) => void, config: Record<string, unknown>) {
-      const port = config.port as number;
-      let clientCounter = 0;
-
-      this.wss = new WebSocketServer({ port });
-
-      this.wss.on('connection', (ws: WsSocket) => {
-        const clientId = `ws-${++clientCounter}`;
-        emit({
-          clientId,
-          send: (msg: string) => ws.send(msg),
-          close: () => ws.close(),
-        });
-      });
+      this.port = config.port as number;
+      this.handler = (clientId, send, close) => {
+        emit({ clientId, send, close });
+      };
+      const managed = acquireWsServer(this.port);
+      managed.connectionHandlers.add(this.handler);
     }
 
     async stop() {
-      if (this.wss) {
-        for (const client of this.wss.clients) client.close();
-        await new Promise<void>((resolve) => this.wss!.close(() => resolve()));
-        this.wss = null;
+      if (this.handler) {
+        await releaseWsServer(this.port, this.handler, 'connection');
+        this.handler = null;
       }
     }
   }

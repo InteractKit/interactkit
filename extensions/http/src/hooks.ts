@@ -1,6 +1,63 @@
 import { createServer, type IncomingMessage, type ServerResponse, type Server } from 'node:http';
 import type { HookRunner, HookHandler } from '@interactkit/sdk';
 
+// ─── Centralized HTTP Server Pool ──────────────────────────
+// Shares a single http.Server per port across all HttpRequest hook runners.
+// Multiple hooks on different path prefixes share the same server.
+// Longest-prefix matching routes each request to the correct handler.
+
+type RequestHandler = (req: IncomingMessage, res: ServerResponse, url: URL) => void;
+
+interface ManagedHttpServer {
+  server: Server;
+  handlers: Map<string, RequestHandler>;
+}
+
+const httpPool = new Map<number, ManagedHttpServer>();
+
+function acquireHttpServer(port: number, path: string, handler: RequestHandler): void {
+  let managed = httpPool.get(port);
+  if (!managed) {
+    managed = { server: null!, handlers: new Map() };
+    const m = managed;
+    m.server = createServer((req, res) => {
+      const url = new URL(req.url ?? '/', `http://localhost:${port}`);
+      // Longest-prefix match
+      let bestPrefix = '';
+      let bestHandler: RequestHandler | undefined;
+      for (const [prefix, h] of m.handlers) {
+        if (url.pathname.startsWith(prefix) && prefix.length > bestPrefix.length) {
+          bestPrefix = prefix;
+          bestHandler = h;
+        }
+      }
+      if (bestHandler) {
+        bestHandler(req, res, url);
+      } else {
+        res.writeHead(404);
+        res.end();
+      }
+    });
+    httpPool.set(port, managed);
+    m.server.listen(port);
+  }
+  if (managed.handlers.has(path)) {
+    throw new Error(`HttpRequest: path "${path}" already registered on port ${port}`);
+  }
+  managed.handlers.set(path, handler);
+}
+
+function releaseHttpServer(port: number, path: string): Promise<void> {
+  const managed = httpPool.get(port);
+  if (!managed) return Promise.resolve();
+  managed.handlers.delete(path);
+  if (managed.handlers.size === 0) {
+    httpPool.delete(port);
+    return new Promise<void>((resolve) => managed.server.close(() => resolve()));
+  }
+  return Promise.resolve();
+}
+
 // ─── HttpRequest Hook ────────────────────────────────────
 // Fires on every incoming HTTP request matching the configured path.
 
@@ -20,21 +77,14 @@ export namespace HttpRequest {
   }
 
   class RunnerImpl implements HookRunner<Input> {
-    private server: Server | null = null;
+    private port = 0;
+    private path = '/';
 
     async start(emit: (data: Input) => void, config: Record<string, unknown>) {
-      const port = config.port as number;
-      const prefix = (config.path as string) ?? '/';
+      this.port = config.port as number;
+      this.path = (config.path as string) ?? '/';
 
-      this.server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
-        const url = new URL(req.url ?? '/', `http://localhost:${port}`);
-
-        if (!url.pathname.startsWith(prefix)) {
-          res.writeHead(404);
-          res.end();
-          return;
-        }
-
+      acquireHttpServer(this.port, this.path, async (req, res, url) => {
         const chunks: Buffer[] = [];
         for await (const chunk of req) chunks.push(chunk as Buffer);
         const body = Buffer.concat(chunks).toString();
@@ -71,15 +121,10 @@ export namespace HttpRequest {
           }
         }, 5000);
       });
-
-      this.server.listen(port);
     }
 
     async stop() {
-      if (this.server) {
-        await new Promise<void>((resolve) => this.server!.close(() => resolve()));
-        this.server = null;
-      }
+      await releaseHttpServer(this.port, this.path);
     }
   }
 

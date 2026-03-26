@@ -124,7 +124,7 @@ export abstract class LLMEntity extends BaseEntity {
       for (const [childMethod, childOpts] of childTools.entries()) {
         const childMethodKey = `${childEntityType}.${childMethod}`;
         const childMethodReg = childReg?.methods?.[childMethodKey];
-        const fullToolName = `${propName}.${childOpts.name ?? childMethod}`;
+        const fullToolName = `${propName}_${childOpts.name ?? childMethod}`;
         tools.push({
           name: fullToolName,
           description: childOpts.description,

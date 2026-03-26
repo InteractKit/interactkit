@@ -3,7 +3,8 @@
 **TypeScript framework for building LLM agents that actually scale.**
 
 ```bash
-npx @interactkit/cli init my-agent
+npm i -g @interactkit/cli
+interactkit init my-agent
 cd my-agent && pnpm install && pnpm dev
 ```
 

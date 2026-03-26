@@ -1,6 +1,6 @@
 {
   "name": "@interactkit/sdk",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Entity framework for building composable, event-driven agent systems",
   "type": "module",
   "license": "MIT",

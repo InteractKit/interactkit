@@ -116,11 +116,10 @@ private apiKey!: string;
 
 ### Validation
 
-Use standard `class-validator` decorators:
+Use the `validate` option on `@State()` with a Zod schema (`z` is re-exported from the SDK):
 
 ```typescript
-@State({ description: 'Username' })
-@MinLength(3) @MaxLength(50)
+@State({ description: 'Username', validate: z.string().min(3).max(50) })
 private username!: string;
 ```
 

@@ -2,7 +2,7 @@
 export { Entity, Hook, Configurable, State, Component, Ref, Stream, Describe, getEntityMeta, getHookMeta, getConfigurableMeta, getStateMeta, getRefMeta, getStreamMeta, getDescribeMethod } from './entity/decorators.js';
 export type { ConfigurableOptions, StateOptions, EntityMeta, HookMetaEntry } from './entity/decorators.js';
 
-// Validation — @Secret is ours, everything else from class-validator
+// Validation — @Secret marks fields as sensitive (masked in UI/logs)
 export { Secret, getSecretMeta } from './entity/validators.js';
 
 // Entity context (runtime metadata access)

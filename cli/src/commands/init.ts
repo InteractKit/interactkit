@@ -48,7 +48,6 @@ export async function initCommand(projectName: string) {
 
   const deps: Record<string, string> = {
     '@interactkit/sdk': '^0.2.0',
-    'class-validator': '^0.14.1',
     'dotenv': '^16.4.0',
     'reflect-metadata': '^0.2.2',
   };

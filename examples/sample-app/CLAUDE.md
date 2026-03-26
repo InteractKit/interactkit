@@ -18,7 +18,7 @@ Agent (root, extends BaseEntity)
 
 Root entity. Owns all four children as `@Component`. Subscribes to child streams (`mouth.transcript`, `sensor.readings`) in `@Hook(Init.Runner())`. Delegates LLM chat to `brain.invoke()`.
 
-- State: `name` (configurable, validated `@MinLength(2) @MaxLength(50)`), `transcripts`, `sensorReadings`
+- State: `name` (configurable, validated with `z.string().min(2).max(50)`), `transcripts`, `sensorReadings`
 - Tools: `ask`, `readSensor`, `getTranscripts`, `introduce`, `reflect`, `getSpeechHistory`, `searchMemory`, `getMemoryCount`, `chat`
 
 ### Brain (`src/entities/brain.ts`)
@@ -43,7 +43,7 @@ Speech output entity. Emits spoken messages on the `transcript` stream. Maintain
 
 Storage entity with configurable capacity and FIFO eviction. Stores string entries, supports keyword search.
 
-- State: `capacity` (configurable, validated `@Min(1) @Max(1000)`), `entries`
+- State: `capacity` (configurable, validated with `z.number().min(1).max(1000)`), `entries`
 - Tools: `store`, `search`, `getAll`, `count`
 
 ### Sensor (`src/entities/sensor.ts`)
@@ -60,7 +60,7 @@ Simulated environmental sensor. Emits random readings on the `readings` stream a
 - **@SystemPrompt() getter**: Dynamic system prompt that reads entity state (`this.personality`).
 - **@Ref sibling calls**: Brain calls `this.mouth.speak()` and `this.memory.store()` directly.
 - **@Stream + parent subscription**: Agent subscribes to `mouth.transcript` and `sensor.readings` in Init hook.
-- **@Configurable + class-validator**: UI-editable fields with standard validation decorators.
+- **@Configurable + Zod validation**: UI-editable fields with inline Zod schemas via the `validate` option in `@State()`.
 
 ## Run
 

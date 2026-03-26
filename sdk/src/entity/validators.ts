@@ -4,8 +4,8 @@ const SECRET_META_KEY = Symbol('entity:secret');
 
 /**
  * Marks a string property as sensitive — masked in UI/logs.
- * Domain-specific to @interactkit/sdk. All other validation
- * decorators come from class-validator.
+ * Domain-specific to @interactkit/sdk. Validation is handled
+ * via the `validate` option in @State() using Zod schemas.
  */
 export function Secret(): PropertyDecorator {
   return function (target: object, propertyKey: string | symbol) {

@@ -1,11 +1,9 @@
-import { Entity, BaseEntity, Hook, Init, Configurable, State, Tool } from '@interactkit/sdk';
-import { Min, Max } from 'class-validator';
+import { Entity, BaseEntity, Hook, Init, Configurable, State, Tool, z } from '@interactkit/sdk';
 
 @Entity({ description: 'Long-term memory storage with search and decay' })
 export class Memory extends BaseEntity {
-  @State({ description: 'Maximum number of memory entries before eviction' })
+  @State({ description: 'Maximum number of memory entries before eviction', validate: z.number().min(1).max(1000) })
   @Configurable({ label: 'Max Capacity', group: 'Config' })
-  @Min(1) @Max(1000)
   private capacity = 100;
 
   @State({ description: 'Stored memory entries' })

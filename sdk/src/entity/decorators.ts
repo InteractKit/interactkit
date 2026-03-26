@@ -77,6 +77,8 @@ export function Configurable(options: ConfigurableOptions): PropertyDecorator {
 export interface StateOptions {
   /** Human-readable description of what this state property holds */
   description: string;
+  /** Optional Zod schema for validation (e.g. z.string().min(2).max(50)) */
+  validate?: unknown;
 }
 
 export function State(options: StateOptions): PropertyDecorator {

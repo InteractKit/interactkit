@@ -40,7 +40,7 @@ src/
       index.ts          # deployment plan generator (co-location, scaling)
     mappers/
       type-mapper.ts    # TS Type → Zod code string
-      validator-mapper.ts # class-validator AST → Zod refinements
+      validator-mapper.ts # @Secret() extraction + field metadata
 ```
 
 ## Key design rules

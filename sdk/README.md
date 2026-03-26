@@ -28,7 +28,7 @@ class Agent extends LLMEntity {
 - **Inter-entity communication** — call methods on child components like normal functions, routed transparently through an event bus
 - **Lifecycle hooks** — cron, timers, init, events — just decorated methods
 - **LLM-powered entities** — extend `LLMEntity`, add `@SystemPrompt`, `@Executor`, and `@Tool` with LangChain `bindTools`/`invoke` compatibility
-- **Validation** — use class-validator decorators, codegen generates Zod schemas
+- **Validation** — inline Zod schemas via `@State({ validate })`, codegen reads them directly
 - **Build-time checks** — codegen validates entity refs, LLM config, hook params, component wiring
 - **Runtime configuration** — `@Configurable` properties with enum, validation, description support
 - **Horizontal scaling** — swap `InProcessBusAdapter` for `RedisPubSubAdapter` per entity

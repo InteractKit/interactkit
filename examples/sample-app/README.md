@@ -22,7 +22,7 @@ Agent (root)
 - EntityStream reusable `emit()`
 - `@Configurable` properties
 - `@Secret` fields
-- class-validator (`@Min`, `@Max`, `@MinLength`, `@MaxLength`)
+- Inline Zod validation via `@State({ validate: z.number().min(1).max(1000) })`
 - Multiple sequential calls with state accumulation
 - Memory search across stored entries
 - Error propagation from child entities

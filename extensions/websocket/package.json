@@ -32,14 +32,12 @@
   },
   "peerDependencies": {
     "@interactkit/sdk": "^0.2.0",
-    "class-validator": "^0.14.0",
     "reflect-metadata": "^0.2.0"
   },
   "devDependencies": {
     "@interactkit/sdk": "workspace:*",
     "@types/node": "^25.5.0",
     "@types/ws": "^8.18.0",
-    "class-validator": "^0.14.1",
     "reflect-metadata": "^0.2.2",
     "typescript": "^5.5.0"
   }

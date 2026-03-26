@@ -7,8 +7,8 @@ import {
   Component,
   State,
   Tool,
+  z,
 } from "@interactkit/sdk";
-import { MinLength, MaxLength } from "class-validator";
 import { Brain } from "./brain.js";
 import { Mouth } from "./mouth.js";
 import { Memory } from "./memory.js";
@@ -26,10 +26,8 @@ import { Sensor } from "./sensor.js";
  */
 @Entity({ description: "Root agent entity with all components" })
 export class Agent extends BaseEntity {
-  @State({ description: "The agent display name" })
+  @State({ description: "The agent display name", validate: z.string().min(2).max(50) })
   @Configurable({ label: "Agent Name", group: "Identity" })
-  @MinLength(2)
-  @MaxLength(50)
   private name = "Atlas";
 
   @Component() private brain!: Brain;

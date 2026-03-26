@@ -1,4 +1,4 @@
-import { Project } from 'ts-morph';
+import { Project, Node } from 'ts-morph';
 import { typeToZod } from '../mappers/type-mapper.js';
 import { extractValidators } from '../mappers/validator-mapper.js';
 import { classifyProperty } from './properties.js';
@@ -81,12 +81,28 @@ export function extractEntities(project: Project): EntityInfo[] {
           components.push({ propertyName: name, entityType: classification.entityType, isPrivate: prop.getScope() === 'private' });
           break;
         case 'state': {
-          const { zodRefinements, fieldMeta } = extractValidators(prop);
-          const baseZod = typeToZod(prop.getType());
-          const zodCode = baseZod + zodRefinements;
+          const { fieldMeta } = extractValidators(prop);
           const optional = prop.hasQuestionToken();
 
-          const hasState = prop.getDecorator('State') !== undefined;
+          // Check for `validate` in @State({ validate: z.string().min(2) })
+          let zodCode: string | undefined;
+          const stateDec = prop.getDecorator('State');
+          if (stateDec) {
+            const stateArgs = stateDec.getArguments();
+            if (stateArgs[0] && Node.isObjectLiteralExpression(stateArgs[0])) {
+              const validateProp = stateArgs[0].getProperty('validate');
+              if (validateProp && Node.isPropertyAssignment(validateProp)) {
+                zodCode = validateProp.getInitializer()?.getText();
+              }
+            }
+          }
+
+          // Fall back to auto-derived Zod type if no validate provided
+          if (!zodCode) {
+            zodCode = typeToZod(prop.getType());
+          }
+
+          const hasState = stateDec !== undefined;
           const hasDescribe = prop.getDecorator('Describe') !== undefined;
           const hasExecutor = prop.getDecorator('Executor') !== undefined;
           const isPrivate = prop.getScope() === 'private';

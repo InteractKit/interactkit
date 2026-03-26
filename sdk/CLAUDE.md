@@ -28,7 +28,7 @@ The SDK has three layers: **Authoring** (what devs write), **Codegen** (pre-buil
 | Decorator | Target | Purpose |
 |-----------|--------|---------|
 | `@Entity({ type?, description?, persona?, database?, pubsub?, logger? })` | class | Marks a class as an entity. `type` is auto-derived from class name (PascalCase to snake_case) if omitted. Root entities optionally pass infra config; sub-entities inherit from parent. |
-| `@State({ description })` | property | Required on all state properties (must be `private`) — describes what the state holds |
+| `@State({ description, validate? })` | property | Required on all state properties (must be `private`) — describes what the state holds. Optional `validate` accepts a Zod schema for inline validation. |
 | `@Component()` | property | Marks a property as a child entity component (must be `private`) |
 | `@Stream()` | property | Marks an `EntityStream<T>` property. Streams are always public — parent entities can subscribe to them after boot |
 | `@Tool({ description })` | method | Required on all public async methods — describes what the method does |
@@ -43,12 +43,12 @@ The SDK has three layers: **Authoring** (what devs write), **Codegen** (pre-buil
 | `@Executor()` | property | Marks the LLM executor instance (e.g. `new ChatAnthropic(...)`) |
 | `@Tool({ description })` | method | Exposes a method as an LLM-callable tool (same decorator as structural) |
 
-**Validation** — uses `class-validator` (full library available) plus SDK's `@Secret()`:
+**Validation** — inline Zod via the `validate` option on `@State()`, plus SDK's `@Secret()`:
 
-| Decorator | Source | Purpose |
+| Decorator / Option | Source | Purpose |
 |-----------|--------|---------|
 | `@Secret()` | `@interactkit/sdk` | Marks field as sensitive (masked in UI/logs) |
-| `@MaxLength()`, `@MinLength()`, `@IsEmail()`, `@Min()`, `@Max()`, etc. | `class-validator` | Standard validation — any class-validator decorator works |
+| `@State({ validate: z.string().min(2) })` | `@interactkit/sdk` | Inline Zod validation on any state property — `z` is re-exported from the SDK |
 
 ### BaseEntity
 
@@ -111,13 +111,12 @@ class WritingBrain extends LLMEntity {
 }
 ```
 
-### Validation decorators
+### Validation
 
-Uses `class-validator` (same lib as NestJS DTOs) for all standard validation. The SDK only adds `@Secret()` for marking sensitive fields.
+Validation is inline via the `validate` option on `@State()`. The SDK re-exports Zod as `z`. `@Secret()` remains a separate decorator for UI masking. If no `validate` is provided, codegen auto-derives the Zod type from the TypeScript type.
 
 ```typescript
-import { MaxLength, MinLength, IsEmail, Min, Max } from 'class-validator';
-import { Secret } from '@interactkit/sdk';
+import { z, Secret } from '@interactkit/sdk';
 
 @Entity({ type: 'user' })
 class User extends BaseEntity {
@@ -125,25 +124,21 @@ class User extends BaseEntity {
   @Secret()
   private apiKey!: string;
 
-  @State({ description: 'User bio' })
-  @MaxLength(600)
+  @State({ description: 'User bio', validate: z.string().max(600) })
   private bio!: string;
 
-  @State({ description: 'Account username' })
-  @MinLength(3) @MaxLength(50)
+  @State({ description: 'Account username', validate: z.string().min(3).max(50) })
   private username!: string;
 
-  @State({ description: 'Contact email' })
-  @IsEmail()
+  @State({ description: 'Contact email', validate: z.string().email() })
   private email!: string;
 
-  @State({ description: 'User score' })
-  @Min(0) @Max(100)
+  @State({ description: 'User score', validate: z.number().min(0).max(100) })
   private score = 0;
 }
 ```
 
-Codegen reads class-validator metadata + `@Secret()` metadata to generate Zod validators for the registry. Any class-validator decorator works — the full library is available.
+Codegen reads the `validate` Zod schema from `@State()` + `@Secret()` metadata to generate validators for the registry. If `validate` is omitted, the Zod type is auto-derived from the TypeScript type.
 
 ### Hook namespaces
 
@@ -242,7 +237,7 @@ interface EntityStream<T> {
 | `@Configurable()` properties | UI schema (label, group, type, validation) |
 | Public async methods (non-hook) | Auto-named `entityType.methodName` events |
 | Method param/return types | Event input/result Zod schemas |
-| Validation decorators (`@Secret`, `@MaxLength`, etc.) | Zod validators + fieldMeta (`@Secret()` → `secret: true`, `@MaxLength(600)` → `.max(600)`) |
+| `@State({ validate })` + `@Secret()` | Zod validators + fieldMeta (`@Secret()` → `secret: true`, `validate: z.string().max(600)` → `.max(600)`) |
 | Union literals, optionals, arrays, nested objects | `z.enum()`, `.optional()`, `z.array()`, `z.object()` |
 
 **Generated output:**
@@ -434,20 +429,16 @@ interface HookHandler<T = any> {
 - `emit` — provided by the runtime. Runner calls it when external data arrives, runtime routes it to the entity's `@Hook` method.
 - Runner knows nothing about entities — it just listens for external events and emits typed data.
 
-### Custom validation decorators
-
-Validation is extensible via class-validator's built-in custom decorator support — no SDK-specific extension mechanism needed. See class-validator docs for creating custom validators.
-
 ---
 
 ## Design rules
 
 1. **Events are internal** — devs call `this.component.method(input)`, codegen compiles it to event bus calls. No event names/envelopes exposed.
-2. **No Zod in entity files** — devs write plain TS types. Codegen generates Zod.
+2. **Zod only in `@State({ validate })`** — devs write plain TS types for method params/returns (codegen generates Zod for those). Inline Zod is only used in the `validate` option on `@State()` for explicit validation constraints.
 3. **Only `@Tool` methods and `@Stream` properties are public** — state, components, and refs must be `private`. Streams are always public (parent subscribes to child streams). Only `@Tool`-decorated async methods can be public. This enforces encapsulation and single-hop communication (no `this.brain.memory.recall()`).
 4. **State requires `@State({ description })`** — every state property must have `@State({ description: '...' })` and be `private`. This ensures all state is documented and discoverable.
 5. **All public methods require `@Tool`** — every public async method must have `@Tool({ description: '...' })`. Hook methods are exempt.
-6. **Validation via class-validator** — standard decorators (`@MaxLength`, `@IsEmail`, etc.) plus SDK's `@Secret()`. Codegen reads metadata to generate Zod.
+6. **Validation via inline Zod** — `@State({ validate: z.string().min(2) })` for inline validation, plus SDK's `@Secret()` for UI masking. If `validate` is omitted, codegen auto-derives the Zod type from the TypeScript type.
 7. **Entity IDs are auto-generated** — runtime assigns unique IDs on instantiation. Sub-entity IDs are scoped to their parent (e.g. `person:abc123/brain:def456`). Devs never manage IDs manually.
 8. **Errors propagate upward naturally** — when `this.brain.think()` throws, the caller gets the error just like a normal function call. Devs use standard try/catch. The event bus serializes errors back through the same request/response path.
 9. **Entity set is static** — all entity instances are defined at build time. No dynamic spawning at runtime.
@@ -464,7 +455,7 @@ src/
   index.ts                   # Barrel export
   entity/
     decorators.ts            # @Entity, @Hook, @Configurable
-    validators.ts            # @Secret() — domain-specific; all other validation from class-validator
+    validators.ts            # @Secret() — domain-specific; inline Zod validation via `validate` option on @State()
     runtime.ts               # Instantiation, state persistence, event routing
     stream.ts                # EntityStream<T> implementation
     types.ts                 # BaseEntity, EntityInstance, StateStore
@@ -495,7 +486,7 @@ src/
   codegen/
     extract.ts               # ts-morph entry point
     type-mapper.ts           # TS type → Zod conversion
-    validator-mapper.ts      # Reads class-validator metadata → Zod code
+    validator-mapper.ts      # Extracts inline Zod `validate` schemas from @State() → registry Zod code
 ```
 
 ## Dependencies
@@ -513,7 +504,6 @@ src/
 
 | Package | Role |
 |---------|------|
-| `class-validator` | Validation decorators (same as NestJS DTOs) — users import directly |
 | `reflect-metadata` | Decorator metadata — must be loaded before any entity code |
 
 ## Build

@@ -5,6 +5,8 @@ InteractKit uses pluggable adapters for database, pub/sub, and logging. Set them
 ## Setup
 
 ```typescript
+import { Entity, BaseEntity, Component, PrismaDatabaseAdapter, RedisPubSubAdapter, ConsoleLogAdapter } from '@interactkit/sdk';
+
 @Entity({
   database: PrismaDatabaseAdapter,
   pubsub: RedisPubSubAdapter,
@@ -19,6 +21,8 @@ class Agent extends BaseEntity {
 Any child can override an adapter:
 
 ```typescript
+import { Entity, BaseEntity, InProcessBusAdapter } from '@interactkit/sdk';
+
 @Entity({
   pubsub: InProcessBusAdapter, // override just pub/sub
 })
@@ -54,6 +58,9 @@ model EntityState {
 Implement the interface and pass it:
 
 ```typescript
+import { Entity, BaseEntity } from '@interactkit/sdk';
+import type { PubSubAdapter } from '@interactkit/sdk';
+
 class MyPubSub implements PubSubAdapter {
   async publish(channel: string, message: string) { /* ... */ }
   async subscribe(channel: string, handler: (msg: string) => void) { /* ... */ }

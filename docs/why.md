@@ -48,6 +48,9 @@ Every box is an entity. Each one has its own state, its own tools, and its own L
 An entity with an LLM brain that calls tools:
 
 ```typescript
+import { Entity, LLMEntity, Executor, Ref, Describe } from '@interactkit/sdk';
+import { ChatOpenAI } from '@langchain/openai';
+
 @Entity()
 class Brain extends LLMEntity {
   @Executor() private llm = new ChatOpenAI({ model: 'gpt-4o-mini' });
@@ -126,6 +129,8 @@ State persists between runs. Over weeks, each persona builds up unique memories 
 Entities don't just wait to be called. They can act on their own:
 
 ```typescript
+import { Entity, BaseEntity, Ref, Hook, Tick } from '@interactkit/sdk';
+
 @Entity()
 class Monitor extends BaseEntity {
   @Ref() private brain!: Brain;
@@ -166,6 +171,8 @@ private entries: string[] = [];
 A child entity can push data to its parent as it happens:
 
 ```typescript
+import { Entity, BaseEntity, Hook, Tick, EntityStream } from '@interactkit/sdk';
+
 @Entity()
 class Sensor extends BaseEntity {
   private readings!: EntityStream<number>;

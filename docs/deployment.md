@@ -15,6 +15,8 @@ It depends on the pub/sub adapter:
 ## Example
 
 ```typescript
+import { Entity, BaseEntity, Component, RedisPubSubAdapter } from '@interactkit/sdk';
+
 @Entity()
 class Agent extends BaseEntity {
   @Component() brain!: Brain;      // InProcess → stays together

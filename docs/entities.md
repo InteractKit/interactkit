@@ -12,6 +12,8 @@ Each entity has:
 ## Defining an Entity
 
 ```typescript
+import { Entity, BaseEntity, State, Tool } from '@interactkit/sdk';
+
 @Entity()
 class Browser extends BaseEntity {
   @State({ description: 'Search history' })
@@ -41,6 +43,8 @@ Options you can pass to `@Entity()`:
 Every entity should have a `@Describe()` method. It returns a string that tells sibling entities and LLMs what this entity is and what it can do right now. For `LLMEntity` subclasses, the descriptions from the entity and its refs are automatically composed into the LLM's system prompt.
 
 ```typescript
+import { Entity, BaseEntity, State, Describe, Tool } from '@interactkit/sdk';
+
 @Entity()
 class Browser extends BaseEntity {
   @State({ description: 'Search history' })
@@ -62,6 +66,8 @@ class Browser extends BaseEntity {
 Because `@Describe()` is a method (not a static string), you can include dynamic state via template literals. The description updates as the entity's state changes:
 
 ```typescript
+import { Entity, BaseEntity, State, Describe, Tool } from '@interactkit/sdk';
+
 @Entity()
 class Memory extends BaseEntity {
   @State({ description: 'Stored entries' })
@@ -145,6 +151,8 @@ The description tells other entities (and LLMs) what the tool does. If you forge
 An entity can contain other entities as children:
 
 ```typescript
+import { Entity, BaseEntity, Component } from '@interactkit/sdk';
+
 @Entity()
 class Agent extends BaseEntity {
   @Component() private brain!: Brain;
@@ -166,6 +174,8 @@ const results = await this.browser.search({ query: 'restaurants' });
 Sometimes a child needs to talk to a sibling. Use `@Ref()`:
 
 ```typescript
+import { Entity, BaseEntity, Component, Ref, Tool } from '@interactkit/sdk';
+
 @Entity()
 class Agent extends BaseEntity {
   @Component() private brain!: Brain;
@@ -194,6 +204,8 @@ Refs are also how multiple `LLMEntity` instances share a single conversation his
 Streams let a child push data up to its parent in real time:
 
 ```typescript
+import { Entity, BaseEntity, Component, Hook, Init, Tick, EntityStream } from '@interactkit/sdk';
+
 @Entity()
 class Sensor extends BaseEntity {
   private readings!: EntityStream<number>;

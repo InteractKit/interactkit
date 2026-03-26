@@ -7,6 +7,7 @@ Extensions add custom hook types and entities to InteractKit. They're just npm p
 Install it and use like any entity:
 
 ```typescript
+import { Entity, BaseEntity, Component } from '@interactkit/sdk';
 import { TwilioPhone } from '@interactkit/twilio';
 
 @Entity()
@@ -53,6 +54,8 @@ export namespace Sms {
 Standard entities that use the custom hook:
 
 ```typescript
+import { Entity, BaseEntity, State, Configurable, Hook, Tool } from '@interactkit/sdk';
+
 @Entity()
 export class TwilioPhone extends BaseEntity {
   @State({ description: 'Phone number' })
@@ -94,6 +97,8 @@ interactkit add GitHub --mcp-stdio "npx -y @github/mcp-server"
 This generates entity files with the MCP transport pre-configured. Use them like any other entity:
 
 ```typescript
+import { Entity, BaseEntity, Component } from '@interactkit/sdk';
+
 @Entity()
 class Agent extends BaseEntity {
   @Component() private brain!: Brain;

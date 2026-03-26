@@ -43,6 +43,8 @@ That's it. You have a running agent with an LLM brain, memory, and an HTTP endpo
 Everything in InteractKit is an **entity** -- a class that does one job.
 
 ```typescript
+import { Entity, BaseEntity, Describe, State, Tool } from '@interactkit/sdk';
+
 @Entity()
 class Memory extends BaseEntity {
   @Describe()
@@ -81,6 +83,9 @@ That's really it. You write a class, mark what matters, and the framework handle
 Want an entity that can think? Extend `LLMEntity` instead of `BaseEntity`:
 
 ```typescript
+import { Entity, LLMEntity, Describe, Executor, Ref } from '@interactkit/sdk';
+import { ChatOpenAI } from '@langchain/openai';
+
 @Entity()
 class Brain extends LLMEntity {
   @Describe()
@@ -106,6 +111,8 @@ When you call `brain.invoke({ message: "remember that I like coffee" })`, the LL
 Entities live in a tree. A parent holds its children as `@Component`s:
 
 ```typescript
+import { Entity, BaseEntity, Component } from '@interactkit/sdk';
+
 @Entity()
 class Agent extends BaseEntity {
   @Component() private brain!: Brain;
@@ -130,6 +137,9 @@ This generates a typed `.ts` file. The Brain sees Slack's tools automatically.
 Entities can react to events using `@Hook()`:
 
 ```typescript
+import { Hook, Tick, Cron } from '@interactkit/sdk';
+import { HttpRequest } from '@interactkit/http';
+
 // Respond to HTTP requests
 @Hook(HttpRequest.Runner({ port: 3000, path: '/chat' }))
 async onChat(input: HttpRequest.Input) { ... }

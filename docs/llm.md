@@ -7,6 +7,8 @@ An LLM entity is an entity with a brain. It extends `LLMEntity` instead of `Base
 You have entities that each do one thing:
 
 ```typescript
+import { Entity, BaseEntity, Tool } from '@interactkit/sdk';
+
 @Entity()
 class Browser extends BaseEntity {
   @Tool({ description: 'Search the web' })
@@ -29,6 +31,9 @@ class Memory extends BaseEntity {
 Then one LLM entity that decides what to use and when:
 
 ```typescript
+import { Entity, LLMEntity, Describe, Executor, Ref, Tool } from '@interactkit/sdk';
+import { ChatOpenAI } from '@langchain/openai';
+
 @Entity({ description: 'LLM-powered decision making' })
 class Brain extends LLMEntity {
   @Describe()
@@ -87,20 +92,22 @@ What you get out of the box:
 Every `LLMEntity` exposes two streams that parents can subscribe to:
 
 ```typescript
+import { BaseEntity, Component, Hook, Init } from '@interactkit/sdk';
+import type { ToolCallEvent } from '@interactkit/sdk';
+
 class Agent extends BaseEntity {
   @Component() private brain!: Brain;
 
   @Hook(Init.Runner())
   async onInit(input: Init.Input) {
     // Watch every LLM response
-    this.brain.response.on('data', (text: unknown) => {
+    this.brain.response.on('data', (text: string) => {
       console.log('LLM said:', text);
     });
 
     // Watch every tool call
-    this.brain.toolCall.on('data', (event: unknown) => {
-      const { tool, args, result } = event as ToolCallEvent;
-      console.log(`Tool called: ${tool}`, args, result);
+    this.brain.toolCall.on('data', (event: ToolCallEvent) => {
+      console.log(`Tool called: ${event.tool}`, event.args, event.result);
     });
   }
 }
@@ -135,6 +142,11 @@ You are a curious assistant. Current mood: focused.
 Points to your LLM model. Any LangChain `BaseChatModel` works:
 
 ```typescript
+import { Executor } from '@interactkit/sdk';
+import { ChatOpenAI } from '@langchain/openai';
+import { ChatAnthropic } from '@langchain/anthropic';
+import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
+
 @Executor() private llm = new ChatOpenAI({ model: 'gpt-4o-mini' });
 @Executor() private llm = new ChatAnthropic({ model: 'claude-sonnet-4-20250514' });
 @Executor() private llm = new ChatGoogleGenerativeAI({ model: 'gemini-pro' });
@@ -252,6 +264,9 @@ interactkit add <Name> [options]
 ## Full Example
 
 ```typescript
+import { Entity, BaseEntity, LLMEntity, Component, Ref, Tool, Describe, Executor, State } from '@interactkit/sdk';
+import { ChatOpenAI } from '@langchain/openai';
+
 @Entity()
 class Agent extends BaseEntity {
   @Component() private brain!: Brain;
@@ -344,6 +359,9 @@ By default, each `LLMEntity` gets its own private `LLMContext`. When you want mu
 The parent owns the shared context as a `@Component`. Each brain overrides its built-in `context` with a `@Ref` to the shared one:
 
 ```typescript
+import { Entity, BaseEntity, LLMEntity, Component, Ref, Tool, Describe, Executor, State, ConversationContext } from '@interactkit/sdk';
+import { ChatOpenAI } from '@langchain/openai';
+
 @Entity()
 class Agent extends BaseEntity {
   @Component() private context!: ConversationContext;
@@ -395,6 +413,9 @@ Switching modes preserves the full conversation. Both brains read from and write
 Instead of one brain with phases or flags controlling which tools are visible, use separate brain entities for separate concerns. The parent entity routes messages based on state. The entity tree IS the state machine:
 
 ```typescript
+import { Entity, BaseEntity, LLMEntity, Component, Ref, Tool, Describe, Executor, State } from '@interactkit/sdk';
+import { ChatOpenAI } from '@langchain/openai';
+
 @Entity()
 class SupportAgent extends BaseEntity {
   @Component() private triage!: TriageBrain;
@@ -463,6 +484,9 @@ Each brain has exactly the tools it needs -- no if/else gating, no tool visibili
 Every `LLMEntity` has a built-in `protected context = new LLMContext()`. Override it to configure history limits:
 
 ```typescript
+import { Entity, LLMEntity, LLMContext, Describe, Executor } from '@interactkit/sdk';
+import { ChatOpenAI } from '@langchain/openai';
+
 @Entity({ description: 'Brain with custom context settings' })
 class Brain extends LLMEntity {
   protected context = new LLMContext({ maxHistory: 200 });
@@ -481,6 +505,8 @@ The default `maxHistory` is 50 messages. Increase it for long-running conversati
 You can also combine this with `ConversationContext` for shared history with custom limits:
 
 ```typescript
+import { Entity, BaseEntity, Component, Hook, Init, ConversationContext } from '@interactkit/sdk';
+
 @Entity()
 class Agent extends BaseEntity {
   @Component() private context!: ConversationContext;
@@ -500,6 +526,9 @@ class Agent extends BaseEntity {
 Every `LLMEntity` exposes `response` and `toolCall` streams. Parents can subscribe to these for logging, cost tracking, debugging, or driving a UI:
 
 ```typescript
+import { Entity, BaseEntity, Component, State, Hook, Init, Tool } from '@interactkit/sdk';
+import type { ToolCallEvent } from '@interactkit/sdk';
+
 @Entity()
 class Dashboard extends BaseEntity {
   @Component() private brain!: Brain;
@@ -510,15 +539,14 @@ class Dashboard extends BaseEntity {
   @Hook(Init.Runner())
   async onInit(input: Init.Input) {
     // Log every tool call with timestamp
-    this.brain.toolCall.on('data', (event: unknown) => {
-      const { tool, args, result } = event as ToolCallEvent;
+    this.brain.toolCall.on('data', (event: ToolCallEvent) => {
       this.toolCallCount++;
-      console.log(`[${new Date().toISOString()}] tool #${this.toolCallCount}: ${tool} → ${result.slice(0, 50)}...`);
+      console.log(`[${new Date().toISOString()}] tool #${this.toolCallCount}: ${event.tool} → ${event.result.slice(0, 50)}...`);
     });
 
     // Log every final LLM response
-    this.brain.response.on('data', (text: unknown) => {
-      console.log(`[${new Date().toISOString()}] response: ${(text as string).slice(0, 100)}...`);
+    this.brain.response.on('data', (text: string) => {
+      console.log(`[${new Date().toISOString()}] response: ${text.slice(0, 100)}...`);
     });
   }
 

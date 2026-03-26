@@ -121,6 +121,8 @@ class Memory extends BaseEntity {
 Entities can contain other entities. The parent lists them as `@Component()`:
 
 ```typescript
+import { Entity, BaseEntity, Describe, Component } from '@interactkit/sdk';
+
 @Entity()
 class Agent extends BaseEntity {
   @Describe()
@@ -137,6 +139,8 @@ class Agent extends BaseEntity {
 Children can talk to siblings using `@Ref()`:
 
 ```typescript
+import { Entity, BaseEntity, Describe, Ref, Tool } from '@interactkit/sdk';
+
 @Entity()
 class Brain extends BaseEntity {
   @Describe()
@@ -196,6 +200,8 @@ The build doesn't care about folder layout. `--root` follows imports wherever th
 Want state to survive restarts? Add a database adapter to your root entity:
 
 ```typescript
+import { Entity, BaseEntity, Describe, Component, PrismaDatabaseAdapter, ConsoleLogAdapter } from '@interactkit/sdk';
+
 @Entity({
   database: PrismaDatabaseAdapter,
   logger: ConsoleLogAdapter,

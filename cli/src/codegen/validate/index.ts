@@ -15,7 +15,7 @@ export function validateEntities(entities: EntityInfo[]): string[] {
 
     // ─── State properties ─────────────────────────────
     for (const prop of entity.state) {
-      if (!prop.hasState && !prop.hasSystemPrompt && !prop.hasExecutor) {
+      if (!prop.hasState && !prop.hasDescribe && !prop.hasExecutor) {
         errors.push(`${loc}: state property "${prop.name}" requires @State({ description: '...' })`);
       }
       if (!prop.isPrivate) {

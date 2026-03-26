@@ -59,7 +59,7 @@ test('LLM calls think tool and returns response', async () => {
     }
   });
 
-  const result = await ctx.root.chat({ message: 'think about philosophy' });
+  const result = await ctx.root.invoke({ message: 'think about philosophy' });
 
   expect(result).toBe('I thought about philosophy. Fascinating stuff.');
   await ctx.shutdown();
@@ -76,7 +76,7 @@ test('LLM calls multiple tools in sequence', async () => {
     }
   });
 
-  await ctx.root.chat({ message: 'think and speak' });
+  await ctx.root.invoke({ message: 'think and speak' });
 
   const history = await ctx.root.getSpeechHistory();
   expect(history).toContain('hello world');
@@ -138,12 +138,52 @@ mock.calls('search')   // [{ query: 'hello' }]
 mock.reset()           // clear all recorded calls
 ```
 
+## Testing MCP Entities
+
+Since MCP entities are generated as regular entities with `@Tool` methods, you mock them with `mockEntity` like anything else. No MCP server needed in tests.
+
+```typescript
+import { bootTest, mockLLM, mockEntity } from '@interactkit/test';
+import { Agent } from '../src/entities/agent.js';
+import type { Slack } from '../src/entities/slack.js';
+
+test('brain escalates billing issues to Slack', async () => {
+  const slack = mockEntity<Slack>();
+  slack.on('sendMessage').returns('Message sent');
+  slack.on('searchChannels').returns([{ id: 'C123', name: 'billing' }]);
+
+  const ctx = await bootTest(Agent, {
+    executors: {
+      brain: mockLLM([
+        { toolCalls: [{ name: 'slack_searchChannels', args: { query: 'billing' } }] },
+        { toolCalls: [{ name: 'slack_sendMessage', args: { channel: 'C123', text: 'Billing issue reported' } }] },
+        { response: 'I escalated this to the billing team.' },
+      ])
+    }
+  });
+
+  // Swap the generated Slack entity with mock
+  (ctx.root as any).slack = slack;
+
+  const result = await ctx.root.invoke({ message: 'I was double-charged' });
+
+  expect(result).toContain('escalated');
+  expect(slack.calls('sendMessage')).toHaveLength(1);
+  expect(slack.calls('sendMessage')[0].channel).toBe('C123');
+
+  await ctx.shutdown();
+});
+```
+
+This works because `interactkit add --mcp-stdio` generates a real entity class with typed `@Tool` methods. The test mocks that entity the same way it mocks Memory or any other entity — no MCP protocol, no server process, no network.
+
 ## What to test
 
 | Level | What to use | When |
 |-------|-------------|------|
 | **Integration** | `bootTest(Agent)` | Test the full entity tree end-to-end. Most tests should be this. |
 | **LLM behavior** | `bootTest` + `mockLLM` | Test that the LLM calls the right tools in the right order. |
+| **MCP entities** | `bootTest` + `mockEntity` | Mock generated MCP entities — no server needed. |
 | **Unit** | `bootTest` + `mockEntity` | Test one entity's logic with mocked dependencies. |
 | **Build validation** | `interactkit build` | Codegen catches structural errors (missing decorators, bad refs, etc.) |
 

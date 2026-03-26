@@ -157,7 +157,8 @@ model EntityState {
   // ─── Entities (compiled from template JSON) ───────────────
 
   for (const entity of template.entities) {
-    const code = compileEntity(entity);
+    const isRoot = entity.file === template.root.file && entity.class === template.root.class;
+    const code = compileEntity(entity, isRoot ? { database: database === 'none' ? 'none' : 'prisma' } : undefined);
     const filePath = resolve(projectDir, `src/entities/${entity.file}.ts`);
     mkdirSync(dirname(filePath), { recursive: true });
     writeFileSync(filePath, code);

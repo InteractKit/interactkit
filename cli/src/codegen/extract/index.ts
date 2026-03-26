@@ -87,7 +87,7 @@ export function extractEntities(project: Project): EntityInfo[] {
           const optional = prop.hasQuestionToken();
 
           const hasState = prop.getDecorator('State') !== undefined;
-          const hasSystemPrompt = prop.getDecorator('SystemPrompt') !== undefined;
+          const hasDescribe = prop.getDecorator('Describe') !== undefined;
           const hasExecutor = prop.getDecorator('Executor') !== undefined;
           const isPrivate = prop.getScope() === 'private';
 
@@ -97,7 +97,7 @@ export function extractEntities(project: Project): EntityInfo[] {
             optional,
             fieldMeta,
             hasState,
-            hasSystemPrompt,
+            hasDescribe,
             hasExecutor,
             isPrivate,
           });

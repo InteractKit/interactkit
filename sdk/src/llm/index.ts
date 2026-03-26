@@ -7,12 +7,10 @@ export {
   Context,
   Executor,
   Tool,
-  SystemPrompt,
   LLMExecutionTrigger,
   getLLMEntityMeta,
   getLLMContextProp,
   getLLMExecutorProp,
-  getLLMSystemPromptProp,
   getLLMTools,
   getLLMTriggers,
 } from './decorators.js';

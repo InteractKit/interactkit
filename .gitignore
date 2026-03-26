@@ -18,6 +18,9 @@ __generated__/
 config/local.json
 config/local-*.json
 
+# Local playground
+playground/
+
 # OS
 .DS_Store
 Thumbs.db

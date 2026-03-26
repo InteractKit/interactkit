@@ -13,6 +13,7 @@
       "class": "Agent",
       "extends": "BaseEntity",
       "description": "Agent team with coordinator and specialists",
+      "describe": "I am the agent team root. I receive tasks via HTTP and delegate them to my coordinator, who orchestrates research and writing specialists.",
       "components": [
         { "name": "coordinator", "class": "Coordinator", "file": "coordinator" },
         { "name": "researcher", "class": "Researcher", "file": "researcher" },
@@ -29,7 +30,7 @@
       "class": "Coordinator",
       "extends": "LLMEntity",
       "description": "Coordinates the team — delegates research and writing",
-      "systemPrompt": "You are a team coordinator. Break tasks into steps. Use the researcher for finding information and the writer for creating content.",
+      "describe": "You are a team coordinator. Break tasks into steps. Use the researcher for finding information and the writer for creating content.",
       "refs": [
         { "name": "researcher", "class": "Researcher", "file": "researcher" },
         { "name": "writer", "class": "Writer", "file": "writer" },
@@ -44,7 +45,7 @@
       "class": "Researcher",
       "extends": "LLMEntity",
       "description": "Researches topics and stores findings",
-      "systemPrompt": "You are a research specialist. Find information and store key findings in memory.",
+      "describe": "You are a research specialist. Find information and store key findings in memory.",
       "refs": [
         { "name": "memory", "class": "Memory", "file": "memory" }
       ],
@@ -57,7 +58,7 @@
       "class": "Writer",
       "extends": "LLMEntity",
       "description": "Writes content based on research and instructions",
-      "systemPrompt": "You are a writer. Use memory to find research, then write clear and engaging content.",
+      "describe": "You are a writer. Use memory to find research, then write clear and engaging content.",
       "refs": [
         { "name": "memory", "class": "Memory", "file": "memory" }
       ],
@@ -70,6 +71,7 @@
       "class": "Memory",
       "extends": "BaseEntity",
       "description": "Stores and retrieves information",
+      "describe": "Shared memory with ${this.entries.length} entries. Use store() to save and search() to find.",
       "state": [
         { "name": "entries", "type": "string[]", "default": "[]", "description": "Stored entries" }
       ],

@@ -13,6 +13,7 @@
       "class": "Agent",
       "extends": "BaseEntity",
       "description": "Root agent entity with HTTP API",
+      "describe": "Root agent with an HTTP API on port 3000. Delegates chat to the brain.",
       "components": [
         { "name": "brain", "class": "Brain", "file": "brain" },
         { "name": "memory", "class": "Memory", "file": "memory" }
@@ -27,7 +28,7 @@
       "class": "Brain",
       "extends": "LLMEntity",
       "description": "LLM-powered brain",
-      "systemPrompt": "You are a helpful assistant. Use memory to remember things across conversations.",
+      "describe": "You are a helpful assistant. Use memory to remember things across conversations.",
       "refs": [
         { "name": "memory", "class": "Memory", "file": "memory" }
       ],
@@ -47,6 +48,7 @@
       "class": "Memory",
       "extends": "BaseEntity",
       "description": "Stores and retrieves information",
+      "describe": "Memory store with ${this.entries.length} entries. Use store() to save and search() to find entries.",
       "state": [
         { "name": "entries", "type": "string[]", "default": "[]", "description": "Stored entries" }
       ],

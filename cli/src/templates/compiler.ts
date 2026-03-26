@@ -7,7 +7,7 @@ export interface TemplateEntity {
   class: string;
   extends: 'BaseEntity' | 'LLMEntity';
   description: string;
-  systemPrompt?: string;
+  describe?: string;
   components?: Array<{ name: string; class: string; file: string }>;
   refs?: Array<{ name: string; class: string; file: string }>;
   state?: Array<{ name: string; type: string; default: string; description: string }>;
@@ -26,8 +26,12 @@ export interface TemplateDefinition {
   extraDeps?: Record<string, string>;
 }
 
+export interface CompileOptions {
+  database?: 'prisma' | 'none';
+}
+
 /** Compile a single entity definition to TypeScript source */
-export function compileEntity(entity: TemplateEntity): string {
+export function compileEntity(entity: TemplateEntity, options?: CompileOptions): string {
   const lines: string[] = [];
 
   // Collect imports
@@ -84,9 +88,16 @@ export function compileEntity(entity: TemplateEntity): string {
   // LLM-specific
   if (entity.extends === 'LLMEntity') {
     sdkImports.add('Executor');
-    if (entity.systemPrompt) {
-      sdkImports.add('SystemPrompt');
-    }
+  }
+
+  // @Describe
+  if (entity.describe) {
+    sdkImports.add('Describe');
+  }
+
+  // Database adapter (root entity only)
+  if (options?.database === 'prisma') {
+    sdkImports.add('PrismaDatabaseAdapter');
   }
 
   // Deduplicate file imports (same class from same file)
@@ -112,7 +123,11 @@ export function compileEntity(entity: TemplateEntity): string {
   lines.push('');
 
   // Class declaration
-  lines.push(`@Entity({ description: '${entity.description}' })`);
+  const entityOpts = [`description: '${entity.description}'`];
+  if (options?.database === 'prisma') {
+    entityOpts.push('database: PrismaDatabaseAdapter');
+  }
+  lines.push(`@Entity({ ${entityOpts.join(', ')} })`);
   lines.push(`export class ${entity.class} extends ${entity.extends} {`);
 
   // State properties
@@ -124,10 +139,12 @@ export function compileEntity(entity: TemplateEntity): string {
     }
   }
 
-  // SystemPrompt (LLMEntity only)
-  if (entity.extends === 'LLMEntity' && entity.systemPrompt) {
-    lines.push(`  @SystemPrompt()`);
-    lines.push(`  private systemPrompt = '${entity.systemPrompt}';`);
+  // @Describe method
+  if (entity.describe) {
+    lines.push(`  @Describe()`);
+    lines.push(`  describe() {`);
+    lines.push('    return `' + entity.describe + '`;');
+    lines.push(`  }`);
     lines.push('');
   }
 

@@ -26,7 +26,11 @@ program
   .description('Generate an entity file (use dots for nesting: researcher.Browser)')
   .option('--llm', 'Generate an LLM entity extending LLMEntity')
   .option('--attach <parent>', 'Auto-add as @Component to a parent entity')
-  .action(async (name: string, opts: { llm?: boolean; attach?: string }) => {
+  .option('--mcp-stdio <cmd>', 'Generate entity from MCP server via stdio')
+  .option('--mcp-http <url>', 'Generate entity from MCP server via HTTP')
+  .option('--mcp-header <key=value>', 'Add header for MCP connection (repeatable)', (v: string, acc: string[]) => [...acc, v], [])
+  .option('--mcp-env <key=value>', 'Add env var for stdio MCP server (repeatable)', (v: string, acc: string[]) => [...acc, v], [])
+  .action(async (name: string, opts) => {
     await addCommand(name, opts);
   });
 

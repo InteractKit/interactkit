@@ -44,7 +44,7 @@ export interface PropertyInfo {
   optional: boolean;
   fieldMeta: FieldMeta;
   hasState: boolean;
-  hasSystemPrompt: boolean;
+  hasDescribe: boolean;
   hasExecutor: boolean;
   isPrivate: boolean;
 }

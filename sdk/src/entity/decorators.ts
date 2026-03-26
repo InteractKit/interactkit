@@ -9,6 +9,7 @@ const CONFIGURABLE_META_KEY = Symbol('entity:configurable');
 const STATE_META_KEY = Symbol('entity:state');
 const REF_META_KEY = Symbol('entity:refs');
 const STREAM_META_KEY = Symbol('entity:streams');
+const DESCRIBE_META_KEY = Symbol('entity:describe');
 
 // ─── Internal metadata (EntityOptions + derived type) ─────
 export interface EntityMeta extends EntityOptions {
@@ -88,6 +89,16 @@ export function State(options: StateOptions): PropertyDecorator {
   };
 }
 
+// ─── @Describe ──────────────────────────────────────────
+// Marks a method that returns a string describing the entity's current state.
+// Used by LLMEntity to auto-compose the system prompt from self + refs.
+// Works on any entity — not just LLMEntity.
+export function Describe(): MethodDecorator {
+  return function (target: object, propertyKey: string | symbol, _descriptor: PropertyDescriptor) {
+    Reflect.defineMetadata(DESCRIBE_META_KEY, String(propertyKey), target.constructor);
+  };
+}
+
 // ─── @Component ───────────────────────────────────────────
 // Marks a property as a child entity component.
 // Triggers TypeScript's design:type metadata emission
@@ -147,4 +158,8 @@ export function getConfigurableMeta(target: Function): Map<string, ConfigurableO
 
 export function getStateMeta(target: Function): Map<string, StateOptions> {
   return Reflect.getOwnMetadata(STATE_META_KEY, target) ?? new Map();
+}
+
+export function getDescribeMethod(target: Function): string | undefined {
+  return Reflect.getOwnMetadata(DESCRIBE_META_KEY, target);
 }

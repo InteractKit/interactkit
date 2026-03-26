@@ -1,34 +1,51 @@
 # InteractKit
 
-**Build LLM agents in TypeScript with classes, not glue code.**
+**TypeScript framework for building LLM agents that actually scale.**
 
-This is a complete customer support agent with memory, Slack integration, and ticket management:
+Most agent frameworks give you a function and a prompt. InteractKit gives you an architecture. Your agents are class trees, your tools are methods, your state persists automatically, and MCP servers become typed entities with one CLI command.
+
+```bash
+npx @interactkit/cli init my-agent
+cd my-agent && pnpm install && pnpm dev
+```
+
+---
+
+## 30-second Example
+
+A support agent with memory, Slack, and ticket management -- four entities, zero glue code:
 
 ```typescript
 @Entity()
 class SupportAgent extends BaseEntity {
-  @Component() private brain!: SupportBrain;
+  @Component() private brain!: Brain;
   @Component() private memory!: Memory;
-  @Component() private slack!: SlackMCP;
-  @Component() private tickets!: TicketsMCP;
+  @Component() private slack!: Slack;      // generated from MCP server
+  @Component() private tickets!: Tickets;  // generated from MCP server
+
+  @Describe()
+  describe() { return 'Support agent. Delegates to brain for all queries.'; }
+
+  @Hook(HttpRequest.Runner({ port: 3000, path: '/chat' }))
+  async onChat(input: HttpRequest.Input) {
+    const { message } = JSON.parse(input.body);
+    const result = await this.brain.invoke({ message });
+    input.respond(200, JSON.stringify({ result }));
+  }
 }
 
 @Entity()
-class SupportBrain extends LLMEntity {
-  @State({ description: 'Product the agent specializes in' })
-  private product = 'InteractKit';
-
-  @SystemPrompt()
-  private get systemPrompt() {
-    return `You are a support agent for ${this.product}. Look up past conversations
-    before answering. Create tickets for bugs. Escalate billing issues to Slack.`;
+class Brain extends LLMEntity {
+  @Describe()
+  describe() {
+    return `You are a support agent. Look up past conversations before answering.
+    Create tickets for bugs. Escalate billing issues to Slack.`;
   }
 
-  @Executor() private llm = new ChatAnthropic({ model: 'claude-sonnet-4-20250514' });
-
-  @Ref() private memory!: Memory;   // brain sees memory.store(), memory.search()
-  @Ref() private slack!: SlackMCP;   // brain sees slack.sendMessage(), etc.
-  @Ref() private tickets!: TicketsMCP; // brain sees tickets.create(), etc.
+  @Executor() private llm = new ChatOpenAI({ model: 'gpt-4o-mini' });
+  @Ref() private memory!: Memory;
+  @Ref() private slack!: Slack;
+  @Ref() private tickets!: Tickets;
 }
 
 @Entity()
@@ -36,166 +53,215 @@ class Memory extends BaseEntity {
   @State({ description: 'Stored entries' })
   private entries: string[] = [];
 
-  @Tool({ description: 'Store something for later' })
+  @Describe()
+  describe() { return `Memory with ${this.entries.length} entries.`; }
+
+  @Tool({ description: 'Store something' })
   async store(input: { text: string }) { this.entries.push(input.text); }
 
-  @Tool({ description: 'Search stored entries' })
+  @Tool({ description: 'Search entries' })
   async search(input: { query: string }) {
     return this.entries.filter(e => e.includes(input.query));
   }
 }
-
-@MCP({ transport: { type: 'stdio', command: 'npx', args: ['-y', '@slack/mcp-server'] } })
-@Entity()
-class SlackMCP extends BaseEntity {}
-
-@MCP({ transport: { type: 'http', url: 'https://tickets.internal/mcp' } })
-@Entity()
-class TicketsMCP extends BaseEntity {}
 ```
 
-That is a working agent. The Brain sees every sibling's tools automatically. `@Ref` wires them. `@MCP` turns external servers into entities. Call `brain.invoke({ message: 'user says: I was double-charged' })` and the LLM searches memory, creates a ticket, and pings #billing on Slack -- on its own.
+The Slack and Tickets entities? Generated from MCP servers:
+
+```bash
+interactkit add Slack --mcp-stdio "npx -y @slack/mcp-server" --attach SupportAgent
+interactkit add Tickets --mcp-http "https://tickets.internal/mcp" --attach SupportAgent
+```
+
+The CLI connects, discovers every tool, and writes typed `.ts` files. The Brain sees all sibling tools automatically via `@Ref`. Call `brain.invoke(...)` and the LLM searches memory, creates tickets, and pings Slack -- no orchestration code.
+
+---
+
+## What Makes This Different
+
+**The system prompt writes itself.** Every entity has a `@Describe()` method that returns its current state. The LLM's context is auto-composed:
+
+```
+You are a support agent. Look up past conversations before answering.
+Create tickets for bugs. Escalate billing issues to Slack.
+
+[memory] Memory with 47 entries.
+[slack] Slack integration with 12 tools.
+[tickets] Ticket system with 8 tools.
+```
+
+This updates on every invocation. When memory grows from 47 to 48 entries, the LLM knows.
+
+**MCP servers become code you own.** Instead of runtime discovery, the CLI generates a real `.ts` file for each MCP server. You can inspect every tool, edit descriptions, remove tools you don't want, and get full type safety.
+
+**The entity tree is the architecture.** No config files, no routing tables, no dependency injection containers. The class hierarchy defines who talks to whom:
+
+```
+SupportTeam
+  ├── Router (LLM)               <- triages requests
+  ├── TechSupport
+  │   ├── TechBrain (LLM)
+  │   ├── Docs
+  │   └── Memory
+  ├── BillingSupport
+  │   ├── BillingBrain (LLM)
+  │   ├── Stripe (MCP)
+  │   └── Memory
+  └── SharedContext               <- shared history across all brains
+```
 
 ---
 
 ## What You Don't Write
 
-InteractKit eliminates the boilerplate that dominates LLM agent code:
-
-| You write | InteractKit handles |
+| You write | Framework handles |
 |-----------|-------------------|
-| `@Tool({ description: '...' })` on a method | Tool JSON schemas (extracted from TypeScript types at build time) |
-| `@Ref() private memory!: Memory` | Tool routing, registration, and invocation wiring |
-| `@State({ description: '...' })` on a property | Persistence, hydration, serialization across restarts |
-| `@SystemPrompt()` on a getter | Conversation history, message formatting, tool call loops |
-| `@MCP({ transport: ... })` on a class | MCP connection, tool discovery, protocol handling |
-| `@Component()` on children | Entity lifecycle, dependency injection, event bus routing |
+| `@Tool({ description })` on a method | JSON schemas from TypeScript types |
+| `@Ref() private memory!: Memory` | Tool routing and invocation |
+| `@State({ description })` on a property | Database persistence across restarts |
+| `@Describe()` method | Auto-composed system prompt |
+| `interactkit add --mcp-stdio "..."` | MCP discovery + typed entity generation |
+| `@Component()` on children | Lifecycle, wiring, event bus |
 
-No `tool_schemas.json`. No `registerTool()`. No manual `while (hasToolCalls)` loops. No state serialization. The framework reads your TypeScript types and generates everything at build time.
-
----
-
-## How It Looks
-
-A research agent with HTTP API, LLM brain, persistent memory, and real-time observability:
-
-```typescript
-@Entity()
-class ResearchAgent extends BaseEntity {
-  @Component() private brain!: ResearchBrain;
-  @Component() private memory!: Memory;
-  @Component() private browser!: Browser;
-
-  @Hook(Init.Runner())
-  async onInit() {
-    // Stream every tool call and response in real time
-    this.brain.toolCall.on('data', (tc) => console.log(`[tool] ${tc.tool}(${JSON.stringify(tc.args)})`));
-    this.brain.response.on('data', (text) => console.log(`[response] ${text}`));
-  }
-
-  @Hook(HttpRequest.Runner({ port: 3000, path: '/research' }))
-  async onRequest(input: HttpRequest.Input) {
-    const { topic } = JSON.parse(input.body);
-    const result = await this.brain.invoke({ message: `Research: ${topic}` });
-    input.respond(200, JSON.stringify({ result }));
-  }
-}
-
-@Entity()
-class ResearchBrain extends LLMEntity {
-  @State({ description: 'Areas of expertise' })
-  private expertise: string[] = ['computer science', 'economics'];
-
-  @SystemPrompt()
-  private get systemPrompt() {
-    return `You are a research assistant specializing in: ${this.expertise.join(', ')}.
-    Search the web for current information. Store key findings in memory for later.`;
-  }
-
-  @Executor() private llm = new ChatAnthropic({ model: 'claude-sonnet-4-20250514' });
-
-  @Ref() private memory!: Memory;   // sees memory.store(), memory.search()
-  @Ref() private browser!: Browser;  // sees browser.search(), browser.read()
-}
-```
-
-`curl localhost:3000/research -d '{"topic":"quantum computing"}'` — the LLM searches the web, reads pages, stores findings, and returns a synthesized answer. The parent streams every tool call in real time.
+No `tool_schemas.json`. No `registerTool()`. No `while (hasToolCalls)` loops. No state serialization.
 
 ---
 
-## The Entity Tree Is Your Architecture
-
-Agents are just entity trees. The tree is the architecture diagram:
-
-```
-SupportTeam
-  ├── Router (LLM)               ← triages incoming requests
-  ├── TechSupport                 ← handles technical issues
-  │   ├── TechBrain (LLM)
-  │   ├── Docs
-  │   └── Memory
-  ├── BillingSupport              ← handles billing issues
-  │   ├── BillingBrain (LLM)
-  │   ├── Stripe (MCP)
-  │   └── Memory
-  └── SharedContext               ← conversation history shared across all brains
-```
-
-Every box is an entity class. `LLMEntity` classes get an LLM. `@MCP` classes wrap external servers. `@Ref` lets siblings call each other. `ConversationContext` shares history across multiple brains. The tree defines who can talk to whom -- no configuration files, no routing tables.
-
-## Quick Start
+## Getting Started
 
 ```bash
-interactkit init my-agent    # pick a template + database
+npx @interactkit/cli init my-agent    # pick template + database
 cd my-agent
 pnpm install
-pnpm dev                     # builds, runs, watches for changes
+pnpm dev                              # builds, runs, watches, colored logs
 ```
 
-Add your LLM API key to `.env`, uncomment the executor import, and you're running.
+Add `OPENAI_API_KEY` to `.env`. That's it.
 
-## Features
+### Add entities
 
-- **`LLMEntity` base class.** Extend it, add `@Executor` and `@SystemPrompt`, and you get `invoke()`, conversation history, and tool-call loops for free. No manual orchestration.
-- **`@Ref` for tool wiring.** Point at a sibling entity and the LLM sees all its tools. No registration, no schemas, no glue.
-- **`@MCP` for external servers.** Any MCP server becomes an entity with one decorator. Slack, GitHub, databases -- the LLM calls their tools like any other.
-- **`@Stream` for observability.** `brain.response` and `brain.toolCall` are built-in streams. Parents subscribe to children. Real-time, typed, no polling.
-- **`ConversationContext` sharing.** Multiple LLM brains share a single conversation history. The router knows what the specialist said.
-- **Dynamic `@SystemPrompt`.** Use a getter that reads entity state. The prompt updates every invocation -- personality, expertise, user preferences, all live.
-- **`@Hook` for autonomy.** Timers, cron schedules, event listeners. Entities act on their own, not just when called.
-- **Persistent `@State`.** Every state property is saved to the database automatically. Survives restarts. No serialization code.
-- **Any LangChain model.** `ChatAnthropic`, `ChatOpenAI`, `ChatGoogleGenerativeAI`, or any `BaseChatModel`.
-- **Scales when you need it.** Swap `InProcessBusAdapter` for `RedisPubSubAdapter` and entities communicate across processes.
+```bash
+interactkit add Memory --attach Agent                           # plain entity
+interactkit add Brain --llm --attach Agent                      # LLM entity
+interactkit add Slack --mcp-stdio "npx -y @slack/mcp" --attach Agent  # from MCP server
+```
+
+### Add MCP servers with auth
+
+```bash
+# Headers for HTTP servers
+interactkit add Jira --mcp-http "https://jira.internal/mcp" \
+  --mcp-header "Authorization=Bearer sk-xxx"
+
+# Env vars for stdio servers
+interactkit add GitHub --mcp-stdio "npx -y @github/mcp-server" \
+  --mcp-env "GITHUB_TOKEN=ghp_xxx"
+```
+
+---
+
+## Core Concepts
+
+### `@Describe()` -- Self-describing entities
+
+Every entity has a method that describes itself. For LLMEntity, these compose the system prompt automatically:
+
+```typescript
+@Describe()
+describe() {
+  return `Research assistant specializing in: ${this.expertise.join(', ')}.
+  ${this.entries.length} findings stored.`;
+}
+```
+
+The LLM sees its own description plus all visible refs' descriptions. Dynamic, always current.
+
+### `@Tool()` -- Methods the LLM can call
+
+```typescript
+@Tool({ description: 'Search stored entries by keyword' })
+async search(input: { query: string }): Promise<string[]> {
+  return this.entries.filter(e => e.includes(input.query));
+}
+```
+
+The framework extracts the TypeScript types at build time and generates JSON schemas. The LLM sees typed tools, not strings.
+
+### `@Ref()` -- Cross-entity tool visibility
+
+```typescript
+@Ref() private memory!: Memory;   // LLM sees memory.store(), memory.search()
+@Ref() private slack!: Slack;     // LLM sees slack.sendMessage(), etc.
+```
+
+Point at a sibling and the LLM automatically sees all its `@Tool` methods. No registration.
+
+### `@State()` -- Persistent properties
+
+```typescript
+@State({ description: 'Conversation history' })
+private entries: string[] = [];
+```
+
+Saved to the database after every tool call. Survives restarts. Prisma or custom adapter.
+
+### `@Hook()` -- Autonomous behavior
+
+```typescript
+@Hook(Tick.Runner({ intervalMs: 30000 }))
+async onTick(input: Tick.Input) { /* runs every 30s */ }
+
+@Hook(HttpRequest.Runner({ port: 3000, path: '/chat' }))
+async onRequest(input: HttpRequest.Input) { /* HTTP endpoint */ }
+
+@Hook(Cron.Runner({ expression: '0 9 * * *' }))
+async onMorning(input: Cron.Input) { /* daily at 9am */ }
+```
+
+---
+
+## Templates
+
+`interactkit init` offers four starting points:
+
+| Template | What you get |
+|----------|-------------|
+| **Agent** | Root + LLM brain + memory + HTTP API |
+| **Team** | Coordinator + researcher + writer + shared memory |
+| **Simulation** | World + 3 personas with brains + tick loop |
+| **Blank** | Just a root entity |
+
+---
+
+## Dev Mode
+
+`pnpm dev` gives you:
+
+- Hot reload on `.ts` changes
+- Restart on `.env` changes
+- Colored event logs (tool calls, responses, errors)
+- Auto-codegen on every rebuild
+
+---
 
 ## Docs
 
 | Guide | What you'll learn |
 |-------|-------------------|
-| [Why InteractKit](https://github.com/InteractKit/interactkit/blob/main/docs/why.md) | The big picture and what it unlocks |
-| [Getting Started](https://github.com/InteractKit/interactkit/blob/main/docs/getting-started.md) | Build your first agent in 5 minutes |
+| [Why InteractKit](https://github.com/InteractKit/interactkit/blob/main/docs/why.md) | Philosophy and what it unlocks |
+| [Getting Started](https://github.com/InteractKit/interactkit/blob/main/docs/getting-started.md) | Build your first agent |
 | [Entities](https://github.com/InteractKit/interactkit/blob/main/docs/entities.md) | State, tools, children, refs, streams |
-| [LLM Entities](https://github.com/InteractKit/interactkit/blob/main/docs/llm.md) | Giving entities an LLM brain |
-| [Hooks](https://github.com/InteractKit/interactkit/blob/main/docs/hooks.md) | Timers, schedules, events |
+| [LLM Entities](https://github.com/InteractKit/interactkit/blob/main/docs/llm.md) | Giving entities a brain |
+| [Hooks](https://github.com/InteractKit/interactkit/blob/main/docs/hooks.md) | Timers, cron, HTTP, WebSocket |
 | [Infrastructure](https://github.com/InteractKit/interactkit/blob/main/docs/infrastructure.md) | Database, pub/sub, logging |
-| [Deployment](https://github.com/InteractKit/interactkit/blob/main/docs/deployment.md) | Scaling your agents |
-| [Codegen](https://github.com/InteractKit/interactkit/blob/main/docs/codegen.md) | What the build generates |
 | [Testing](https://github.com/InteractKit/interactkit/blob/main/docs/testing.md) | bootTest, mockLLM, mockEntity |
-| [Extensions](https://github.com/InteractKit/interactkit/blob/main/docs/extensions.md) | Custom integrations |
+| [Extensions](https://github.com/InteractKit/interactkit/blob/main/docs/extensions.md) | Custom hooks and integrations |
 
 ## Packages
 
 | Package | Description |
 |---------|-------------|
-| [`@interactkit/sdk`](https://github.com/InteractKit/interactkit/tree/main/sdk) | Core SDK: decorators, runtime, LLM + MCP integration |
-| [`@interactkit/cli`](https://github.com/InteractKit/interactkit/tree/main/cli) | CLI: init, add, build, dev, start |
-
-### Extensions
-
-| Package | Description |
-|---------|-------------|
-| [`@interactkit/http`](https://github.com/InteractKit/interactkit/tree/main/extensions/http) | `HttpRequest` hook — spins up an HTTP server, fires on incoming requests |
-| [`@interactkit/websocket`](https://github.com/InteractKit/interactkit/tree/main/extensions/websocket) | `WsMessage` + `WsConnection` hooks — WebSocket server, fires on messages/connects |
-
-Extensions export hook namespaces. Attach them to your own entities with `@Hook(HttpRequest.Runner({ port: 3100 }))`.
-
-See [sample-app](https://github.com/InteractKit/interactkit/tree/main/examples/sample-app) for a full working example.
+| [`@interactkit/sdk`](https://github.com/InteractKit/interactkit/tree/main/sdk) | Core: decorators, runtime, LLM, MCP |
+| [`@interactkit/cli`](https://github.com/InteractKit/interactkit/tree/main/cli) | CLI: init, add, build, dev |
+| [`@interactkit/http`](https://github.com/InteractKit/interactkit/tree/main/extensions/http) | HTTP server hook |
+| [`@interactkit/websocket`](https://github.com/InteractKit/interactkit/tree/main/extensions/websocket) | WebSocket hook |

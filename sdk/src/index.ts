@@ -1,5 +1,5 @@
 // Decorators
-export { Entity, Hook, Configurable, State, Component, Ref, Stream, getEntityMeta, getHookMeta, getConfigurableMeta, getStateMeta, getRefMeta, getStreamMeta } from './entity/decorators.js';
+export { Entity, Hook, Configurable, State, Component, Ref, Stream, Describe, getEntityMeta, getHookMeta, getConfigurableMeta, getStateMeta, getRefMeta, getStreamMeta, getDescribeMethod } from './entity/decorators.js';
 export type { ConfigurableOptions, StateOptions, EntityMeta, HookMetaEntry } from './entity/decorators.js';
 
 // Validation — @Secret is ours, everything else from class-validator
@@ -53,8 +53,8 @@ export type { BootOptions, RuntimeContext } from './entity/runtime.js';
 
 // LLM
 export {
-  Context, Executor, Tool, SystemPrompt, LLMExecutionTrigger,
-  getLLMEntityMeta, getLLMContextProp, getLLMExecutorProp, getLLMSystemPromptProp, getLLMTools, getLLMTriggers,
+  Context, Executor, Tool, LLMExecutionTrigger,
+  getLLMEntityMeta, getLLMContextProp, getLLMExecutorProp, getLLMTools, getLLMTriggers,
   setLLMTools, LLMContext, ConversationContext,
 } from './llm/index.js';
 export type { LLMEntityOptions, ToolOptions, LLMMessage, LLMContextOptions, LLMExecutionTriggerParams, ToolCallEvent } from './llm/index.js';

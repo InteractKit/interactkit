@@ -1,7 +1,7 @@
 import 'reflect-metadata';
 import { z } from 'zod';
 import { BaseEntity } from '../entity/types.js';
-import { getEntityMeta } from '../entity/decorators.js';
+import { getEntityMeta, getDescribeMethod } from '../entity/decorators.js';
 import { getRegistry } from '../registry.js';
 import { LLMContext } from './context.js';
 import { EntityStreamImpl } from '../entity/stream.js';
@@ -14,7 +14,6 @@ import { HumanMessage, AIMessage, SystemMessage, ToolMessage } from '@langchain/
 
 const LLM_EXECUTOR_KEY = Symbol.for('llm:executor');
 const LLM_TOOL_KEY = Symbol.for('llm:tools');
-const LLM_SYSTEM_PROMPT_KEY = Symbol.for('llm:systemPrompt');
 
 /** Payload emitted on the toolCall stream */
 export interface ToolCallEvent {
@@ -52,13 +51,6 @@ export abstract class LLMEntity extends BaseEntity {
     const model: BaseChatModel | null = executorProp ? (this as any)[executorProp] : null;
 
     if (!model) throw new Error('LLMEntity requires an @Executor() property with a LangChain BaseChatModel instance');
-
-    // Resolve @SystemPrompt — property value or getter
-    const promptProp = Reflect.getOwnMetadata(LLM_SYSTEM_PROMPT_KEY, entityCtor);
-    if (promptProp) {
-      const val = (this as any)[promptProp];
-      if (typeof val === 'string') context.setSystemPrompt(val);
-    }
 
     // Build tool list from own @Tool methods
     const entity = this as any;
@@ -139,6 +131,40 @@ export abstract class LLMEntity extends BaseEntity {
           },
         });
       }
+    }
+
+    // Auto-compose system prompt from @Describe methods (self + visible refs/components)
+    const promptParts: string[] = [];
+    const ownDescribe = getDescribeMethod(entityCtor as any);
+    if (ownDescribe && typeof entity[ownDescribe] === 'function') {
+      const desc = entity[ownDescribe]();
+      if (desc) promptParts.push(desc);
+    }
+    for (const propName of visibleProps) {
+      const child = entity[propName];
+      if (!child || typeof child !== 'object') continue;
+
+      let desc: string | undefined;
+
+      // If proxy, call describe() through the event bus (async)
+      if (child.__entityType && typeof child.describe === 'function') {
+        try {
+          const result = await child.describe();
+          if (typeof result === 'string') desc = result;
+        } catch { /* describe not registered as tool — skip */ }
+      } else {
+        // Raw instance — call directly
+        const childCtor2 = child.constructor;
+        const childDescribe = getDescribeMethod(childCtor2);
+        if (childDescribe && typeof child[childDescribe] === 'function') {
+          desc = child[childDescribe]();
+        }
+      }
+
+      if (desc) promptParts.push(`[${propName}] ${desc}`);
+    }
+    if (promptParts.length > 0) {
+      context.setSystemPrompt(promptParts.join('\n\n'));
     }
 
     // Bind tools to model

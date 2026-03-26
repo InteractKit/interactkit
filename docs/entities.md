@@ -3,6 +3,7 @@
 An entity is a class that does one thing. A Browser browses. A Memory stores things. A Mailer sends emails.
 
 Each entity has:
+- **Describe:** a method (`@Describe()`) that returns a string describing the entity's current state
 - **State:** data that gets saved automatically
 - **Tools:** methods that other entities (or an LLM) can call
 - **Children:** other entities it contains
@@ -32,6 +33,54 @@ Options you can pass to `@Entity()`:
 | `database` | Database adapter (children inherit it) |
 | `pubsub` | Pub/sub adapter (children inherit it) |
 | `logger` | Log adapter (children inherit it) |
+
+---
+
+## Describing an Entity (`@Describe()`)
+
+Every entity should have a `@Describe()` method. It returns a string that tells sibling entities and LLMs what this entity is and what it can do right now. For `LLMEntity` subclasses, the descriptions from the entity and its refs are automatically composed into the LLM's system prompt.
+
+```typescript
+@Entity()
+class Browser extends BaseEntity {
+  @State({ description: 'Search history' })
+  private history: string[] = [];
+
+  @Describe()
+  describe() {
+    return `A web browser. Can search the web and return results.`;
+  }
+
+  @Tool({ description: 'Search the web' })
+  async search(input: { query: string }): Promise<string[]> {
+    this.history.push(input.query);
+    return await doSearch(input.query);
+  }
+}
+```
+
+Because `@Describe()` is a method (not a static string), you can include dynamic state via template literals. The description updates as the entity's state changes:
+
+```typescript
+@Entity()
+class Memory extends BaseEntity {
+  @State({ description: 'Stored entries' })
+  private entries: string[] = [];
+
+  @Describe()
+  describe() {
+    return `A memory store with ${this.entries.length} entries.
+Currently remembering: ${this.entries.slice(-3).join(', ') || 'nothing yet'}.`;
+  }
+
+  @Tool({ description: 'Store a new entry' })
+  async store(input: { text: string }) {
+    this.entries.push(input.text);
+  }
+}
+```
+
+This is one of InteractKit's key ideas: entities describe themselves, and LLMs receive a system prompt that reflects the **current** state of the world -- not a static string written at development time.
 
 ---
 

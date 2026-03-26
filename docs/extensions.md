@@ -84,34 +84,41 @@ The runner is explicit in `@Hook(Sms.Runner(config))`. No auto-discovery needed.
 
 ## MCP Servers as Entities
 
-Any [MCP](https://modelcontextprotocol.io) server becomes an entity with `@MCP`. At boot, InteractKit connects, discovers tools, and registers them as `@Tool` methods:
+Any [MCP](https://modelcontextprotocol.io) server becomes an entity via the CLI. InteractKit generates the entity file, connects at boot, discovers tools, and registers them as `@Tool` methods:
 
-```typescript
-@MCP({
-  transport: { type: 'http', url: 'http://localhost:3001/mcp' },
-})
-@Entity()
-class SlackMCP extends BaseEntity {}
-
-@MCP({
-  transport: { type: 'stdio', command: 'npx', args: ['-y', '@github/mcp-server'] },
-})
-@Entity()
-class GitHubMCP extends BaseEntity {}
+```bash
+interactkit add Slack --mcp-stdio "npx -y @slack/mcp-server"
+interactkit add GitHub --mcp-stdio "npx -y @github/mcp-server"
 ```
 
-Use it like any other entity:
+This generates entity files with the MCP transport pre-configured. Use them like any other entity:
 
 ```typescript
 @Entity()
 class Agent extends BaseEntity {
   @Component() private brain!: Brain;
-  @Component() private slack!: SlackMCP;
-  @Component() private github!: GitHubMCP;
+  @Component() private slack!: Slack;
+  @Component() private github!: GitHub;
 }
 ```
 
-Mark it `@LLMVisible()` in your LLM entity and the LLM gets all the MCP server's tools. No extra wiring. See [LLM Entities](llm.md#mcp-as-entities) for full options.
+All refs and components are visible to the LLM by default -- no extra wiring needed. The LLM gets all the MCP server's tools automatically. See [LLM Entities](llm.md#mcp-as-entities) for full details.
+
+### Authentication and Environment
+
+Pass headers or environment variables to the MCP server process:
+
+```bash
+# Pass auth headers (for HTTP/SSE transports)
+interactkit add Slack --mcp-stdio "npx -y @slack/mcp-server" \
+  --mcp-header "Authorization: Bearer $SLACK_TOKEN"
+
+# Pass environment variables (for stdio transports)
+interactkit add GitHub --mcp-stdio "npx -y @github/mcp-server" \
+  --mcp-env "GITHUB_TOKEN=$GITHUB_TOKEN"
+```
+
+Multiple `--mcp-header` and `--mcp-env` flags can be passed to set several values at once.
 
 ---
 

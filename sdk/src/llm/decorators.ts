@@ -5,7 +5,6 @@ const LLM_CONTEXT_KEY = Symbol.for('llm:context');
 const LLM_EXECUTOR_KEY = Symbol.for('llm:executor');
 const LLM_TOOL_KEY = Symbol.for('llm:tools');
 const LLM_TRIGGER_KEY = Symbol.for('llm:triggers');
-const LLM_SYSTEM_PROMPT_KEY = Symbol.for('llm:systemPrompt');
 
 // ─── @LLMEntity ───────────────────────────────────────────
 
@@ -43,19 +42,6 @@ export function Context(): PropertyDecorator {
 export function Executor(): PropertyDecorator {
   return function (target: object, propertyKey: string | symbol) {
     Reflect.defineMetadata(LLM_EXECUTOR_KEY, String(propertyKey), target.constructor);
-  };
-}
-
-// ─── @SystemPrompt ───────────────────────────────────────
-
-/**
- * Marks a property or method as the LLM system prompt.
- * On a property: the value is used as the system prompt.
- * On a method: the return value is used (called before each LLM invocation).
- */
-export function SystemPrompt(): PropertyDecorator & MethodDecorator {
-  return function (target: object, propertyKey: string | symbol) {
-    Reflect.defineMetadata(LLM_SYSTEM_PROMPT_KEY, String(propertyKey), target.constructor);
   };
 }
 
@@ -111,9 +97,6 @@ export function getLLMExecutorProp(target: Function): string | undefined {
   return Reflect.getOwnMetadata(LLM_EXECUTOR_KEY, target);
 }
 
-export function getLLMSystemPromptProp(target: Function): string | undefined {
-  return Reflect.getOwnMetadata(LLM_SYSTEM_PROMPT_KEY, target);
-}
 
 export function getLLMTools(target: Function): Map<string, ToolOptions> {
   return Reflect.getOwnMetadata(LLM_TOOL_KEY, target) ?? new Map();

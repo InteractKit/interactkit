@@ -13,6 +13,7 @@
       "class": "World",
       "extends": "BaseEntity",
       "description": "Simulated world with independent personas",
+      "describe": "Simulated world at tick ${this.tick}. Ticks every 30s with 3 personas. HTTP on :3000.",
       "components": [
         { "name": "alice", "class": "PersonAlice", "file": "person-alice" },
         { "name": "bob", "class": "PersonBob", "file": "person-bob" },
@@ -32,6 +33,7 @@
       "class": "PersonAlice",
       "extends": "BaseEntity",
       "description": "Alice — a curious and analytical persona",
+      "describe": "${this.name} — ${this.personality}. Uses brain and memory to think and act.",
       "components": [
         { "name": "brain", "class": "PersonBrain", "file": "person-brain" },
         { "name": "memory", "class": "Memory", "file": "memory" }
@@ -51,6 +53,7 @@
       "class": "PersonBob",
       "extends": "BaseEntity",
       "description": "Bob — a friendly and creative persona",
+      "describe": "${this.name} — ${this.personality}. Uses brain and memory to think and act.",
       "components": [
         { "name": "brain", "class": "PersonBrain", "file": "person-brain" },
         { "name": "memory", "class": "Memory", "file": "memory" }
@@ -70,6 +73,7 @@
       "class": "PersonCarla",
       "extends": "BaseEntity",
       "description": "Carla — a pragmatic and direct persona",
+      "describe": "${this.name} — ${this.personality}. Uses brain and memory to think and act.",
       "components": [
         { "name": "brain", "class": "PersonBrain", "file": "person-brain" },
         { "name": "memory", "class": "Memory", "file": "memory" }
@@ -89,7 +93,7 @@
       "class": "PersonBrain",
       "extends": "LLMEntity",
       "description": "Brain for a simulated persona",
-      "systemPrompt": "You are a persona in a simulated world. Respond in character. Use memory to remember things.",
+      "describe": "You are a persona in a simulated world. Respond in character. Use memory to remember things.",
       "refs": [
         { "name": "memory", "class": "Memory", "file": "memory" }
       ],
@@ -103,6 +107,7 @@
       "class": "Memory",
       "extends": "BaseEntity",
       "description": "Stores and retrieves information",
+      "describe": "Memory store with ${this.entries.length} entries. Use store() to save and search() to find.",
       "state": [
         { "name": "entries", "type": "string[]", "default": "[]", "description": "Stored entries" }
       ],

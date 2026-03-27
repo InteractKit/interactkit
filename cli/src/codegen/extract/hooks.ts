@@ -1,4 +1,4 @@
-import { ClassDeclaration, MethodDeclaration } from 'ts-morph';
+import { ClassDeclaration, MethodDeclaration, Node } from 'ts-morph';
 import type { HookInfo } from '../types.js';
 import { extractPackageName } from '../utils.js';
 
@@ -53,10 +53,28 @@ export function extractHook(method: MethodDeclaration): HookInfo | null {
     }
   }
 
+  // Check if this hook's Runner declares inProcess: true
+  // Resolve the Runner function source and check its body for inProcess: true
+  let inProcess = false;
+  if (args.length > 0) {
+    const arg = args[0];
+    if (Node.isCallExpression(arg)) {
+      const fnSym = arg.getExpression().getType().getSymbol();
+      const decls = fnSym?.getDeclarations() ?? [];
+      for (const decl of decls) {
+        if (decl.getText().includes('inProcess: true')) {
+          inProcess = true;
+          break;
+        }
+      }
+    }
+  }
+
   return {
     methodName: method.getName(),
     hookTypeName: hookTypeName ?? 'unknown',
     runnerExport,
     sourcePackage: runnerSourcePackage ?? sourcePackage,
+    inProcess,
   };
 }

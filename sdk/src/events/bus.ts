@@ -7,7 +7,10 @@ const DEFAULT_TIMEOUT_MS = 30_000;
 
 /**
  * Request/response event bus over a PubSubAdapter.
- * All entity-to-entity method calls go through this.
+ *
+ * Entity channels use enqueue/consume (competing consumer — only one replica
+ * processes each request). Reply channels use publish/subscribe (broadcast —
+ * the caller always gets the response).
  */
 export class EventBus {
   private pendingRequests = new Map<
@@ -40,7 +43,7 @@ export class EventBus {
       this.pendingRequests.set(correlationId, { resolve, reject, timer });
     });
 
-    // Listen for the response
+    // Reply channels use broadcast — the caller always gets the response
     await this.pubsub.subscribe(replyChannel, (message) => {
       const response: EventEnvelope = JSON.parse(message);
       const pending = this.pendingRequests.get(correlationId);
@@ -59,22 +62,22 @@ export class EventBus {
       }
     });
 
-    // Log and publish the request
+    // Entity channels use queue — one replica picks up the request
     this.logger?.event(envelope);
-    await this.pubsub.publish(`entity:${envelope.target}`, JSON.stringify(envelope));
+    await this.pubsub.enqueue(`entity:${envelope.target}`, JSON.stringify(envelope));
 
     return promise;
   }
 
   /**
    * Listen for incoming events on an entity's channel.
-   * Handler processes the event and returns a result (or throws).
+   * Uses consume (competing consumer) so only one replica processes each event.
    */
   async listen(
     entityId: string,
     handler: (envelope: EventEnvelope) => Promise<unknown>,
   ): Promise<void> {
-    await this.pubsub.subscribe(`entity:${entityId}`, async (message) => {
+    await this.pubsub.consume(`entity:${entityId}`, async (message) => {
       const envelope: EventEnvelope = JSON.parse(message);
       this.logger?.event(envelope);
 
@@ -96,6 +99,7 @@ export class EventBus {
         this.logger?.error(envelope, error);
       }
 
+      // Replies use broadcast — guaranteed to reach the caller
       if (envelope.correlationId) {
         await this.pubsub.publish(`reply:${envelope.correlationId}`, JSON.stringify(response));
       }
@@ -103,11 +107,11 @@ export class EventBus {
   }
 
   /**
-   * Fire-and-forget publish (no response expected).
+   * Fire-and-forget enqueue (no response expected).
    */
   async publish(envelope: EventEnvelope): Promise<void> {
     this.logger?.event(envelope);
-    await this.pubsub.publish(`entity:${envelope.target}`, JSON.stringify(envelope));
+    await this.pubsub.enqueue(`entity:${envelope.target}`, JSON.stringify(envelope));
   }
 
   /**

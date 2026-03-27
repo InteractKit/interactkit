@@ -1,0 +1,8 @@
+{
+  "name": "e2e-02-component-wiring",
+  "private": true,
+  "type": "module",
+  "scripts": { "build": "interactkit build --root=src/agent:Agent" },
+  "dependencies": { "@interactkit/sdk": "workspace:*", "dotenv": "^16.4.0", "reflect-metadata": "^0.2.2" },
+  "devDependencies": { "@interactkit/cli": "workspace:*", "@types/node": "^25.5.0", "typescript": "^5.5.0" }
+}

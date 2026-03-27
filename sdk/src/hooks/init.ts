@@ -1,4 +1,4 @@
-import type { HookRunner, HookHandler } from './runner.js';
+import type { HookRunner } from './runner.js';
 
 export namespace Init {
   export interface Input {
@@ -18,7 +18,7 @@ export namespace Init {
     async stop(): Promise<void> {}
   }
 
-  export function Runner(): HookHandler<Input> {
-    return { __hookHandler: true, runnerClass: RunnerImpl, config: {} };
+  export function Runner() {
+    return { __hookHandler: true as const, runnerClass: RunnerImpl, config: {}, inProcess: true as const };
   }
 }

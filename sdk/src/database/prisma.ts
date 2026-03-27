@@ -30,8 +30,10 @@ export class PrismaDatabaseAdapter implements DatabaseAdapter {
     const config = resolveDatabaseConfig();
     let PrismaClient: any;
     try {
-      // @ts-ignore — @prisma/client is an optional peer dependency
-      PrismaClient = (await import(/* webpackIgnore: true */ '@prisma/client')).PrismaClient;
+      // Resolve from CWD so the user's @prisma/client is found (not the SDK's node_modules)
+      const { createRequire } = await import('node:module');
+      const require = createRequire(process.cwd() + '/package.json');
+      PrismaClient = require('@prisma/client').PrismaClient;
     } catch {
       throw new Error('PrismaDatabaseAdapter requires "@prisma/client". Install it: pnpm add @prisma/client');
     }

@@ -72,6 +72,8 @@ export interface HookInfo {
   hookTypeName: string;
   sourcePackage?: string;
   runnerExport?: string;
+  /** Hook runs in-process (skips hook server). Determined from Runner() return value. */
+  inProcess: boolean;
 }
 
 export interface MethodInfo {

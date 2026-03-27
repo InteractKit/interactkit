@@ -27,12 +27,10 @@ export function extractEntities(project: Project): EntityInfo[] {
       if (!entityDec) continue;
 
       const args = entityDec.getArguments();
-      if (args.length === 0) continue;
-
-      const optionsText = args[0].getText();
+      const optionsText = args.length > 0 ? args[0].getText() : '{}';
       const className = cls.getName() ?? '';
       const type = extractStringProp(optionsText, 'type')
-        ?? (className ? className.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase() : undefined);
+        ?? (className ? className.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase() : undefined);
       const persona = optionsText.includes('persona: true') || optionsText.includes('persona:true');
 
       if (!type) continue;

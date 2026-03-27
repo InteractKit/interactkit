@@ -5,3 +5,4 @@ packages:
   - "extensions/*"
   - "examples/*"
   - "playground"
+  - "e2e_tests/*"

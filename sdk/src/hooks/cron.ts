@@ -56,6 +56,6 @@ export namespace Cron {
   }
 
   export function Runner(config: { expression: string }): HookHandler<Input> {
-    return { __hookHandler: true, runnerClass: RunnerImpl, config };
+    return { __hookHandler: true, runnerClass: RunnerImpl, config, inProcess: false };
   }
 }

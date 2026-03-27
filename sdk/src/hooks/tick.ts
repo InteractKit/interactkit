@@ -34,6 +34,6 @@ export namespace Tick {
   }
 
   export function Runner(config: { intervalMs: number } = { intervalMs: 60000 }): HookHandler<Input> {
-    return { __hookHandler: true, runnerClass: RunnerImpl, config };
+    return { __hookHandler: true, runnerClass: RunnerImpl, config, inProcess: false };
   }
 }

@@ -25,6 +25,6 @@ export namespace Event {
   }
 
   export function Runner(): HookHandler<Input> {
-    return { __hookHandler: true, runnerClass: RunnerImpl, config: {} };
+    return { __hookHandler: true, runnerClass: RunnerImpl, config: {}, inProcess: false };
   }
 }

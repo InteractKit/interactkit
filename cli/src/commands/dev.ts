@@ -1,4 +1,5 @@
 import { resolve } from 'node:path';
+import { existsSync } from 'node:fs';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { watch } from 'node:fs';
 import { buildCommand } from './build.js';
@@ -11,7 +12,9 @@ interface Flags {
 
 export async function devCommand(flags: Flags) {
   const cwd = process.cwd();
-  const entryPath = resolve(cwd, '.interactkit/build/src/_entry.js');
+  // Prefer _all.js (multi-unit) over _entry.js (single unit)
+  const allPath = resolve(cwd, '.interactkit/build/src/_all.js');
+  const fallbackPath = resolve(cwd, '.interactkit/build/src/_entry.js');
 
   // Initial build (dev mode enables colored logging)
   await buildCommand({ ...flags, dev: true });
@@ -21,6 +24,7 @@ export async function devCommand(flags: Flags) {
 
   function startApp() {
     console.log('\n▸ starting app...');
+    const entryPath = existsSync(allPath) ? allPath : fallbackPath;
     appProcess = spawn('node', [entryPath], {
       stdio: 'inherit',
       cwd,

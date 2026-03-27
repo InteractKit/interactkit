@@ -18,4 +18,5 @@ export interface HookHandler<T = any> {
   readonly __hookHandler: true;
   readonly runnerClass: new (...args: any[]) => HookRunner<T>;
   readonly config: Record<string, unknown>;
+  readonly inProcess?: boolean;
 }

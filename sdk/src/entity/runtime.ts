@@ -2,20 +2,291 @@ import { randomUUID } from 'node:crypto';
 import { getEntityMeta, getHookMeta, getRefMeta, getStreamMeta, getStateMeta } from './decorators.js';
 import { EntityStreamImpl } from './stream.js';
 import type { BaseEntity, EntityClass, EntityConstructor, EntityInstance } from './types.js';
-import type { EntityMeta } from './decorators.js';
-import type { DatabaseAdapter } from '../database/adapter.js';
-import type { PubSubAdapter } from '../pubsub/adapter.js';
 import type { LogAdapter } from '../logger/adapter.js';
+import type { PubSubAdapter } from '../pubsub/adapter.js';
 import { EventBus } from '../events/bus.js';
 import { EventDispatcher } from '../events/dispatcher.js';
 import { InProcessBusAdapter } from '../pubsub/in-process.js';
-import type { EventEnvelope } from '../events/types.js';
 import { getRegistry } from '../registry.js';
 import { getMCPMeta } from '../mcp/decorators.js';
 import { MCPClientWrapper } from '../mcp/client.js';
 import { getLLMTools, setLLMTools } from '../llm/decorators.js';
+import { type InfraContext, resolveInfra } from './infra.js';
+import { createComponentProxy } from './proxy.js';
+import { getPropertyNames, getMethodNames } from './reflect.js';
+import { wireReactiveState } from './reactive-state.js';
 
 // ─── Public types ─────────────────────────────────────────
+
+export interface RuntimeOptions {
+  registry?: any;
+  logger?: LogAdapter;
+  pubsub?: PubSubAdapter;
+}
+
+// ─── Runtime ──────────────────────────────────────────────
+
+/**
+ * Starts entities one by one. Each entity gets a deterministic ID based
+ * on its type, registers with the dispatcher, and listens on the event bus.
+ *
+ * Cross-entity calls route through pubsub by entity type. Entities in the
+ * same Runtime are wired directly; entities in other processes communicate
+ * via Redis.
+ *
+ * Usage:
+ *   const rt = new Runtime({ registry, pubsub });
+ *   await rt.add(Agent);
+ *   await rt.add(Brain);
+ *   await rt.start();
+ */
+export class Runtime {
+  private registry: any;
+  private infra: InfraContext;
+  private bus: EventBus;
+  private dispatcher: EventDispatcher;
+  private entities = new Map<string, EntityInstance>();
+  private busCache = new Map<string, EventBus>();
+  private inProcessRunners: Array<{ stop(): Promise<void> }> = [];
+  private hookChannels: string[] = [];
+  private mcpClients: MCPClientWrapper[] = [];
+  private started = false;
+
+  constructor(options: RuntimeOptions = {}) {
+    this.registry = options.registry ?? getRegistry();
+    this.infra = {
+      pubsub: options.pubsub ?? new InProcessBusAdapter(),
+      logger: options.logger,
+    };
+    this.bus = new EventBus(this.infra.pubsub, this.infra.logger);
+    this.dispatcher = new EventDispatcher(this.registry);
+  }
+
+  /**
+   * Add an entity to this runtime. Instantiates it, registers with the
+   * dispatcher, and sets up event bus listeners. Can be called multiple
+   * times before start().
+   */
+  async add(EntityCls: EntityClass): Promise<BaseEntity> {
+    const Cls = EntityCls as EntityConstructor;
+    const meta = getEntityMeta(Cls);
+    if (!meta) throw new Error(`${Cls.name} missing @Entity decorator`);
+
+    // Deterministic ID based on entity type — same across processes
+    const entityId = meta.type;
+
+    // Resolve infra (entity can override pubsub/db/logger)
+    const infra = resolveInfra(meta, this.infra);
+    const bus = infra.pubsub === this.infra.pubsub ? this.bus : new EventBus(infra.pubsub, infra.logger);
+
+    // Instantiate
+    const instance = new Cls();
+    Object.defineProperty(instance, 'id', { value: entityId, writable: false, configurable: false });
+
+    // Registry info
+    const entityReg = this.registry?.entities?.[meta.type];
+    const streamNames: string[] = entityReg?.streams ?? [];
+
+    // State
+    const stateMeta = getStateMeta(Cls);
+    const stateKeys: string[] = [...stateMeta.keys()];
+
+    const entityInstance: EntityInstance = {
+      id: entityId,
+      type: meta.type,
+      entity: instance,
+      children: new Map(),
+    };
+
+    // Wire streams
+    const streamMetaSet = getStreamMeta(Cls);
+    const propertyNames = getPropertyNames(Cls, entityReg);
+    for (const propName of propertyNames) {
+      if (propName === 'id') continue;
+      if (streamNames.includes(propName) || streamMetaSet.has(propName)) {
+        (instance as any)[propName] = new EntityStreamImpl();
+      }
+    }
+
+    // Wire @Component and @Ref as proxies — resolve each target's pubsub
+    const refMetaSet = getRefMeta(Cls);
+    const componentDefs: Array<{ property: string; type: string }> = entityReg?.components ?? [];
+
+    const getBusForType = (targetType: string): EventBus => {
+      const prototype = Cls.prototype;
+      const allProps = getPropertyNames(Cls, entityReg);
+      for (const propName of allProps) {
+        const propType = Reflect.getMetadata('design:type', prototype, propName);
+        const propMeta = propType ? getEntityMeta(propType) : undefined;
+        if (propMeta?.type === targetType && propMeta.pubsub) {
+          const adapterKey = propMeta.pubsub.name;
+          if (!this.busCache.has(adapterKey)) {
+            const adapter = new propMeta.pubsub();
+            this.busCache.set(adapterKey, new EventBus(adapter, this.infra.logger));
+          }
+          return this.busCache.get(adapterKey)!;
+        }
+      }
+      return bus;
+    };
+
+    for (const comp of componentDefs) {
+      (instance as any)[comp.property] = createComponentProxy(
+        comp.type, comp.type, entityId, getBusForType(comp.type),
+      );
+    }
+
+    for (const refProp of refMetaSet) {
+      const refType = Reflect.getMetadata('design:type', Cls.prototype, refProp);
+      const refEntityMeta = refType ? getEntityMeta(refType) : undefined;
+      if (refEntityMeta) {
+        (instance as any)[refProp] = createComponentProxy(
+          refEntityMeta.type, refEntityMeta.type, entityId, getBusForType(refEntityMeta.type),
+        );
+      }
+    }
+
+    // Hydrate state
+    if (infra.database) {
+      const savedState = await infra.database.get(entityId);
+      if (savedState) {
+        for (const key of stateKeys) {
+          if (key in savedState) (instance as any)[key] = savedState[key];
+        }
+      }
+    }
+
+    // Reactive state
+    await wireReactiveState(instance, stateKeys, entityId, this.dispatcher.instanceId, infra);
+
+    // Register methods with dispatcher
+    const methods = new Map<string, Function>();
+    const hookEntries = getHookMeta(Cls);
+    const hookMethodNames = new Set(hookEntries.map(h => h.method));
+    for (const name of getMethodNames(Cls)) {
+      if (hookMethodNames.has(name)) continue;
+      const method = (instance as any)[name];
+      if (typeof method === 'function') {
+        methods.set(`${meta.type}.${name}`, method);
+      }
+    }
+
+    this.dispatcher.register(entityId, instance, meta.type, methods);
+    await bus.listen(entityId, (envelope) => this.dispatcher.dispatch(envelope));
+
+    // MCP setup
+    const mcpMeta = getMCPMeta(Cls);
+    if (mcpMeta) {
+      const client = new MCPClientWrapper(mcpMeta);
+      await client.connect();
+      this.mcpClients.push(client);
+      const mcpTools = await client.listTools();
+      (instance as any).__mcpClient = client;
+      const existingTools = getLLMTools(Cls);
+      for (const mcpTool of mcpTools) {
+        existingTools.set(mcpTool.name, { description: mcpTool.description, name: mcpTool.name });
+        const toolName = mcpTool.name;
+        (instance as any)[toolName] = async (args: Record<string, unknown>) => client.callTool(toolName, args);
+        this.dispatcher.addMethod(entityId, `${meta.type}.${toolName}`, (instance as any)[toolName]);
+      }
+      setLLMTools(Cls, existingTools);
+    }
+
+    this.entities.set(entityId, entityInstance);
+    return instance;
+  }
+
+  /**
+   * Start all hooks and finalize wiring. Call after all add() calls.
+   */
+  async start(): Promise<void> {
+    if (this.started) return;
+    this.started = true;
+
+    // Wire streams between co-located entities (parent can access child streams)
+    for (const [, entityInst] of this.entities) {
+      const EntityCls = entityInst.entity.constructor as EntityConstructor;
+      const entityReg = this.registry?.entities?.[entityInst.type];
+      const componentDefs: Array<{ property: string; type: string }> = entityReg?.components ?? [];
+
+      for (const comp of componentDefs) {
+        const childInst = this.entities.get(comp.type);
+        if (!childInst) continue;
+
+        const proxy = (entityInst.entity as any)[comp.property];
+        if (!proxy) continue;
+
+        const ChildCls = childInst.entity.constructor as EntityConstructor;
+        const childStreamMeta = getStreamMeta(ChildCls);
+        const childReg = this.registry?.entities?.[childInst.type];
+        const childRegStreams: string[] = childReg?.streams ?? [];
+        const allStreams = new Set([...childStreamMeta, ...childRegStreams]);
+
+        for (const streamName of allStreams) {
+          const stream = (childInst.entity as any)[streamName];
+          if (stream) {
+            Object.defineProperty(proxy, streamName, { value: stream, writable: false, configurable: false });
+          }
+        }
+      }
+    }
+
+    // Start hooks
+    for (const [entityId, entityInst] of this.entities) {
+      const EntityCls = entityInst.entity.constructor as EntityConstructor;
+      const hooks = getHookMeta(EntityCls);
+
+      for (const hook of hooks) {
+        const method = (entityInst.entity as any)[hook.method];
+        if (typeof method !== 'function') continue;
+
+        if (hook.inProcess) {
+          const runner = new hook.runnerClass();
+          this.inProcessRunners.push(runner);
+          await runner.start(
+            (data) => method.call(entityInst.entity, data),
+            { ...hook.config, entityId, firstBoot: true },
+          );
+        } else {
+          const channel = `hook:${entityInst.type}.${hook.method}`;
+          this.hookChannels.push(channel);
+          await this.infra.pubsub.consume(channel, async (message) => {
+            const data = JSON.parse(message);
+            try {
+              this.infra.logger?.event({
+                id: '', source: 'hook-server', target: entityId,
+                type: `${entityInst.type}.${hook.method}`, payload: data, timestamp: Date.now(),
+              });
+              await method.call(entityInst.entity, data);
+            } catch (err) {
+              const error = err instanceof Error ? err : new Error(String(err));
+              this.infra.logger?.error(
+                { id: '', source: 'hook-server', target: entityId, type: `${entityInst.type}.${hook.method}`, payload: data, timestamp: Date.now() },
+                error,
+              );
+            }
+          });
+        }
+      }
+    }
+  }
+
+  get size() { return this.entities.size; }
+
+  getEntity(type: string): BaseEntity | undefined {
+    return this.entities.get(type)?.entity;
+  }
+
+  async shutdown(): Promise<void> {
+    for (const runner of this.inProcessRunners) await runner.stop();
+    for (const ch of this.hookChannels) await this.infra.pubsub.stopConsuming(ch);
+    for (const client of this.mcpClients) await client.close();
+    await this.bus.destroy();
+    for (const b of this.busCache.values()) await b.destroy();
+  }
+}
+
+// ─── Legacy boot() — wraps Runtime for backward compatibility ──
 
 export interface BootOptions {
   registry?: any;
@@ -31,18 +302,6 @@ export interface RuntimeContext {
   shutdown(): Promise<void>;
 }
 
-interface InfraContext {
-  pubsub: PubSubAdapter;
-  database?: DatabaseAdapter;
-  logger?: LogAdapter;
-}
-
-// ─── boot() ───────────────────────────────────────────────
-
-/**
- * Boot the entity system from a root @Entity class.
- * Instantiates all entities, wires proxies, sets up event bus, calls init hooks.
- */
 export async function boot(
   RootEntityClass: EntityClass,
   options?: BootOptions,
@@ -53,13 +312,11 @@ export async function boot(
   const idGen = options?.idGenerator ?? (() => randomUUID().slice(0, 8));
   const registry = options?.registry ?? getRegistry();
 
-  // Resolve root infra
   const rootInfra = resolveInfra(entityMeta, {
     pubsub: new InProcessBusAdapter(),
     logger: options?.logger,
   });
 
-  // Bus map: reuse EventBus instances per PubSubAdapter
   const busMap = new Map<PubSubAdapter, EventBus>();
   const getBus = (infra: InfraContext): EventBus => {
     let bus = busMap.get(infra.pubsub);
@@ -73,54 +330,39 @@ export async function boot(
   const dispatcher = new EventDispatcher(registry);
   const allEntities = new Map<string, EntityInstance>();
 
-  // Pre-scan: build entityType → class map by following design:type metadata
   const typeToClass = new Map<string, EntityConstructor>();
   function scanEntityClasses(Cls: EntityConstructor, visited = new Set<string>()) {
     const m = getEntityMeta(Cls);
     if (!m || visited.has(m.type)) return;
     visited.add(m.type);
     typeToClass.set(m.type, Cls);
-    // Follow design:type on prototype for decorated properties
     for (const key of Object.getOwnPropertyNames(Cls.prototype)) {
       const dt = Reflect.getMetadata('design:type', Cls.prototype, key);
-      if (dt && typeof dt === 'function' && getEntityMeta(dt)) {
-        scanEntityClasses(dt, visited);
-      }
+      if (dt && typeof dt === 'function' && getEntityMeta(dt)) scanEntityClasses(dt, visited);
     }
-    // Follow design:type on a temp instance for instance properties with decorators
     const tempInst = new Cls();
     for (const key of Object.getOwnPropertyNames(tempInst)) {
       const dt = Reflect.getMetadata('design:type', Cls.prototype, key);
-      if (dt && typeof dt === 'function' && getEntityMeta(dt)) {
-        scanEntityClasses(dt, visited);
-      }
+      if (dt && typeof dt === 'function' && getEntityMeta(dt)) scanEntityClasses(dt, visited);
     }
   }
   scanEntityClasses(RootEntityClass as EntityConstructor);
 
-  // Recursive entity instantiation
   async function instantiateEntity(
-    EntityClass: EntityConstructor,
-    parentId: string | undefined,
-    parentInfra: InfraContext,
-    parentIdPath: string,
+    EntityClass: EntityConstructor, parentId: string | undefined,
+    parentInfra: InfraContext, parentIdPath: string,
   ): Promise<EntityInstance> {
     const meta = getEntityMeta(EntityClass);
     if (!meta) throw new Error(`Class ${EntityClass.name} missing @Entity decorator`);
 
-    // ID generation
     const segment = `${meta.type}:${idGen()}`;
     const fullId = parentIdPath ? `${parentIdPath}/${segment}` : segment;
-
-    // Resolve infra (own overrides or inherit from parent)
     const infra = resolveInfra(meta, parentInfra);
     const bus = getBus(infra);
 
-    // Instantiate
     const instance = new EntityClass();
     Object.defineProperty(instance, 'id', { value: fullId, writable: false, configurable: false });
 
-    // Determine property roles from registry
     const entityReg = registry?.entities?.[meta.type];
     const componentDefs: Array<{ property: string; type: string }> = entityReg?.components ?? [];
     const componentPropNames = new Set(componentDefs.map((c: any) => c.property));
@@ -128,148 +370,82 @@ export async function boot(
     const streamNames: string[] = entityReg?.streams ?? [];
     const refNames: string[] = entityReg?.refs ?? [];
 
-    // Collect state keys for persistence — only @State() decorated properties
     const stateMeta = getStateMeta(EntityClass);
     const stateKeys: string[] = [...stateMeta.keys()];
 
-    const entityInstance: EntityInstance = {
-      id: fullId,
-      type: meta.type,
-      entity: instance,
-      parentId,
-      children: new Map(),
-    };
+    const entityInstance: EntityInstance = { id: fullId, type: meta.type, entity: instance, parentId, children: new Map() };
 
-    // Classify and wire properties
     const prototype = Object.getPrototypeOf(instance);
     const propertyNames = getPropertyNames(EntityClass, entityReg);
 
     for (const propName of propertyNames) {
       if (propName === 'id') continue;
-
-      // Check both registry streams AND @Stream() decorator metadata
       const streamMetaSet = getStreamMeta(EntityClass);
       if (streamNames.includes(propName) || streamMetaSet.has(propName)) {
-        // Wire EntityStream
         (instance as any)[propName] = new EntityStreamImpl();
         continue;
       }
-
-      // Check both registry refs AND @Ref() decorator metadata
       const refMetaSet = getRefMeta(EntityClass);
-      if (refNames.includes(propName) || refMetaSet.has(propName)) {
-        // Refs are wired after all siblings are instantiated (deferred)
-        continue;
-      }
+      if (refNames.includes(propName) || refMetaSet.has(propName)) continue;
 
-      // Check if this property is a component
-      let compClass: (EntityConstructor) | undefined;
+      let compClass: EntityConstructor | undefined;
       let compEntityMeta: ReturnType<typeof getEntityMeta> | undefined;
-
-      // Try design:type metadata first (available if property has a decorator)
       const propType = Reflect.getMetadata('design:type', prototype, propName);
-      if (propType && getEntityMeta(propType)) {
-        compClass = propType;
-        compEntityMeta = getEntityMeta(propType);
-      }
-      // Fallback: resolve from registry + typeToClass map
+      if (propType && getEntityMeta(propType)) { compClass = propType; compEntityMeta = getEntityMeta(propType); }
       else if (componentPropNames.has(propName)) {
         const compTypeName = componentPropToType.get(propName);
-        if (compTypeName) {
-          compClass = typeToClass.get(compTypeName);
-          compEntityMeta = compClass ? getEntityMeta(compClass) : undefined;
-        }
+        if (compTypeName) { compClass = typeToClass.get(compTypeName); compEntityMeta = compClass ? getEntityMeta(compClass) : undefined; }
       }
-
       if (compClass && compEntityMeta) {
-        // Recursively instantiate child entity
         const childInstance = await instantiateEntity(compClass, fullId, infra, fullId);
         entityInstance.children.set(propName, childInstance);
-
-        // Wire component proxy
-        (instance as any)[propName] = createComponentProxy(
-          childInstance.id,
-          compEntityMeta.type,
-          fullId,
-          getBus(resolveInfra(compEntityMeta, infra)),
-        );
+        (instance as any)[propName] = createComponentProxy(childInstance.id, compEntityMeta.type, fullId, getBus(resolveInfra(compEntityMeta, infra)));
         continue;
       }
-
     }
 
-    // Hydrate state from database
     if (infra.database) {
       const savedState = await infra.database.get(fullId);
-      if (savedState) {
-        for (const key of stateKeys) {
-          if (key in savedState) {
-            (instance as any)[key] = savedState[key];
-          }
-        }
-      }
+      if (savedState) { for (const key of stateKeys) { if (key in savedState) (instance as any)[key] = savedState[key]; } }
     }
 
-    // Build method map for dispatcher
+    await wireReactiveState(instance, stateKeys, fullId, dispatcher.instanceId, infra);
+
     const methods = new Map<string, Function>();
     const hookEntries = getHookMeta(EntityClass);
     const hookMethodNames = new Set(hookEntries.map(h => h.method));
     for (const name of getMethodNames(EntityClass)) {
-      if (hookMethodNames.has(name)) continue; // skip hooks
+      if (hookMethodNames.has(name)) continue;
       const method = (instance as any)[name];
-      if (typeof method === 'function') {
-        methods.set(`${meta.type}.${name}`, method);
-      }
+      if (typeof method === 'function') methods.set(`${meta.type}.${name}`, method);
     }
 
-    // Register with dispatcher and bus
-    dispatcher.register(fullId, instance, meta.type, methods, infra.database, stateKeys);
+    dispatcher.register(fullId, instance, meta.type, methods);
     await bus.listen(fullId, (envelope) => dispatcher.dispatch(envelope));
 
     allEntities.set(fullId, entityInstance);
     return entityInstance;
   }
 
-  // Boot the root
   const rootInstance = await instantiateEntity(RootEntityClass as EntityConstructor, undefined, rootInfra, '');
 
-  // Wire EntityRef properties (sibling lookups)
   for (const [entityId, entityInst] of allEntities) {
-    const EntityClass = entityInst.entity.constructor as EntityConstructor;
-    const refMetaSet = getRefMeta(EntityClass);
-    if (refMetaSet.size === 0) continue;
-
-    // Find this entity's parent
-    if (!entityInst.parentId) continue;
+    const EC = entityInst.entity.constructor as EntityConstructor;
+    const refMetaSet = getRefMeta(EC);
+    if (refMetaSet.size === 0 || !entityInst.parentId) continue;
     const parent = allEntities.get(entityInst.parentId);
     if (!parent) continue;
-
     for (const refPropName of refMetaSet) {
-      // Get the target entity type from design:type metadata
-      const refType = Reflect.getMetadata('design:type', EntityClass.prototype, refPropName);
+      const refType = Reflect.getMetadata('design:type', EC.prototype, refPropName);
       const refEntityMeta = refType ? getEntityMeta(refType) : undefined;
-      const targetType = refEntityMeta?.type;
-
-      if (!targetType) continue;
-
-      // Find the sibling with matching entity type
+      if (!refEntityMeta?.type) continue;
       for (const [, sibInstance] of parent.children) {
-        if (sibInstance.type === targetType) {
-          // Wire raw instance for ConversationContext (performance — LLM loop calls it many times)
-          // Otherwise wire as proxy for event bus routing
+        if (sibInstance.type === refEntityMeta.type) {
           if (refPropName === 'context' && sibInstance.entity.constructor.name === 'ConversationContext') {
             (entityInst.entity as any)[refPropName] = sibInstance.entity;
           } else {
-            const sibInfra = resolveInfra(
-              getEntityMeta(sibInstance.entity.constructor as EntityConstructor) ?? { type: sibInstance.type },
-              rootInfra,
-            );
-            (entityInst.entity as any)[refPropName] = createComponentProxy(
-              sibInstance.id,
-              sibInstance.type,
-              entityId,
-              getBus(sibInfra),
-            );
+            const sibInfra = resolveInfra(getEntityMeta(sibInstance.entity.constructor as EntityConstructor) ?? { type: sibInstance.type }, rootInfra);
+            (entityInst.entity as any)[refPropName] = createComponentProxy(sibInstance.id, sibInstance.type, entityId, getBus(sibInfra));
           }
           break;
         }
@@ -277,225 +453,84 @@ export async function boot(
     }
   }
 
-  // Wire child streams to parent — streams are always public, parent can subscribe
   for (const [, entityInst] of allEntities) {
     for (const [childPropName, childInst] of entityInst.children) {
       const ChildClass = childInst.entity.constructor as EntityConstructor;
       const childStreamMeta = getStreamMeta(ChildClass);
-
-      // Also check registry for streams
       const childReg = registry?.entities?.[childInst.type];
       const childRegStreams: string[] = childReg?.streams ?? [];
-
       const allStreamNames = new Set([...childStreamMeta, ...childRegStreams]);
       if (allStreamNames.size === 0) continue;
-
-      // Expose each child stream as parentInstance.<componentProp>.<streamProp>
-      // by attaching stream references to the component proxy
       const proxy = (entityInst.entity as any)[childPropName];
       if (!proxy) continue;
-
       for (const streamName of allStreamNames) {
         const stream = (childInst.entity as any)[streamName];
-        if (stream) {
-          Object.defineProperty(proxy, streamName, {
-            value: stream,
-            writable: false,
-            configurable: false,
-          });
-        }
+        if (stream) Object.defineProperty(proxy, streamName, { value: stream, writable: false, configurable: false });
       }
     }
   }
 
-  // Connect MCP entities — discover tools and register them dynamically
   const mcpClients: MCPClientWrapper[] = [];
   for (const [, entityInst] of allEntities) {
-    const EntityClass = entityInst.entity.constructor as EntityConstructor;
-    const mcpMeta = getMCPMeta(EntityClass);
+    const EC = entityInst.entity.constructor as EntityConstructor;
+    const mcpMeta = getMCPMeta(EC);
     if (!mcpMeta) continue;
-
     const client = new MCPClientWrapper(mcpMeta);
     await client.connect();
     mcpClients.push(client);
-
-    // Discover tools from the MCP server
     const mcpTools = await client.listTools();
-
-    // Store client on instance so tool invocations can use it
     (entityInst.entity as any).__mcpClient = client;
-
-    // Dynamically register each MCP tool as a @Tool on this entity's metadata
-    // This makes them discoverable by the LLM execution loop
-    const existingTools = getLLMTools(EntityClass);
-
+    const existingTools = getLLMTools(EC);
     for (const mcpTool of mcpTools) {
-      existingTools.set(mcpTool.name, {
-        description: mcpTool.description,
-        name: mcpTool.name,
-      });
-
-      // Add a real callable method on the entity instance
+      existingTools.set(mcpTool.name, { description: mcpTool.description, name: mcpTool.name });
       const toolName = mcpTool.name;
-      (entityInst.entity as any)[toolName] = async function (args: Record<string, unknown>) {
-        return client.callTool(toolName, args);
-      };
+      (entityInst.entity as any)[toolName] = async (args: Record<string, unknown>) => client.callTool(toolName, args);
     }
-
-    setLLMTools(EntityClass, existingTools);
-
-    // Also register MCP tools with the dispatcher so they're callable via event bus
+    setLLMTools(EC, existingTools);
     for (const mcpTool of mcpTools) {
-      const toolName = mcpTool.name;
-      dispatcher.addMethod(
-        entityInst.id,
-        `${entityInst.type}.${toolName}`,
-        (entityInst.entity as any)[toolName],
-      );
+      dispatcher.addMethod(entityInst.id, `${entityInst.type}.${mcpTool.name}`, (entityInst.entity as any)[mcpTool.name]);
     }
   }
 
-  // Start all hook runners — each runner handles its own scheduling
-  const activeRunners: Array<{ stop(): Promise<void> }> = [];
+  const inProcessRunners: Array<{ stop(): Promise<void> }> = [];
+  const hookChannels: string[] = [];
   for (const [entityId, entityInst] of allEntities) {
-    const EntityClass = entityInst.entity.constructor as EntityConstructor;
-    const hooks = getHookMeta(EntityClass);
-
+    const EC = entityInst.entity.constructor as EntityConstructor;
+    const hooks = getHookMeta(EC);
     for (const hook of hooks) {
       const method = (entityInst.entity as any)[hook.method];
       if (typeof method !== 'function') continue;
-
-      const runner = new hook.runnerClass();
-      const runtimeConfig = {
-        ...hook.config,
-        entityId,
-        firstBoot: entityInst.parentId === undefined,
-      };
-      await runner.start(
-        (data) => method.call(entityInst.entity, data),
-        runtimeConfig,
-      );
-      activeRunners.push(runner);
+      if (hook.inProcess) {
+        const runner = new hook.runnerClass();
+        inProcessRunners.push(runner);
+        await runner.start((data) => method.call(entityInst.entity, data), { ...hook.config, entityId, firstBoot: entityInst.parentId === undefined });
+      } else {
+        const channel = `hook:${entityInst.type}.${hook.method}`;
+        hookChannels.push(channel);
+        await rootInfra.pubsub.consume(channel, async (message) => {
+          const data = JSON.parse(message);
+          try {
+            rootInfra.logger?.event({ id: '', source: 'hook-server', target: entityId, type: `${entityInst.type}.${hook.method}`, payload: data, timestamp: Date.now() });
+            await method.call(entityInst.entity, data);
+          } catch (err) {
+            const error = err instanceof Error ? err : new Error(String(err));
+            rootInfra.logger?.error({ id: '', source: 'hook-server', target: entityId, type: `${entityInst.type}.${hook.method}`, payload: data, timestamp: Date.now() }, error);
+          }
+        });
+      }
     }
   }
-
-  const rootBus = getBus(rootInfra);
 
   return {
     root: rootInstance.entity,
-    bus: rootBus,
+    bus: getBus(rootInfra),
     dispatcher,
     entities: allEntities,
     async shutdown() {
-      for (const runner of activeRunners) {
-        await runner.stop();
-      }
-      for (const client of mcpClients) {
-        await client.close();
-      }
-      for (const bus of busMap.values()) {
-        await bus.destroy();
-      }
+      for (const runner of inProcessRunners) await runner.stop();
+      for (const ch of hookChannels) await rootInfra.pubsub.stopConsuming(ch);
+      for (const client of mcpClients) await client.close();
+      for (const bus of busMap.values()) await bus.destroy();
     },
   };
-}
-
-// ─── Component Proxy ──────────────────────────────────────
-
-function createComponentProxy(
-  targetEntityId: string,
-  entityType: string,
-  sourceEntityId: string,
-  bus: EventBus,
-): any {
-  const target: Record<string | symbol, unknown> = {};
-  return new Proxy(
-    target,
-    {
-      get(t, prop) {
-        if (prop === 'id') return targetEntityId;
-        if (prop === '__entityType') return entityType;
-        if (typeof prop === 'symbol') return undefined;
-
-        // Return directly-defined properties (e.g. streams wired after proxy creation)
-        if (Object.prototype.hasOwnProperty.call(t, prop)) {
-          return t[prop];
-        }
-
-        // Return an async function that routes through the event bus
-        return async (...args: unknown[]) => {
-          const envelope: EventEnvelope = {
-            id: randomUUID(),
-            source: sourceEntityId,
-            target: targetEntityId,
-            type: `${entityType}.${String(prop)}`,
-            payload: args[0],
-            timestamp: Date.now(),
-          };
-          return bus.request(envelope);
-        };
-      },
-    },
-  );
-}
-
-// ─── Infra Resolution ─────────────────────────────────────
-
-function resolveInfra(meta: EntityMeta, parentInfra: InfraContext): InfraContext {
-  return {
-    pubsub: meta.pubsub ? new meta.pubsub() : parentInfra.pubsub,
-    database: meta.database ? new meta.database() : parentInfra.database,
-    logger: meta.logger ? new meta.logger() : parentInfra.logger,
-  };
-}
-
-// ─── Reflection helpers ───────────────────────────────────
-
-function getPropertyNames(EntityClass: EntityConstructor, entityReg?: any): string[] {
-  const names = new Set<string>();
-  const instance = new EntityClass();
-
-  // Own properties from the instance (those with initializers)
-  for (const key of Object.getOwnPropertyNames(instance)) {
-    if (key !== 'id') names.add(key);
-  }
-
-  // Properties from registry (catches `!` properties with no initializer)
-  if (entityReg) {
-    for (const comp of entityReg.components ?? []) names.add(comp.property ?? comp);
-    for (const stream of entityReg.streams ?? []) names.add(stream);
-    for (const ref of entityReg.refs ?? []) names.add(ref);
-    // State properties from registry state schema
-    if (entityReg.state?.shape) {
-      for (const key of Object.keys(entityReg.state.shape)) names.add(key);
-    }
-  }
-
-  // Properties with design:type metadata (from decorators)
-  const prototype = EntityClass.prototype;
-  for (const key of Object.getOwnPropertyNames(prototype)) {
-    if (key === 'constructor') continue;
-    const designType = Reflect.getMetadata('design:type', prototype, key);
-    if (designType && typeof designType === 'function' && designType !== Function) {
-      names.add(key);
-    }
-  }
-
-  return [...names];
-}
-
-function getMethodNames(EntityClass: EntityConstructor): string[] {
-  const names = new Set<string>();
-  let prototype = EntityClass.prototype;
-  while (prototype && prototype !== Object.prototype) {
-    for (const key of Object.getOwnPropertyNames(prototype)) {
-      if (key === 'constructor') continue;
-      const desc = Object.getOwnPropertyDescriptor(prototype, key);
-      if (desc && typeof desc.value === 'function') {
-        names.add(key);
-      }
-    }
-    prototype = Object.getPrototypeOf(prototype);
-  }
-  return [...names];
 }

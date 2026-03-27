@@ -35,16 +35,18 @@ export interface HookMetaEntry {
   method: string;
   runnerClass: new (...args: any[]) => HookRunner<any>;
   config: Record<string, unknown>;
+  inProcess: boolean;
 }
 
 export function Hook(handler: HookHandler): MethodDecorator {
   return function (target: object, propertyKey: string | symbol, _descriptor: PropertyDescriptor) {
     const ctor = target.constructor;
     const hooks: HookMetaEntry[] = Reflect.getOwnMetadata(HOOK_META_KEY, ctor) ?? [];
-    hooks.push({ method: String(propertyKey), runnerClass: handler.runnerClass, config: handler.config });
+    hooks.push({ method: String(propertyKey), runnerClass: handler.runnerClass, config: handler.config, inProcess: handler.inProcess ?? false });
     Reflect.defineMetadata(HOOK_META_KEY, hooks, ctor);
   };
 }
+
 
 // ─── @Configurable ────────────────────────────────────────
 export interface ConfigurableOptions {

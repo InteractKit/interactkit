@@ -1,5 +1,5 @@
+import { randomUUID } from 'node:crypto';
 import type { BaseEntity } from '../entity/types.js';
-import type { DatabaseAdapter } from '../database/adapter.js';
 import type { EventEnvelope } from './types.js';
 import { CURRENT_ENVELOPE } from '../entity/context.js';
 
@@ -7,45 +7,38 @@ interface EntityEntry {
   instance: BaseEntity;
   entityType: string;
   methods: Map<string, Function>;
-  database?: DatabaseAdapter;
-  stateKeys?: string[];
 }
 
 /**
  * Routes incoming EventEnvelopes to the correct entity method.
  * Optionally validates payloads against the generated registry.
+ *
+ * State persistence is handled by reactive state proxies in the runtime,
+ * not by the dispatcher.
  */
 export class EventDispatcher {
   private entities = new Map<string, EntityEntry>();
+  readonly instanceId: string;
 
-  constructor(private registry?: any) {}
+  constructor(private registry?: any) {
+    this.instanceId = randomUUID().slice(0, 8);
+  }
 
-  /**
-   * Register an entity instance with its callable methods.
-   */
   register(
     entityId: string,
     instance: BaseEntity,
     entityType: string,
     methods: Map<string, Function>,
-    database?: DatabaseAdapter,
-    stateKeys?: string[],
   ): void {
-    this.entities.set(entityId, { instance, entityType, methods, database, stateKeys });
+    this.entities.set(entityId, { instance, entityType, methods });
   }
 
-  /**
-   * Add a method to an already-registered entity (used by MCP to add discovered tools at boot).
-   */
   addMethod(entityId: string, methodKey: string, method: Function): void {
     const entry = this.entities.get(entityId);
     if (!entry) throw new Error(`Cannot add method: entity not found: ${entityId}`);
     entry.methods.set(methodKey, method);
   }
 
-  /**
-   * Dispatch an event envelope to the target entity's method.
-   */
   async dispatch(envelope: EventEnvelope): Promise<unknown> {
     const entry = this.entities.get(envelope.target);
     if (!entry) throw new Error(`Entity not found: ${envelope.target}`);
@@ -59,7 +52,6 @@ export class EventDispatcher {
       const entityReg = this.registry.entities?.[entry.entityType];
       const methodReg = entityReg?.methods?.[envelope.type];
       if (methodReg?.input?.safeParse) {
-        // Treat undefined payload as empty object for methods with no args
         const input = payload ?? {};
         const parsed = methodReg.input.safeParse(input);
         if (!parsed.success) {
@@ -69,23 +61,10 @@ export class EventDispatcher {
       }
     }
 
-    // Attach envelope to input so EntityContext can read it
     if (payload && typeof payload === 'object') {
       (payload as any)[CURRENT_ENVELOPE] = envelope;
     }
 
-    // Call the method
-    const result = await method.call(entry.instance, payload);
-
-    // Auto-persist state after method call
-    if (entry.database && entry.stateKeys) {
-      const state: Record<string, unknown> = {};
-      for (const key of entry.stateKeys) {
-        state[key] = (entry.instance as any)[key];
-      }
-      await entry.database.set(envelope.target, state);
-    }
-
-    return result;
+    return await method.call(entry.instance, payload);
   }
 }

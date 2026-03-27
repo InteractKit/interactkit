@@ -48,8 +48,9 @@ export { EventBus } from './events/bus.js';
 export { EventDispatcher } from './events/dispatcher.js';
 
 // Runtime
-export { boot } from './entity/runtime.js';
-export type { BootOptions, RuntimeContext } from './entity/runtime.js';
+export { boot, Runtime } from './entity/runtime.js';
+export type { BootOptions, RuntimeContext, RuntimeOptions } from './entity/runtime.js';
+export { HookExecutor } from './entity/hook-executor.js';
 
 // LLM
 export {

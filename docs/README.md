@@ -205,3 +205,4 @@ Once you're comfortable with those:
 | [Testing](testing.md) | bootTest, mockLLM, mockEntity |
 | [Extensions](extensions.md) | Custom hooks and MCP integrations |
 | [Deployment](deployment.md) | Taking it to production |
+| [Optimisation](optimisation.md) | When and what to tune |

@@ -6,17 +6,23 @@ export class Sensor extends BaseEntity {
   @Describe() describe() { return 'Sensor'; }
   @Stream() readings!: EntityStream<number>;
 
-  @Hook(Init.Runner())
-  async onInit() {
-    // Emit 5 readings on boot
-    for (let i = 1; i <= 5; i++) {
-      this.readings.emit(i * 10);
-    }
-  }
-
-  @Tool({ description: 'Take reading' })
-  async takeReading(input: { value: number }) {
+  @Tool({ description: 'Emit one reading' })
+  async emitOne(input: { value: number }) {
     this.readings.emit(input.value);
     return { emitted: input.value };
+  }
+
+  @Tool({ description: 'Emit batch' })
+  async emitBatch(input: { values: number[] }) {
+    for (const v of input.values) this.readings.emit(v);
+    return { count: input.values.length };
+  }
+
+  @Tool({ description: 'Manual start-data-data-end lifecycle' })
+  async emitLifecycle(input: { values: number[] }) {
+    this.readings.start();
+    for (const v of input.values) this.readings.data(v);
+    this.readings.end();
+    return { count: input.values.length };
   }
 }

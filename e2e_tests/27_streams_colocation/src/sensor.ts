@@ -1,0 +1,16 @@
+import { Entity, BaseEntity, Describe, Stream, State, Tool } from '@interactkit/sdk';
+import type { EntityStream } from '@interactkit/sdk';
+
+@Entity()
+export class Sensor extends BaseEntity {
+  @Describe() describe() { return `Sensor: ${this.emitted} emitted`; }
+  @Stream() readings!: EntityStream<{ value: number; ts: number }>;
+  @State({ description: 'emitted' }) private emitted = 0;
+
+  @Tool({ description: 'Read' })
+  async read(input: { value: number }) {
+    this.emitted++;
+    this.readings.emit({ value: input.value, ts: Date.now() });
+    return { emitted: this.emitted };
+  }
+}

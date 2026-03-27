@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { getEntityMeta, getHookMeta, getRefMeta, getStreamMeta, getStateMeta } from './decorators.js';
-import { EntityStreamImpl } from './stream.js';
+import { EntityStreamImpl, DistributedEntityStream, DistributedStreamSubscriber } from './stream.js';
 import type { BaseEntity, EntityClass, EntityConstructor, EntityInstance } from './types.js';
 import type { LogAdapter } from '../logger/adapter.js';
 import type { PubSubAdapter } from '../pubsub/adapter.js';
@@ -47,6 +47,7 @@ export class Runtime {
   private dispatcher: EventDispatcher;
   private entities = new Map<string, EntityInstance>();
   private busCache = new Map<string, EventBus>();
+  private adapterCache = new Map<string, PubSubAdapter>();
   private inProcessRunners: Array<{ stop(): Promise<void> }> = [];
   private hookChannels: string[] = [];
   private mcpClients: MCPClientWrapper[] = [];
@@ -98,13 +99,19 @@ export class Runtime {
       children: new Map(),
     };
 
-    // Wire streams
+    // Wire streams — use distributed streams if entity has its own pubsub
     const streamMetaSet = getStreamMeta(Cls);
     const propertyNames = getPropertyNames(Cls, entityReg);
+    const isDistributed = infra.pubsub !== this.infra.pubsub;
     for (const propName of propertyNames) {
       if (propName === 'id') continue;
       if (streamNames.includes(propName) || streamMetaSet.has(propName)) {
-        (instance as any)[propName] = new EntityStreamImpl();
+        if (isDistributed) {
+          const channel = `stream:${meta.type}.${propName}`;
+          (instance as any)[propName] = new DistributedEntityStream(channel, infra.pubsub);
+        } else {
+          (instance as any)[propName] = new EntityStreamImpl();
+        }
       }
     }
 
@@ -113,19 +120,13 @@ export class Runtime {
     const componentDefs: Array<{ property: string; type: string }> = entityReg?.components ?? [];
 
     const getBusForType = (targetType: string): EventBus => {
-      const prototype = Cls.prototype;
-      const allProps = getPropertyNames(Cls, entityReg);
-      for (const propName of allProps) {
-        const propType = Reflect.getMetadata('design:type', prototype, propName);
-        const propMeta = propType ? getEntityMeta(propType) : undefined;
-        if (propMeta?.type === targetType && propMeta.pubsub) {
-          const adapterKey = propMeta.pubsub.name;
-          if (!this.busCache.has(adapterKey)) {
-            const adapter = new propMeta.pubsub();
-            this.busCache.set(adapterKey, new EventBus(adapter, this.infra.logger));
-          }
-          return this.busCache.get(adapterKey)!;
+      const adapter = this.resolveAdapter(targetType, Cls, entityReg);
+      if (adapter) {
+        const key = adapter.constructor.name;
+        if (!this.busCache.has(key)) {
+          this.busCache.set(key, new EventBus(adapter, this.infra.logger));
         }
+        return this.busCache.get(key)!;
       }
       return bus;
     };
@@ -203,29 +204,45 @@ export class Runtime {
     if (this.started) return;
     this.started = true;
 
-    // Wire streams between co-located entities (parent can access child streams)
+    // Wire streams between entities
     for (const [, entityInst] of this.entities) {
-      const EntityCls = entityInst.entity.constructor as EntityConstructor;
       const entityReg = this.registry?.entities?.[entityInst.type];
       const componentDefs: Array<{ property: string; type: string }> = entityReg?.components ?? [];
 
       for (const comp of componentDefs) {
-        const childInst = this.entities.get(comp.type);
-        if (!childInst) continue;
-
         const proxy = (entityInst.entity as any)[comp.property];
         if (!proxy) continue;
 
-        const ChildCls = childInst.entity.constructor as EntityConstructor;
-        const childStreamMeta = getStreamMeta(ChildCls);
-        const childReg = this.registry?.entities?.[childInst.type];
+        // Get stream names for the child type from registry + decorators
+        const childInst = this.entities.get(comp.type);
+        const childReg = this.registry?.entities?.[comp.type];
         const childRegStreams: string[] = childReg?.streams ?? [];
-        const allStreams = new Set([...childStreamMeta, ...childRegStreams]);
+        let childDecoratorStreams = new Set<string>();
+        if (childInst) {
+          childDecoratorStreams = getStreamMeta(childInst.entity.constructor as EntityConstructor);
+        }
+        const allStreams = new Set([...childDecoratorStreams, ...childRegStreams]);
+        if (allStreams.size === 0) continue;
 
-        for (const streamName of allStreams) {
-          const stream = (childInst.entity as any)[streamName];
-          if (stream) {
-            Object.defineProperty(proxy, streamName, { value: stream, writable: false, configurable: false });
+        if (childInst) {
+          // Co-located: wire direct stream reference
+          for (const streamName of allStreams) {
+            const stream = (childInst.entity as any)[streamName];
+            if (stream) {
+              Object.defineProperty(proxy, streamName, { value: stream, writable: false, configurable: false });
+            }
+          }
+        } else {
+          // Child in another process: wire distributed subscriber
+          // Resolve the child's pubsub from design:type metadata
+          const childPubsub = this.resolveAdapter(comp.type, entityInst.entity.constructor as EntityConstructor, entityReg);
+
+          if (childPubsub) {
+            for (const streamName of allStreams) {
+              const channel = `stream:${comp.type}.${streamName}`;
+              const subscriber = new DistributedStreamSubscriber(channel, childPubsub);
+              Object.defineProperty(proxy, streamName, { value: subscriber, writable: false, configurable: false });
+            }
           }
         }
       }
@@ -269,6 +286,22 @@ export class Runtime {
         }
       }
     }
+  }
+
+  /** Resolve a cached PubSubAdapter for a target entity type, or undefined if same as default */
+  private resolveAdapter(targetType: string, parentCls: EntityConstructor, parentReg?: any): PubSubAdapter | undefined {
+    for (const propName of getPropertyNames(parentCls, parentReg)) {
+      const propType = Reflect.getMetadata('design:type', parentCls.prototype, propName);
+      const propMeta = propType ? getEntityMeta(propType) : undefined;
+      if (propMeta?.type === targetType && propMeta.pubsub) {
+        const key = propMeta.pubsub.name;
+        if (!this.adapterCache.has(key)) {
+          this.adapterCache.set(key, new propMeta.pubsub());
+        }
+        return this.adapterCache.get(key)!;
+      }
+    }
+    return undefined;
   }
 
   get size() { return this.entities.size; }

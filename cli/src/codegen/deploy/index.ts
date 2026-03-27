@@ -112,14 +112,19 @@ export function generateDeploymentPlan(entities: EntityInfo[]): DeploymentPlan {
     }
   }
 
-  // Second pass: entities with streams must be co-located with parent
+  // Second pass: entities with streams using InProcess must be co-located with parent
+  // Entities with streams on Redis can be distributed (streams publish via Redis)
   for (const entity of entities) {
     if (entity.streams.length > 0) {
-      const parent = parentOf.get(entity.type);
-      if (parent) {
-        const clusterName = entityCluster.get(parent) ?? `unit-${parent}`;
-        assignCluster(entity.type, clusterName);
-        assignCluster(parent, clusterName);
+      const ps = resolvedPubsub.get(entity.type);
+      const isInProcess = !ps || ps === 'InProcessBusAdapter' || !ps.includes('Redis');
+      if (isInProcess) {
+        const parent = parentOf.get(entity.type);
+        if (parent) {
+          const clusterName = entityCluster.get(parent) ?? `unit-${parent}`;
+          assignCluster(entity.type, clusterName);
+          assignCluster(parent, clusterName);
+        }
       }
     }
   }
@@ -139,14 +144,16 @@ export function generateDeploymentPlan(entities: EntityInfo[]): DeploymentPlan {
       const ps = resolvedPubsub.get(t);
       return !ps || ps === 'InProcessBusAdapter' || !ps.includes('Redis');
     });
-    const hasStreams = types.some(t => {
+    const hasInProcessStreams = types.some(t => {
       const e = entityMap.get(t);
-      return e && e.streams.length > 0;
+      if (!e || e.streams.length === 0) return false;
+      const ps = resolvedPubsub.get(t);
+      return !ps || ps === 'InProcessBusAdapter' || !ps.includes('Redis');
     });
 
     const reasons: string[] = [];
     if (hasInProcess) reasons.push('InProcessBusAdapter requires co-location');
-    if (hasStreams) reasons.push('EntityStream requires co-location');
+    if (hasInProcessStreams) reasons.push('EntityStream requires co-location');
     if (reasons.length === 0) reasons.push('default grouping');
 
     // Determine bus adapter for cross-unit communication
@@ -163,7 +170,7 @@ export function generateDeploymentPlan(entities: EntityInfo[]): DeploymentPlan {
       name: clusterName,
       entities: types.sort(),
       reason: reasons.join('; '),
-      scalable: !hasInProcess && !hasStreams,
+      scalable: !hasInProcess && !hasInProcessStreams,
       busAdapter,
       databaseAdapter,
     });

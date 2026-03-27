@@ -201,14 +201,15 @@ Refs are also how multiple `LLMEntity` instances share a single conversation his
 
 ## Streams (`EntityStream`): Child-to-Parent Data
 
-Streams let a child push data up to its parent in real time:
+Streams let a child push data up to its parent in real time. They work both in-process and across Redis:
 
 ```typescript
-import { Entity, BaseEntity, Component, Hook, Init, Tick, EntityStream } from '@interactkit/sdk';
+import { Entity, BaseEntity, Component, Stream, Hook, Init, Tick, RedisPubSubAdapter } from '@interactkit/sdk';
+import type { EntityStream } from '@interactkit/sdk';
 
-@Entity()
+@Entity({ pubsub: RedisPubSubAdapter })
 class Sensor extends BaseEntity {
-  private readings!: EntityStream<number>;
+  @Stream() readings!: EntityStream<number>;
 
   @Hook(Tick.Runner({ intervalMs: 1000 }))
   async onTick(input: Tick.Input) {
@@ -222,12 +223,15 @@ class Monitor extends BaseEntity {
 
   @Hook(Init.Runner())
   async onInit(input: Init.Input) {
-    this.sensor.readings.on('data', (value) => {
+    // Works even if Sensor runs in a separate process
+    this.sensor.readings.on('data', (value: unknown) => {
       console.log('Reading:', value);
     });
   }
 }
 ```
+
+When child and parent share a process, streams are direct in-memory calls. When the child uses `RedisPubSubAdapter`, streams automatically publish to `stream:{entityType}.{streamName}` via Redis, and the parent subscribes to that channel. No code changes needed -- the framework handles it based on the pub/sub adapter.
 
 ---
 

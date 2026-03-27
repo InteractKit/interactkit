@@ -630,6 +630,50 @@ importers:
         specifier: ^5.5.0
         version: 5.9.3
 
+  e2e_tests/27_streams_colocation:
+    dependencies:
+      '@interactkit/sdk':
+        specifier: workspace:*
+        version: link:../../sdk
+      dotenv:
+        specifier: ^16.4.0
+        version: 16.6.1
+      reflect-metadata:
+        specifier: ^0.2.2
+        version: 0.2.2
+    devDependencies:
+      '@interactkit/cli':
+        specifier: workspace:*
+        version: link:../../cli
+      '@types/node':
+        specifier: ^25.5.0
+        version: 25.5.0
+      typescript:
+        specifier: ^5.5.0
+        version: 5.9.3
+
+  e2e_tests/28_streams_distributed:
+    dependencies:
+      '@interactkit/sdk':
+        specifier: workspace:*
+        version: link:../../sdk
+      dotenv:
+        specifier: ^16.4.0
+        version: 16.6.1
+      reflect-metadata:
+        specifier: ^0.2.2
+        version: 0.2.2
+    devDependencies:
+      '@interactkit/cli':
+        specifier: workspace:*
+        version: link:../../cli
+      '@types/node':
+        specifier: ^25.5.0
+        version: 25.5.0
+      typescript:
+        specifier: ^5.5.0
+        version: 5.9.3
+
   examples/sample-app:
     dependencies:
       '@interactkit/sdk':

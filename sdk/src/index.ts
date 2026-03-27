@@ -17,7 +17,7 @@ export type { EntityRef } from './entity/types.js';
 
 // Stream
 export type { EntityStream } from './entity/stream.js';
-export { EntityStreamImpl } from './entity/stream.js';
+export { EntityStreamImpl, DistributedEntityStream, DistributedStreamSubscriber } from './entity/stream.js';
 
 // Hook namespaces (each contains .Input + .Runner(config))
 export { Init } from './hooks/init.js';

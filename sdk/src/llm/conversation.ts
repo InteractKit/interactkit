@@ -1,5 +1,5 @@
 import { BaseEntity } from '../entity/types.js';
-import { Entity } from '../entity/decorators.js';
+import { Entity } from '../entity/decorators/index.js';
 import { LLMContext } from './context.js';
 import type { LLMContextOptions, LLMMessage } from './context.js';
 

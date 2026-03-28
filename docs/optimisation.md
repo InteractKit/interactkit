@@ -6,13 +6,19 @@ InteractKit defaults to simplicity. Everything runs in one process with zero con
 
 Every cross-entity call goes through pub/sub. The adapter you choose determines latency, scalability, and deployment topology.
 
+`PubSubAdapter` has two subclass families: `LocalPubSubAdapter` (no serialization, pass by reference) and `RemotePubSubAdapter` (JSON serialization + automatic proxy for non-serializable values).
+
 ```
-InProcessBusAdapter (default)    RedisPubSubAdapter
-  ~0ms latency                     ~1-5ms latency
-  Single process only              Horizontal scaling
-  No network overhead              Cross-process, cross-machine
-  No persistence                   Durable queues
+LocalPubSubAdapter                RemotePubSubAdapter
+  InProcessBusAdapter (default)     RedisPubSubAdapter
+  ~0ms latency                      ~1-5ms latency
+  Single process only               Horizontal scaling
+  No network overhead               Cross-process, cross-machine
+  No serialization                  JSON serialization + proxy
+  No persistence                    Durable queues
 ```
+
+Remote adapters add proxy overhead: non-serializable values (functions, class instances) are automatically proxied across processes via `ProxyReceiver`. This is transparent but adds latency per property access or method call on proxied values.
 
 ### When to Use What
 

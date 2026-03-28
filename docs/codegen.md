@@ -77,6 +77,10 @@ The build catches mistakes before your app runs:
 | `@Hook` without runner or typed parameter | Build fails |
 | `@LLMEntity` missing `@Executor` or `@Context` | Build fails |
 | `@LLMExecutionTrigger` without `@Tool` methods | Build fails |
+| Distributed `@Component`/`@Ref` missing `Remote<T>` | Build fails |
+| Remote `@Hook` input missing `Remote<T>` | Build fails |
+
+The build automatically detects which entities use remote adapters and enforces `Remote<T>` where needed. You don't configure this -- it works from your `@Entity({ pubsub })` declaration. At compile time, `Remote<T>` is stripped so runtime metadata stays correct.
 
 ---
 

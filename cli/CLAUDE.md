@@ -18,15 +18,14 @@ CLI tool for InteractKit projects. Scaffolding, codegen, building, and running. 
 src/
   index.ts              # commander.js entry point
   commands/
-    init.ts             # scaffold new project
-    add.ts              # generate entity from template (--llm flag, dot-path nesting, --attach)
-    build.ts            # codegen + tsc + deployment plan
-    dev.ts              # build + run + watch (restarts on changes)
-    start.ts            # node <entry>
+    init/               # scaffold new project
+    add/                # generate entity from template (--llm flag, dot-path nesting, --attach)
+    build/              # codegen + tsc + deployment plan
+    dev/                # build + run + watch (restarts on changes)
+    start/              # node <entry>
   codegen/
     types.ts            # shared interfaces (EntityInfo, LLMInfo — no visibleState)
-    utils.ts            # extractStringProp, extractIdentProp, extractPackageName
-    extract/
+    parser/             # ts-morph extraction (replaces extract/)
       index.ts          # main orchestrator
       properties.ts     # classify properties (component/ref/stream/state)
       hooks.ts          # hook extraction (runner from decorator arg, input from param type)
@@ -34,13 +33,14 @@ src/
       llm.ts            # LLMEntity detection (extends LLMEntity), @Executor, @LLMTool, @SystemPrompt
     emit/
       index.ts          # EntityInfo[] → type-registry.ts
-    validate/
-      index.ts          # build-time validation (refs, components, LLM, hooks)
+    validator/          # build-time validation (replaces validate/)
+      index.ts          # refs, components, LLM, hooks, Remote<T> enforcement
     deploy/
       index.ts          # deployment plan generator (co-location, scaling)
-    mappers/
-      type-mapper.ts    # TS Type → Zod code string
-      validator-mapper.ts # @Secret() extraction + field metadata
+    mutator/            # pre-compile source transforms
+      index.ts          # strips Remote<T> → T in staging so design:type metadata stays correct
+                        # injects @__Path decorators
+    utils/              # extractStringProp, extractIdentProp, extractPackageName (replaces utils.ts)
 ```
 
 ## Key design rules
@@ -55,6 +55,8 @@ src/
 - **`@LLMVisible` extraction removed** from llm.ts — all refs/state are visible to the LLM by default
 - **`visibleState` removed** from `LLMInfo` type
 - **Validation changes:** `@Context()` is no longer required (built into `LLMEntity`); `@LLMExecutionTrigger` validation removed (replaced by built-in `invoke()`)
+- **`Remote<T>` enforcement:** validator checks that `@Component`/`@Ref` on entities with remote pubsub use `Remote<T>`, and `@Hook` (non-inProcess) uses `Remote<Input>`. Detects remote pubsub by walking class hierarchy (`extends RemotePubSubAdapter`).
+- **Mutator stage:** after validation, mutator strips `Remote<T>` → `T` in staging before compile so `design:type` metadata stays correct. Also injects `@__Path` decorators.
 
 ## Dependencies
 

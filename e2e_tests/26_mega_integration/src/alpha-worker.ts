@@ -1,11 +1,11 @@
-import { Entity, BaseEntity, Describe, Ref, State, Tool, RedisPubSubAdapter } from '@interactkit/sdk';
+import { Entity, BaseEntity, Describe, Ref, State, Tool, RedisPubSubAdapter, type Remote } from '@interactkit/sdk';
 import { AlphaCache } from './alpha-cache.js';
 
 @Entity({ pubsub: RedisPubSubAdapter })
 export class AlphaWorker extends BaseEntity {
   @Describe() describe() { return `AlphaWorker: ${this.processed}`; }
   @State({ description: 'processed' }) private processed = 0;
-  @Ref() private alphaCache!: AlphaCache;
+  @Ref() private alphaCache!: Remote<AlphaCache>;
 
   @Tool({ description: 'Process' })
   async process(input: { data: string }) {

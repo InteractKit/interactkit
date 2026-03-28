@@ -1,6 +1,6 @@
 # @interactkit/sdk
 
-A framework for building persistent, event-driven entity systems. Write plain TypeScript classes — the SDK handles state persistence, inter-entity communication, lifecycle hooks, LLM integration, and horizontal scaling.
+The core framework for InteractKit. Write plain TypeScript classes — the SDK handles state persistence, inter-entity communication, lifecycle hooks, LLM integration, transparent distributed proxying, and horizontal scaling.
 
 ```typescript
 @Entity({ database: PrismaDatabaseAdapter })
@@ -24,9 +24,9 @@ class Agent extends LLMEntity {
 
 ## What it does
 
-- **State persistence** — entity state auto-saved/loaded via database adapters
-- **Inter-entity communication** — call methods on child components like normal functions, routed transparently through an event bus
-- **Lifecycle hooks** — cron, timers, init, events — just decorated methods
+- **State persistence** — `@State` properties auto-save to the database, restore on restart, sync between replicas
+- **Transparent distribution** — call methods on entities across machines like normal functions. `Remote<T>` gives you compile-time type safety. Functions and objects returned from remote calls become live proxies.
+- **Lifecycle hooks** — init, timers, cron, HTTP webhooks, custom events — just decorated methods
 - **LLM-powered entities** — extend `LLMEntity`, add `@SystemPrompt`, `@Executor`, and `@Tool` with LangChain `bindTools`/`invoke` compatibility
 - **Validation** — inline Zod schemas via `@State({ validate })`, codegen reads them directly
 - **Build-time checks** — codegen validates entity refs, LLM config, hook params, component wiring
@@ -137,6 +137,7 @@ Entities using `InProcessBusAdapter` or `EntityStream` are grouped (must share a
 @Hook(Runner)                                               // method — runner determines when it fires
 @Configurable({ label, group?, enum?, validation?, ... })   // property
 @Secret()                                                   // property
+Remote<T>                                                   // type — async proxy wrapper for distributed components/refs
 ```
 
 ### LLM decorators
@@ -169,12 +170,14 @@ Used on classes extending `LLMEntity` (which extends `BaseEntity`):
 
 ### Adapters
 
-| Interface | Built-in | Config |
-|-----------|----------|--------|
-| `PubSubAdapter` | `InProcessBusAdapter` | None needed |
-| `PubSubAdapter` | `RedisPubSubAdapter` | `interactkit.redis` or `REDIS_HOST`+`REDIS_PORT` |
-| `DatabaseAdapter` | `PrismaDatabaseAdapter` | `interactkit.database` or `DATABASE_URL` |
-| `LogAdapter` | `ConsoleLogAdapter` | None needed |
+| Adapter | Type | Config |
+|---------|------|--------|
+| `InProcessBusAdapter` | Local (pass by reference) | None needed |
+| `RedisPubSubAdapter` | Remote (auto-proxy for functions/objects) | `interactkit.redis` or `REDIS_HOST`+`REDIS_PORT` |
+| `PrismaDatabaseAdapter` | Database | `interactkit.database` or `DATABASE_URL` |
+| `ConsoleLogAdapter` | Logger | None needed |
+
+Local adapters pass values by reference -- functions and class instances work natively. Remote adapters serialize to JSON and automatically proxy non-serializable values across machines.
 
 ### Build-time validation
 
@@ -189,3 +192,5 @@ The codegen catches at build time:
 - `LLMEntity` subclass missing `@Executor`
 - `@Tool` without description or not public async
 - Orphaned LLM decorators without `extends LLMEntity`
+- Distributed `@Component`/`@Ref` missing `Remote<T>`
+- Remote `@Hook` input missing `Remote<T>`

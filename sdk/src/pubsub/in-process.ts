@@ -1,20 +1,21 @@
-import type { PubSubAdapter } from './adapter.js';
+import { LocalPubSubAdapter } from "./adapter.js";
 
 /**
- * Zero-latency, in-memory adapter.
+ * Zero-latency, in-memory adapter. Passes values by reference —
+ * no serialization, no proxy. Functions, class instances, etc. work natively.
  *
  * - broadcast (publish/subscribe): all handlers get every message
  * - queue (enqueue/consume): round-robin across consumers
  */
-export class InProcessBusAdapter implements PubSubAdapter {
-  private channels = new Map<string, Set<(message: string) => void>>();
-  private queues = new Map<string, string[]>();
-  private consumers = new Map<string, Array<(message: string) => void>>();
+export class InProcessBusAdapter extends LocalPubSubAdapter {
+  private channels = new Map<string, Set<(message: unknown) => void>>();
+  private queues = new Map<string, unknown[]>();
+  private consumers = new Map<string, Array<(message: unknown) => void>>();
   private consumerIndex = new Map<string, number>();
 
   // --- Broadcast ---
 
-  async publish(channel: string, message: string): Promise<void> {
+  async publish(channel: string, message: unknown): Promise<void> {
     const handlers = this.channels.get(channel);
     if (!handlers) return;
     for (const handler of [...handlers]) {
@@ -22,7 +23,10 @@ export class InProcessBusAdapter implements PubSubAdapter {
     }
   }
 
-  async subscribe(channel: string, handler: (message: string) => void): Promise<void> {
+  async subscribe(
+    channel: string,
+    handler: (message: unknown) => void,
+  ): Promise<void> {
     if (!this.channels.has(channel)) this.channels.set(channel, new Set());
     this.channels.get(channel)!.add(handler);
   }
@@ -33,21 +37,22 @@ export class InProcessBusAdapter implements PubSubAdapter {
 
   // --- Queue (competing consumer) ---
 
-  async enqueue(channel: string, message: string): Promise<void> {
+  async enqueue(channel: string, message: unknown): Promise<void> {
     const consumers = this.consumers.get(channel);
     if (consumers && consumers.length > 0) {
-      // Deliver directly to one consumer via round-robin
       const idx = (this.consumerIndex.get(channel) ?? 0) % consumers.length;
       this.consumerIndex.set(channel, idx + 1);
       consumers[idx](message);
     } else {
-      // No consumers yet, buffer in queue
       if (!this.queues.has(channel)) this.queues.set(channel, []);
       this.queues.get(channel)!.push(message);
     }
   }
 
-  async consume(channel: string, handler: (message: string) => void): Promise<void> {
+  async consume(
+    channel: string,
+    handler: (message: unknown) => void,
+  ): Promise<void> {
     if (!this.consumers.has(channel)) this.consumers.set(channel, []);
     this.consumers.get(channel)!.push(handler);
 

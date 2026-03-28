@@ -1,4 +1,4 @@
-import type { EntityInfo } from '../types.js';
+import type { EntityInfo } from '@/codegen/types.js';
 
 /**
  * Generate the type-registry.ts source code from extracted entities.

@@ -161,11 +161,13 @@ class Agent extends BaseEntity {
 }
 ```
 
-Call child methods normally. InteractKit routes them through an event bus behind the scenes:
+Call child methods like normal functions. InteractKit routes them through an event bus behind the scenes -- same process, different process, different machine. Same code either way:
 
 ```typescript
 const results = await this.browser.search({ query: 'restaurants' });
 ```
+
+When an entity uses `RedisPubSubAdapter`, wrap component types with `Remote<T>` for type-safe distributed access. See [Distributed Entities](#distributed-entities) below.
 
 ---
 
@@ -193,7 +195,7 @@ class Brain extends BaseEntity {
 }
 ```
 
-The build verifies the ref target exists as a sibling.
+The build verifies the ref target exists as a sibling. Like components, use `Remote<T>` when the entity uses a remote pubsub. See [Distributed Entities](#distributed-entities).
 
 Refs are also how multiple `LLMEntity` instances share a single conversation history via `ConversationContext`. See [Shared Conversation Context](./llm.md#shared-conversation-context).
 
@@ -232,6 +234,46 @@ class Monitor extends BaseEntity {
 ```
 
 When child and parent share a process, streams are direct in-memory calls. When the child uses `RedisPubSubAdapter`, streams automatically publish to `stream:{entityType}.{streamName}` via Redis, and the parent subscribes to that channel. No code changes needed -- the framework handles it based on the pub/sub adapter.
+
+---
+
+## Distributed Entities
+
+Add `pubsub: RedisPubSubAdapter` to an entity and it can run on a different machine. Wrap its type with `Remote<T>` and every method call, property access, and return value becomes type-safe async:
+
+```typescript
+import { Entity, BaseEntity, Component, type Remote, RedisPubSubAdapter } from '@interactkit/sdk';
+
+@Entity({ pubsub: RedisPubSubAdapter })
+class Worker extends BaseEntity {
+  @Tool({ description: 'Get a callback function' })
+  async getProcessor() {
+    return (data: string) => data.toUpperCase();  // returns a function
+  }
+}
+
+@Entity()
+class Agent extends BaseEntity {
+  @Component() private worker!: Remote<Worker>;
+
+  @Hook(Init.Runner())
+  async onInit() {
+    // Method call across machines -- type-safe
+    const fn = await this.worker.getProcessor();
+
+    // The returned function is a live proxy -- call it across machines
+    const result = await fn('hello');  // "HELLO"
+  }
+}
+```
+
+Everything works as you'd expect:
+- Call methods: `await this.worker.process({ data: 'hello' })`
+- Read properties: `const name = await this.worker.name`
+- Return functions: a function returned from a remote call is still callable
+- Return objects: class instances returned from remote calls keep their methods
+
+The build enforces `Remote<T>` -- you can't forget it on a distributed entity. Run 5 replicas, tasks distribute automatically, state syncs via Redis. No code changes.
 
 ---
 

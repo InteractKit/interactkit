@@ -207,6 +207,32 @@ class Memory extends BaseEntity { /* ... */ }
 
 Now Memory talks over Redis instead of in-memory. Run 5 replicas. The rest of the system doesn't change.
 
+### Functions Pass Across Machines
+
+A remote entity can return a function, and the caller can invoke it. Class instances, nested objects, curried functions -- they all work:
+
+```typescript
+@Entity({ pubsub: RedisPubSubAdapter })
+class Worker extends BaseEntity {
+  @Tool({ description: 'Get a processor function' })
+  async getProcessor() {
+    return (data: string) => data.toUpperCase();
+  }
+}
+
+@Entity()
+class Agent extends BaseEntity {
+  @Component() private worker!: Remote<Worker>;
+
+  async doWork() {
+    const fn = await this.worker.getProcessor();  // returns a live proxy
+    const result = await fn('hello');              // "HELLO" -- called across machines
+  }
+}
+```
+
+No special serialization. No manual proxy setup. It just works.
+
 ---
 
 ## The Big Picture
@@ -214,13 +240,14 @@ Now Memory talks over Redis instead of in-memory. Run 5 replicas. The rest of th
 | Feature | What it does |
 |---------|-------------|
 | `@Entity` | A class that does one thing |
-| `@Describe()` | A method that returns a string describing the entity's current state; auto-composes LLM system prompts |
-| `@State` | Data that gets saved automatically |
+| `@Describe()` | Returns the entity's current state as a string; auto-composes LLM system prompts |
+| `@State` | Data that saves automatically, syncs between replicas |
 | `@Tool` | A method other entities (or an LLM) can call |
 | `@Component` / `@Ref` | Entities compose into trees, siblings talk to each other |
+| `Remote<T>` | Type-safe distributed access -- methods, properties, even returned functions work across machines |
 | `LLMEntity` | Extend to make all refs/tools visible to the LLM |
-| `@Hook` | Entities act on their own: timers, crons, events |
-| `interactkit add --mcp-stdio` | Any MCP server becomes a generated, typed entity |
+| `@Hook` | Entities act on their own: timers, crons, HTTP webhooks, events |
+| `interactkit add --mcp-stdio` | Any MCP server becomes a typed entity with one command |
 | `EntityStream` | Real-time data flows between entities |
 | Pluggable adapters | Swap database, pub/sub, logging without changing entity code |
 

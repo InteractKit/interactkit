@@ -76,6 +76,25 @@ class Worker extends BaseEntity {
 }
 ```
 
+## Remote Hooks and `Remote<T>`
+
+Non-inProcess hooks (Tick, Cron, HTTP, etc.) run in a separate hook server process. When the entity uses `RemotePubSubAdapter`, hook inputs are delivered via pub/sub. Use `Remote<T>` on the input type for type safety:
+
+```typescript
+import { Hook, type Remote } from '@interactkit/sdk';
+import { HttpRequest } from '@interactkit/http';
+
+@Hook(HttpRequest.Runner({ port: 3100, path: '/webhook' }))
+async onRequest(input: Remote<HttpRequest.Input>) {
+  const method = await input.method;    // property access returns Promise
+  await input.respond(200, 'ok');       // function calls work transparently
+}
+```
+
+`Remote<T>` on hook inputs is enforced at build time for entities with remote pubsub. `Init` hooks are exempt -- they always run in-process.
+
+---
+
 ## Custom Hooks (Extensions)
 
 Extension packages export their own `Runner` + `Input` under a namespace. Use them the same way:

@@ -1,10 +1,10 @@
-import { Entity, BaseEntity, Describe, Component, Tool, RedisPubSubAdapter } from '@interactkit/sdk';
+import { Entity, BaseEntity, Describe, Component, Tool, RedisPubSubAdapter, type Remote } from '@interactkit/sdk';
 import { StepD } from './step-d.js';
 
 @Entity({ pubsub: RedisPubSubAdapter })
 export class StepC extends BaseEntity {
   @Describe() describe() { return 'StepC'; }
-  @Component() private stepD!: StepD;
+  @Component() private stepD!: Remote<StepD>;
 
   @Tool({ description: 'Process C' })
   async processC(input: { data: string }) {

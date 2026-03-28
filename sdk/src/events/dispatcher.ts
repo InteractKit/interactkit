@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { BaseEntity } from '../entity/types.js';
 import type { EventEnvelope } from './types.js';
-import { CURRENT_ENVELOPE } from '../entity/context.js';
+import { CURRENT_ENVELOPE } from '../entity/context/index.js';
 
 interface EntityEntry {
   instance: BaseEntity;

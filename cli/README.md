@@ -61,3 +61,5 @@ The codegen catches:
 - `@Hook` methods without typed parameters
 - `LLMEntity` subclass missing `@Executor`
 - Orphaned LLM decorators without `extends LLMEntity`
+- `@Component`/`@Ref` on remote pubsub entity missing `Remote<T>`
+- `@Hook` (non-inProcess) on remote pubsub entity missing `Remote<Input>`

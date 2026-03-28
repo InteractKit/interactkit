@@ -1,6 +1,6 @@
 {
   "name": "@interactkit/sdk",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "description": "Entity framework for building composable, event-driven agent systems",
   "type": "module",
   "license": "MIT",
@@ -27,11 +27,12 @@
     "node": ">=18"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && tsc-alias",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "pnpm build"
   },
   "dependencies": {
+    "@kaciras/deasync": "^1.1.0",
     "@langchain/core": "^1.1.36",
     "@modelcontextprotocol/sdk": "^1.28.0",
     "config": "^4.4.1",
@@ -50,6 +51,7 @@
     "@types/config": "^4.4.0",
     "@types/node": "^25.5.0",
     "reflect-metadata": "^0.2.2",
+    "tsc-alias": "^1.8.16",
     "typescript": "^5.5.0"
   }
 }

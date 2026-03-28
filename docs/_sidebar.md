@@ -6,11 +6,11 @@
   - [Entities](entities.md)
   - [LLM Entities](llm.md)
   - [Hooks](hooks.md)
-- **Infrastructure**
-  - [Database, Pub/Sub, Logging](infrastructure.md)
-  - [Codegen & Build](codegen.md)
+- **Scaling**
+  - [Infrastructure](infrastructure.md)
   - [Deployment](deployment.md)
-- **Advanced**
+  - [Optimisation](optimisation.md)
+- **Build**
+  - [Codegen & Build](codegen.md)
   - [Testing](testing.md)
   - [Extensions](extensions.md)
-  - [Optimisation](optimisation.md)

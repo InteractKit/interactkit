@@ -33,10 +33,17 @@ class Memory extends BaseEntity { /* ... */ }
 
 ### Pub/Sub
 
-| Adapter | Latency | Scaling | Use case |
-|---------|---------|---------|----------|
-| `InProcessBusAdapter` | ~0ms | Single process | Default. Dev mode, real-time voice, hot loops |
-| `RedisPubSubAdapter` | ~1-5ms | Horizontal | Cross-process entity communication, replicas |
+`PubSubAdapter` is an abstract base class with two subclass families:
+
+| Base class | Adapter | Latency | Scaling | Use case |
+|------------|---------|---------|---------|----------|
+| `LocalPubSubAdapter` | `InProcessBusAdapter` | ~0ms | Single process | Default. Dev mode, real-time voice, hot loops |
+| `RemotePubSubAdapter` | `RedisPubSubAdapter` | ~1-5ms | Horizontal | Cross-process entity communication, replicas |
+
+- **Local** -- values pass by reference. Functions, class instances, everything works natively. Zero overhead.
+- **Remote** -- values serialize to JSON. Functions and class instances returned from remote calls become live proxies you can call across machines. Cleanup is automatic.
+
+When you use a remote adapter, wrap component and ref types with `Remote<T>` for type safety. The build enforces this. See [Distributed Entities](./entities.md#distributed-entities).
 
 The pub/sub adapter has two delivery modes:
 
@@ -94,19 +101,19 @@ Loggers see all events flowing through the event bus -- tool calls, hook events,
 
 ### Pub/Sub
 
+Extend `LocalPubSubAdapter` for same-process adapters, or `RemotePubSubAdapter` for cross-process (you get automatic function/object proxying for free):
+
 ```typescript
-import type { PubSubAdapter } from '@interactkit/sdk';
+import { RemotePubSubAdapter } from '@interactkit/sdk';
 
-class MyPubSub implements PubSubAdapter {
-  // Broadcast -- all subscribers receive
-  async publish(channel: string, message: string) { /* ... */ }
-  async subscribe(channel: string, handler: (msg: string) => void) { /* ... */ }
-  async unsubscribe(channel: string) { /* ... */ }
-
-  // Queue -- one consumer picks each message
-  async enqueue(channel: string, message: string) { /* ... */ }
-  async consume(channel: string, handler: (msg: string) => void) { /* ... */ }
-  async stopConsuming(channel: string) { /* ... */ }
+class NatsPubSub extends RemotePubSubAdapter {
+  // Implement raw string transport -- proxy handling is built-in
+  protected async publishRaw(channel: string, message: string) { /* ... */ }
+  protected async subscribeRaw(channel: string, handler: (msg: string) => void) { /* ... */ }
+  protected async unsubscribeRaw(channel: string) { /* ... */ }
+  protected async enqueueRaw(channel: string, message: string) { /* ... */ }
+  protected async consumeRaw(channel: string, handler: (msg: string) => void) { /* ... */ }
+  protected async stopConsumingRaw(channel: string) { /* ... */ }
 }
 ```
 

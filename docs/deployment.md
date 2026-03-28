@@ -99,10 +99,11 @@ State syncs automatically between replicas via Redis broadcast.
 
 ### Hooks
 
-Hooks that run remotely (Tick, Cron, HTTP) are separated into a hook server:
+Hooks that run remotely (Tick, Cron, HTTP) are separated into a hook server. The generated `_hooks.ts` creates actual hook runners that start and publish events to pubsub:
 
-- The hook server runs runners and enqueues events
-- Entity servers consume hook events from the queue
+- `_hooks.ts` generates a hook server that instantiates runners and starts them
+- Each runner publishes events to the entity's pubsub queue
+- Entity servers consume hook events from the queue via their pubsub adapter
 - `Init` hooks run in-process (no hook server needed)
 
 ## Entrypoints

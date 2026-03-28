@@ -1,11 +1,11 @@
-import { Entity, BaseEntity, Describe, Component, State, Tool, RedisPubSubAdapter } from '@interactkit/sdk';
+import { Entity, BaseEntity, Describe, Component, State, Tool, RedisPubSubAdapter, type Remote } from '@interactkit/sdk';
 import { Logger } from './logger.js';
 
 @Entity({ pubsub: RedisPubSubAdapter })
 export class TaskQueue extends BaseEntity {
   @Describe() describe() { return `TaskQueue: ${this.tasks.length} tasks`; }
   @State({ description: 'tasks' }) private tasks: Array<{ id: string; data: string; status: string }> = [];
-  @Component() private logger!: Logger;
+  @Component() private logger!: Remote<Logger>;
 
   @Tool({ description: 'Enqueue task' })
   async enqueue(input: { id: string; data: string }) {

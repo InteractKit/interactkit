@@ -1,4 +1,4 @@
-import type { EntityInfo } from '../types.js';
+import type { EntityInfo } from '@/codegen/types.js';
 
 export interface DeploymentUnit {
   /** Unique name for this deployment unit */

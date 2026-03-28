@@ -8,9 +8,9 @@ const DEFAULT_TIMEOUT_MS = 30_000;
 /**
  * Request/response event bus over a PubSubAdapter.
  *
- * Entity channels use enqueue/consume (competing consumer — only one replica
- * processes each request). Reply channels use publish/subscribe (broadcast —
- * the caller always gets the response).
+ * Envelope structure is always serializable. Payload may not be —
+ * if payload is non-serializable, it's sent separately through
+ * the PubSubAdapter's proxy system and reunited on the other side.
  */
 export class EventBus {
   private pendingRequests = new Map<
@@ -24,13 +24,9 @@ export class EventBus {
     private timeoutMs = DEFAULT_TIMEOUT_MS,
   ) {}
 
-  /**
-   * Send a request envelope and wait for a correlated response.
-   */
   async request(envelope: EventEnvelope): Promise<unknown> {
     const correlationId = randomUUID();
     envelope.correlationId = correlationId;
-
     const replyChannel = `reply:${correlationId}`;
 
     const promise = new Promise<unknown>((resolve, reject) => {
@@ -39,86 +35,78 @@ export class EventBus {
         this.pubsub.unsubscribe(replyChannel);
         reject(new Error(`Timeout: ${envelope.type} on ${envelope.target} (${this.timeoutMs}ms)`));
       }, this.timeoutMs);
-
       this.pendingRequests.set(correlationId, { resolve, reject, timer });
     });
 
-    // Reply channels use broadcast — the caller always gets the response
-    await this.pubsub.subscribe(replyChannel, (message) => {
-      const response: EventEnvelope = JSON.parse(message);
+    // Subscribe for reply on two channels: error (always serializable) and payload (may be proxied)
+    await this.pubsub.subscribe(`${replyChannel}:error`, (message) => {
       const pending = this.pendingRequests.get(correlationId);
       if (!pending) return;
-
       clearTimeout(pending.timer);
       this.pendingRequests.delete(correlationId);
-      this.pubsub.unsubscribe(replyChannel);
-
-      if (response.error) {
-        const err = new Error(response.error.message);
-        err.stack = response.error.stack;
-        pending.reject(err);
-      } else {
-        pending.resolve(response.payload);
-      }
+      this.pubsub.unsubscribe(`${replyChannel}:error`);
+      this.pubsub.unsubscribe(`${replyChannel}:payload`);
+      const e = message as { message: string; stack?: string };
+      const err = new Error(e.message);
+      err.stack = e.stack;
+      pending.reject(err);
     });
 
-    // Entity channels use queue — one replica picks up the request
+    await this.pubsub.subscribe(`${replyChannel}:payload`, (message) => {
+      const pending = this.pendingRequests.get(correlationId);
+      if (!pending) return;
+      clearTimeout(pending.timer);
+      this.pendingRequests.delete(correlationId);
+      this.pubsub.unsubscribe(`${replyChannel}:error`);
+      this.pubsub.unsubscribe(`${replyChannel}:payload`);
+      pending.resolve(message); // message is the payload directly — proxied if non-serializable
+    });
+
+    // Send request — envelope is serializable (payload is data, not functions)
     this.logger?.event(envelope);
-    await this.pubsub.enqueue(`entity:${envelope.target}`, JSON.stringify(envelope));
+    await this.pubsub.enqueue(`entity:${envelope.target}`, envelope);
 
     return promise;
   }
 
-  /**
-   * Listen for incoming events on an entity's channel.
-   * Uses consume (competing consumer) so only one replica processes each event.
-   */
   async listen(
     entityId: string,
     handler: (envelope: EventEnvelope) => Promise<unknown>,
   ): Promise<void> {
     await this.pubsub.consume(`entity:${entityId}`, async (message) => {
-      const envelope: EventEnvelope = JSON.parse(message);
+      const envelope = message as EventEnvelope;
       this.logger?.event(envelope);
 
-      const response: EventEnvelope = {
-        id: randomUUID(),
-        source: entityId,
-        target: envelope.source,
-        type: `${envelope.type}:response`,
-        payload: undefined,
-        timestamp: Date.now(),
-        correlationId: envelope.correlationId,
-      };
+      let payload: unknown;
+      let error: { message: string; stack?: string } | undefined;
 
       try {
-        response.payload = await handler(envelope);
+        payload = await handler(envelope);
       } catch (err) {
-        const error = err instanceof Error ? err : new Error(String(err));
-        response.error = { message: error.message, stack: error.stack };
-        this.logger?.error(envelope, error);
+        const e = err instanceof Error ? err : new Error(String(err));
+        error = { message: e.message, stack: e.stack };
+        this.logger?.error(envelope, e);
       }
 
-      // Replies use broadcast — guaranteed to reach the caller
       if (envelope.correlationId) {
-        await this.pubsub.publish(`reply:${envelope.correlationId}`, JSON.stringify(response));
+        const replyBase = `reply:${envelope.correlationId}`;
+        if (error) {
+          await this.pubsub.publish(`${replyBase}:error`, error);
+        } else {
+          // Payload sent directly — PubSubAdapter proxies if non-serializable
+          await this.pubsub.publish(`${replyBase}:payload`, payload);
+        }
       }
     });
   }
 
-  /**
-   * Fire-and-forget enqueue (no response expected).
-   */
   async publish(envelope: EventEnvelope): Promise<void> {
     this.logger?.event(envelope);
-    await this.pubsub.enqueue(`entity:${envelope.target}`, JSON.stringify(envelope));
+    await this.pubsub.enqueue(`entity:${envelope.target}`, envelope);
   }
 
-  /**
-   * Tear down: reject all pending requests, clean up.
-   */
   async destroy(): Promise<void> {
-    for (const [id, pending] of this.pendingRequests) {
+    for (const [_id, pending] of this.pendingRequests) {
       clearTimeout(pending.timer);
       pending.reject(new Error('EventBus destroyed'));
     }

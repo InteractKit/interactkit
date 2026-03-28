@@ -29,7 +29,7 @@ The SDK has three layers: **Authoring** (what devs write), **Codegen** (pre-buil
 |-----------|--------|---------|
 | `@Entity({ type?, description?, persona?, database?, pubsub?, logger? })` | class | Marks a class as an entity. `type` is auto-derived from class name (PascalCase to snake_case) if omitted. Root entities optionally pass infra config; sub-entities inherit from parent. |
 | `@State({ description, validate? })` | property | Required on all state properties (must be `private`) — describes what the state holds. Optional `validate` accepts a Zod schema for inline validation. |
-| `@Component()` | property | Marks a property as a child entity component (must be `private`) |
+| `@Component()` | property | Marks a property as a child entity component (must be `private`). Use `Remote<T>` type when entity has remote pubsub. |
 | `@Stream()` | property | Marks an `EntityStream<T>` property. Streams are always public — parent entities can subscribe to them after boot |
 | `@Tool({ description })` | method | Required on all public async methods — describes what the method does |
 | `@Hook(Runner)` | method | Marks a hook handler — runner passed explicitly (e.g. `@Hook(Init.Runner())`) |
@@ -47,6 +47,7 @@ The SDK has three layers: **Authoring** (what devs write), **Codegen** (pre-buil
 
 | Decorator / Option | Source | Purpose |
 |-----------|--------|---------|
+| `Remote<T>` | `@interactkit/sdk` | Type wrapper for distributed components/refs — makes all access async. Required on `@Component`/`@Ref` when entity uses `RemotePubSubAdapter`. |
 | `@Secret()` | `@interactkit/sdk` | Marks field as sensitive (masked in UI/logs) |
 | `@State({ validate: z.string().min(2) })` | `@interactkit/sdk` | Inline Zod validation on any state property — `z` is re-exported from the SDK |
 
@@ -315,11 +316,15 @@ The runtime resolves infra per entity: check own `@Entity` params first, then wa
 
 ### Adapter interfaces
 
+`PubSubAdapter` is an abstract base class with two subclass families:
+- **`LocalPubSubAdapter`** — passes values by reference, no serialization, no proxy. `InProcessBusAdapter` extends this.
+- **`RemotePubSubAdapter`** — JSON serialization + automatic proxy for non-serializable values. `RedisPubSubAdapter` extends this. Non-serializable values (functions, class instances) are automatically proxied across machines. `FinalizationRegistry` cleans up proxies when garbage collected. `ProxyReceiver` handles get/set/call/dispose operations.
+
 ```typescript
-interface PubSubAdapter {
-  publish(channel: string, message: string): Promise<void>;
-  subscribe(channel: string, handler: (message: string) => void): Promise<void>;
-  unsubscribe(channel: string): Promise<void>;
+abstract class PubSubAdapter {
+  abstract publish(channel: string, message: string): Promise<void>;
+  abstract subscribe(channel: string, handler: (message: string) => void): Promise<void>;
+  abstract unsubscribe(channel: string): Promise<void>;
 }
 
 interface DatabaseAdapter {
@@ -340,7 +345,9 @@ interface LogAdapter {
 
 | Module | Responsibility |
 |--------|---------------|
-| `entity/runtime.ts` | Entity instantiation, state hydration from DB, component wiring, stream setup |
+| `entity/runner/` | Entity instantiation, state hydration from DB, component wiring, ref wiring (second pass after all instances exist), stream setup |
+| `entity/proxy/` | Transparent proxy system for `RemotePubSubAdapter`. `ProxyReceiver` handles get/set/call/dispose operations. `FinalizationRegistry` cleans up proxies when GC'd. |
+| `entity/wrappers/` | `Remote<T>` type definition — makes all method calls return `Promise<...>` and property access `Promise<T>` |
 | `events/bus.ts` | PubSub adapter-based event bus (request/response pattern) |
 | `events/dispatcher.ts` | Routes events to entity instances by ID, validates payloads via generated registry |
 
@@ -454,11 +461,13 @@ interface HookHandler<T = any> {
 src/
   index.ts                   # Barrel export
   entity/
-    decorators.ts            # @Entity, @Hook, @Configurable
-    validators.ts            # @Secret() — domain-specific; inline Zod validation via `validate` option on @State()
-    runtime.ts               # Instantiation, state persistence, event routing
-    stream.ts                # EntityStream<T> implementation
-    types.ts                 # BaseEntity, EntityInstance, StateStore
+    decorators/              # @Entity, @Hook, @Configurable, etc.
+    wrappers/                # Remote<T> type, proxy wrappers
+    proxy/                   # Transparent proxy system (ProxyReceiver, get/set/call/dispose ops)
+    runner/                  # Entity runner — instantiation, ref wiring (second pass), state hydration
+    context/                 # Entity context management
+    infra/                   # Infrastructure resolution (adapter inheritance)
+    stream/                  # EntityStream<T> implementation (in-process + Redis)
   llm/
     base.ts                  # LLMEntity class (extends BaseEntity) — invoke(), built-in context/streams
     conversation.ts          # ConversationContext entity — shared context between LLM entities
@@ -474,19 +483,15 @@ src/
     dispatcher.ts            # Event routing + validation
     types.ts                 # EventEnvelope
   pubsub/
-    adapter.ts               # PubSubAdapter interface
-    redis.ts                 # RedisPubSubAdapter (ioredis) — horizontal scaling
-    in-process.ts            # InProcessBusAdapter — zero-latency, single process
+    adapter.ts               # PubSubAdapter abstract base, LocalPubSubAdapter, RemotePubSubAdapter
+    redis.ts                 # RedisPubSubAdapter (extends RemotePubSubAdapter) — horizontal scaling
+    in-process.ts            # InProcessBusAdapter (extends LocalPubSubAdapter) — zero-latency, single process
   database/
     adapter.ts               # DatabaseAdapter interface
     prisma.ts                # Prisma-backed implementation
   logger/
     adapter.ts               # LogAdapter interface
     console.ts               # ConsoleLogAdapter — default stdout
-  codegen/
-    extract.ts               # ts-morph entry point
-    type-mapper.ts           # TS type → Zod conversion
-    validator-mapper.ts      # Extracts inline Zod `validate` schemas from @State() → registry Zod code
 ```
 
 ## Dependencies

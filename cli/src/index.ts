@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander';
-import { buildCommand } from './commands/build.js';
-import { devCommand } from './commands/dev.js';
-import { startCommand } from './commands/start.js';
-import { initCommand } from './commands/init.js';
-import { addCommand } from './commands/add.js';
+import { buildCommand } from './commands/build/index.js';
+import { devCommand } from './commands/dev/index.js';
+import { startCommand } from './commands/start/index.js';
+import { initCommand } from './commands/init/index.js';
+import { addCommand } from './commands/add/index.js';
 
 const program = new Command();
 

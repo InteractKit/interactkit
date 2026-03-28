@@ -1,7 +1,6 @@
 import type { SubValidator } from '../types/sub-validator.js';
-import { usesRemotePubsub } from '../types/infra-helpers.js';
 
-/** Refs must target sibling entities, be private, and use Remote<T> when distributed. */
+/** Refs must target sibling entities, be private, and always use Remote<T>. */
 export const validateRefs: SubValidator = (entity, ctx) => {
   if (entity.refs.length === 0) return [];
 
@@ -23,10 +22,10 @@ export const validateRefs: SubValidator = (entity, ctx) => {
       errors.push(`${loc}: ref "${ref.propertyName}" must be private — refs are internal wiring, not part of the entity's public API`);
     }
 
-    if (usesRemotePubsub(entity, ctx.entities) && !ref.isRemote) {
+    if (!ref.isRemote) {
       errors.push(
-        `${loc}: ref "${ref.propertyName}" communicates over a remote pubsub — ` +
-        `type it as Remote<${ref.targetClassName}> for type-safe async proxy access`,
+        `${loc}: ref "${ref.propertyName}" must be typed as Remote<${ref.targetClassName}> — ` +
+        `this ensures switching between local and distributed requires no code changes`,
       );
     }
   }

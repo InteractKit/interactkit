@@ -1,7 +1,6 @@
 import type { SubValidator } from '../types/sub-validator.js';
-import { usesRemotePubsub } from '../types/infra-helpers.js';
 
-/** Components must reference known entity types, be private, and use Remote<T> when distributed. */
+/** Components must reference known entity types, be private, and always use Remote<T>. */
 export const validateComponents: SubValidator = (entity, ctx) => {
   const errors: string[] = [];
   const loc = `${entity.className} (${entity.type})`;
@@ -14,10 +13,10 @@ export const validateComponents: SubValidator = (entity, ctx) => {
       errors.push(`${loc}: component "${comp.propertyName}" must be private — parent entities should not reach through children (use a method to expose functionality)`);
     }
 
-    if (usesRemotePubsub(entity, ctx.entities) && !comp.isRemote) {
+    if (!comp.isRemote) {
       errors.push(
-        `${loc}: component "${comp.propertyName}" communicates over a remote pubsub — ` +
-        `type it as Remote<${comp.className}> for type-safe async proxy access`,
+        `${loc}: component "${comp.propertyName}" must be typed as Remote<${comp.className}> — ` +
+        `this ensures switching between local and distributed requires no code changes`,
       );
     }
   }

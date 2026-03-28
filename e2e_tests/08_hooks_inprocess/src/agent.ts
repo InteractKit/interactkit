@@ -1,4 +1,4 @@
-import { Entity, BaseEntity, Describe, State, Tool, Hook, Init, Component } from '@interactkit/sdk';
+import { Entity, BaseEntity, Describe, State, Tool, Hook, Init, Component, type Remote } from '@interactkit/sdk';
 
 @Entity()
 export class Counter extends BaseEntity {
@@ -25,7 +25,7 @@ export class Counter extends BaseEntity {
 @Entity()
 export class Agent extends BaseEntity {
   @Describe() describe() { return 'Agent'; }
-  @Component() private counter!: Counter;
+  @Component() private counter!: Remote<Counter>;
 
   @State({ description: 'init calls' })
   private initCalls = 0;

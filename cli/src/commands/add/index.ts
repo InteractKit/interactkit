@@ -10,6 +10,7 @@ import { mcpTemplate } from './templates/mcp.js';
 export interface AddOpts {
   llm?: boolean;
   attach?: string;
+  remote?: boolean;
   mcpStdio?: string;
   mcpHttp?: string;
   mcpHeader?: string[];
@@ -27,6 +28,7 @@ export async function addCommand(name: string, opts: AddOpts) {
     console.error('  --mcp-http <url>       Generate entity from MCP server via HTTP');
     console.error('  --mcp-header <k=v>     Add header for MCP connection (repeatable)');
     console.error('  --mcp-env <k=v>        Add env var for stdio MCP server (repeatable)');
+    console.error('  --remote               Use RedisPubSubAdapter for distributed communication');
     process.exit(1);
   }
 
@@ -94,7 +96,7 @@ export async function addCommand(name: string, opts: AddOpts) {
       for (const t of tools) {
         console.log(`    - ${t.name}: ${t.description.slice(0, 60)}`);
       }
-      code = mcpTemplate(className, transportCode, tools);
+      code = mcpTemplate(className, transportCode, tools, opts.remote);
     } catch (err: any) {
       console.error(`  Failed to connect: ${err.message}`);
       process.exit(1);
@@ -102,10 +104,10 @@ export async function addCommand(name: string, opts: AddOpts) {
 
     console.log(`\n▸ Created MCP entity: ${relPath}`);
   } else if (opts.llm) {
-    code = llmTemplate(className, entityType);
+    code = llmTemplate(className, entityType, opts.remote);
     console.log(`\n▸ Created LLM entity: ${relPath}`);
   } else {
-    code = entityTemplate(className, entityType);
+    code = entityTemplate(className, entityType, opts.remote);
     console.log(`\n▸ Created entity: ${relPath}`);
   }
 

@@ -1,10 +1,10 @@
-import { Entity, BaseEntity, Describe, Component, Tool } from '@interactkit/sdk';
+import { Entity, BaseEntity, Describe, Component, Tool, type Remote } from '@interactkit/sdk';
 import { Team } from './team.js';
 
 @Entity()
 export class Manager extends BaseEntity {
   @Describe() describe() { return 'Manager'; }
-  @Component() private team!: Team;
+  @Component() private team!: Remote<Team>;
 
   @Tool({ description: 'Delegate' })
   async delegate(input: { task: string }) {

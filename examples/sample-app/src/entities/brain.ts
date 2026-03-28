@@ -7,8 +7,9 @@ import {
   Ref,
   Executor,
   Tool,
-  SystemPrompt,
+  Describe,
   Init,
+  type Remote,
 } from "@interactkit/sdk";
 import { ChatAnthropic } from "@langchain/anthropic";
 import { Mouth } from "./mouth.js";
@@ -20,16 +21,16 @@ export class Brain extends LLMEntity {
   @Configurable({ label: "Personality", group: "Config" })
   private personality = "curious";
 
-  @SystemPrompt()
-  private get systemPrompt() {
+  @Describe()
+  describe() {
     return `You are a ${this.personality} assistant. Use your tools to think, speak, and remember.`;
   }
 
   @Executor()
   private llm = new ChatAnthropic({ model: "claude-sonnet-4-20250514" });
 
-  @Ref() private mouth!: Mouth;
-  @Ref() private memory!: Memory;
+  @Ref() private mouth!: Remote<Mouth>;
+  @Ref() private memory!: Remote<Memory>;
 
   @Hook(Init.Runner())
   async onInit(input: Init.Input) {

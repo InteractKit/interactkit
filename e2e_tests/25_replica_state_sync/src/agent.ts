@@ -1,10 +1,10 @@
-import { Entity, BaseEntity, Describe, Component, Hook, Init } from '@interactkit/sdk';
+import { Entity, BaseEntity, Describe, Component, Hook, Init, type Remote } from '@interactkit/sdk';
 import { ConfigStore } from './config-store.js';
 
 @Entity()
 export class Agent extends BaseEntity {
   @Describe() describe() { return 'Agent'; }
-  @Component() private config!: ConfigStore;
+  @Component() private config!: Remote<ConfigStore>;
 
   @Hook(Init.Runner())
   async onInit() {

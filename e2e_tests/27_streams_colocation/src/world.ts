@@ -1,4 +1,4 @@
-import { Entity, BaseEntity, Describe, Component, State, Hook, Init } from '@interactkit/sdk';
+import { Entity, BaseEntity, Describe, Component, State, Hook, Init, type Remote } from '@interactkit/sdk';
 import { Sensor } from './sensor.js';
 import { Alarm } from './alarm.js';
 import { Store } from './store.js';
@@ -6,9 +6,9 @@ import { Store } from './store.js';
 @Entity()
 export class World extends BaseEntity {
   @Describe() describe() { return 'World'; }
-  @Component() private sensor!: Sensor;
-  @Component() private alarm!: Alarm;
-  @Component() private store!: Store;
+  @Component() private sensor!: Remote<Sensor>;
+  @Component() private alarm!: Remote<Alarm>;
+  @Component() private store!: Remote<Store>;
 
   @State({ description: 'stream events' })
   private sensorData: number[] = [];

@@ -14,6 +14,8 @@ export type ParsedType =
   | { kind: 'unknown' }
   | { kind: 'never' }
   | { kind: 'date' }
+  | { kind: 'map'; key: ParsedType; value: ParsedType }
+  | { kind: 'set'; element: ParsedType }
   | { kind: 'literal'; value: string | number | boolean }
   | { kind: 'array'; element: ParsedType }
   | { kind: 'tuple'; elements: ParsedType[] }

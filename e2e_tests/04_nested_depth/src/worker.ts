@@ -1,11 +1,11 @@
-import { Entity, BaseEntity, Describe, Component, State, Tool } from '@interactkit/sdk';
+import { Entity, BaseEntity, Describe, Component, State, Tool, type Remote } from '@interactkit/sdk';
 import { Logger } from './logger.js';
 
 @Entity()
 export class Worker extends BaseEntity {
   @Describe() describe() { return `Worker: ${this.jobs} jobs`; }
   @State({ description: 'jobs' }) private jobs = 0;
-  @Component() private logger!: Logger;
+  @Component() private logger!: Remote<Logger>;
 
   @Tool({ description: 'Do work' })
   async doWork(input: { task: string }) {

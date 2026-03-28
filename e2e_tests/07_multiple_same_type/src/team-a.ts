@@ -1,10 +1,10 @@
-import { Entity, BaseEntity, Describe, Component, Tool } from '@interactkit/sdk';
+import { Entity, BaseEntity, Describe, Component, Tool, type Remote } from '@interactkit/sdk';
 import { Memory } from './memory.js';
 
 @Entity()
 export class TeamA extends BaseEntity {
   @Describe() describe() { return 'TeamA'; }
-  @Component() private memory!: Memory;
+  @Component() private memory!: Remote<Memory>;
 
   @Tool({ description: 'Store in A' })
   async storeA(input: { text: string }) { return this.memory.store({ text: `A:${input.text}` }); }

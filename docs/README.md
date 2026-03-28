@@ -130,6 +130,19 @@ interactkit add Slack --mcp-stdio "npx -y @slack/mcp-server" --attach Agent
 
 This generates a typed `.ts` file. The Brain sees Slack's tools automatically.
 
+Attach existing entities to parents (auto-infers `Remote<T>` from the entity tree):
+
+```bash
+interactkit attach Worker Agent          # as @Component
+interactkit attach Cache Worker --ref    # as @Ref
+```
+
+Generate distributed entities with `--remote`:
+
+```bash
+interactkit add Worker --remote          # entity with RedisPubSubAdapter
+```
+
 ---
 
 ## Make It Do Things

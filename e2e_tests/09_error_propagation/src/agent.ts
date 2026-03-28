@@ -1,10 +1,10 @@
-import { Entity, BaseEntity, Describe, Component, Hook, Init } from '@interactkit/sdk';
+import { Entity, BaseEntity, Describe, Component, Hook, Init, type Remote } from '@interactkit/sdk';
 import { Broken } from './broken.js';
 
 @Entity()
 export class Agent extends BaseEntity {
   @Describe() describe() { return 'Agent'; }
-  @Component() private broken!: Broken;
+  @Component() private broken!: Remote<Broken>;
 
   @Hook(Init.Runner())
   async onInit() {

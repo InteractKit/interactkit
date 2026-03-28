@@ -1,12 +1,17 @@
 /** Generate an LLM entity template. */
-export function llmTemplate(name: string, _type: string): string {
+export function llmTemplate(name: string, _type: string, remote?: boolean): string {
+  const sdkImports = remote
+    ? `Entity, LLMEntity, Hook, Init, State,\n  Executor, Tool, Describe, RedisPubSubAdapter,`
+    : `Entity, LLMEntity, Hook, Init, State,\n  Executor, Tool, Describe,`;
+  const entityOpts = remote
+    ? `{ description: 'TODO: describe this entity', pubsub: RedisPubSubAdapter }`
+    : `{ description: 'TODO: describe this entity' }`;
   return `import {
-  Entity, LLMEntity, Hook, Init, State,
-  Executor, Tool, Describe,
+  ${sdkImports}
 } from '@interactkit/sdk';
 import { ChatOpenAI } from '@langchain/openai';
 
-@Entity({ description: 'TODO: describe this entity' })
+@Entity(${entityOpts})
 export class ${name} extends LLMEntity {
   @Describe()
   describe() {

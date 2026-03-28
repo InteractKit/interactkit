@@ -65,8 +65,11 @@ This generates an entity file with the MCP transport pre-configured. Use `--mcp-
 | `interactkit init <name>` | Create a new project |
 | `interactkit add <name>` | Generate an entity file |
 | `interactkit add <name> --llm` | Generate an LLM entity |
+| `interactkit add <name> --remote` | Generate with `RedisPubSubAdapter` (distributed) |
 | `interactkit add <name> --mcp-stdio "cmd"` | Generate an MCP entity (stdio transport) |
 | `interactkit add <name> --attach Parent` | Generate and attach as `@Component` to Parent |
+| `interactkit attach <Child> <Parent>` | Attach existing entity as `@Component` (auto-infers `Remote<T>`) |
+| `interactkit attach <Child> <Parent> --ref` | Attach as `@Ref` instead of `@Component` |
 | `interactkit build --root=path:Export` | Build everything |
 | `interactkit dev --root=path:Export` | Build + watch for changes |
 | `interactkit start` | Run your app |

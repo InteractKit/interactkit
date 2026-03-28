@@ -36,12 +36,19 @@ function toMethodName(name: string): string {
 }
 
 /** Generate an MCP entity template from discovered tools. */
-export function mcpTemplate(className: string, transportCode: string, tools: MCPToolInfo[]): string {
+export function mcpTemplate(className: string, transportCode: string, tools: MCPToolInfo[], remote?: boolean): string {
   const lines: string[] = [];
 
-  lines.push(`import { Entity, BaseEntity, Hook, Init, Tool, Describe, MCPClientWrapper } from '@interactkit/sdk';`);
+  const imports = remote
+    ? `import { Entity, BaseEntity, Hook, Init, Tool, Describe, MCPClientWrapper, RedisPubSubAdapter } from '@interactkit/sdk';`
+    : `import { Entity, BaseEntity, Hook, Init, Tool, Describe, MCPClientWrapper } from '@interactkit/sdk';`;
+  const entityOpts = remote
+    ? `{ description: '${className} MCP — ${tools.length} tools', pubsub: RedisPubSubAdapter }`
+    : `{ description: '${className} MCP — ${tools.length} tools' }`;
+
+  lines.push(imports);
   lines.push('');
-  lines.push(`@Entity({ description: '${className} MCP — ${tools.length} tools' })`);
+  lines.push(`@Entity(${entityOpts})`);
   lines.push(`export class ${className} extends BaseEntity {`);
   lines.push(`  private client = new MCPClientWrapper({`);
   lines.push(`    transport: ${transportCode},`);

@@ -33,7 +33,8 @@ export type * from './types/index.js';
  *   Pass 3 — Link component references (recursive entity tree)
  *   Pass 4 — Validate
  */
-export function extractEntities(project: Project): ParsedEntity[] {
+export function extractEntities(project: Project, opts?: { validate?: boolean }): ParsedEntity[] {
+  const shouldValidate = opts?.validate ?? true;
   // ─── Pass 1: Entity discovery ───────────────────────
   const discovered: Array<{
     cls: ClassDeclaration;
@@ -171,14 +172,16 @@ export function extractEntities(project: Project): ParsedEntity[] {
   }
 
   // ─── Pass 4: Validate ──────────────────────────────
-  const errors = validateEntities(entities);
-  if (errors.length > 0) {
-    console.error('\n✗ Build validation failed:\n');
-    for (const err of errors) {
-      console.error(`  ${err}`);
+  if (shouldValidate) {
+    const errors = validateEntities(entities);
+    if (errors.length > 0) {
+      console.error('\n✗ Build validation failed:\n');
+      for (const err of errors) {
+        console.error(`  ${err}`);
+      }
+      console.error('');
+      process.exit(1);
     }
-    console.error('');
-    process.exit(1);
   }
 
   return entities;

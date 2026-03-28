@@ -12,10 +12,15 @@
  *   const name: string = await this.worker.getName(); // string, not Promise<string>
  */
 export type Remote<T> = {
-  [K in keyof T]: T[K] extends (...args: infer A) => infer R
-    ? (...args: A) => Promise<Remotify<Awaited<R>>>
-    : Promise<Awaited<T[K]>>;
+  [K in keyof T]: T[K] extends EntityStreamLike
+    ? T[K]  // Streams pass through — runtime handles stream proxying separately
+    : T[K] extends (...args: infer A) => infer R
+      ? (...args: A) => Promise<Remotify<Awaited<R>>>
+      : Promise<Awaited<T[K]>>;
 };
+
+/** Matches EntityStream<any> without importing it (avoids circular deps). */
+type EntityStreamLike = { emit(payload: any): void; on(event: string, handler: (...args: any[]) => void): void };
 
 /** Serializable types pass through unchanged. Non-serializable get wrapped in Remote<T>. */
 type Remotify<T> =

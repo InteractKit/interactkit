@@ -1,10 +1,10 @@
-import { Entity, BaseEntity, Describe, Component, Hook, Init } from '@interactkit/sdk';
+import { Entity, BaseEntity, Describe, Component, Hook, Init, type Remote } from '@interactkit/sdk';
 import { Tools } from './tools.js';
 
 @Entity()
 export class Agent extends BaseEntity {
   @Describe() describe() { return 'Agent'; }
-  @Component() private tools!: Tools;
+  @Component() private tools!: Remote<Tools>;
 
   @Hook(Init.Runner())
   async onInit() {

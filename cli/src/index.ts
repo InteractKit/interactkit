@@ -6,6 +6,7 @@ import { devCommand } from './commands/dev/index.js';
 import { startCommand } from './commands/start/index.js';
 import { initCommand } from './commands/init/index.js';
 import { addCommand } from './commands/add/index.js';
+import { attachCommand } from './commands/attach/index.js';
 
 const program = new Command();
 
@@ -30,8 +31,17 @@ program
   .option('--mcp-http <url>', 'Generate entity from MCP server via HTTP')
   .option('--mcp-header <key=value>', 'Add header for MCP connection (repeatable)', (v: string, acc: string[]) => [...acc, v], [])
   .option('--mcp-env <key=value>', 'Add env var for stdio MCP server (repeatable)', (v: string, acc: string[]) => [...acc, v], [])
+  .option('--remote', 'Use RedisPubSubAdapter for distributed/cross-process communication')
   .action(async (name: string, opts) => {
     await addCommand(name, opts);
+  });
+
+program
+  .command('attach <child> <parent>')
+  .description('Attach an entity to a parent as @Component or @Ref (auto-infers Remote<T>)')
+  .option('--ref', 'Attach as @Ref instead of @Component')
+  .action(async (child: string, parent: string, opts) => {
+    await attachCommand(child, parent, opts);
   });
 
 program

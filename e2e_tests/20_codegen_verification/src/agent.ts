@@ -1,10 +1,10 @@
-import { Entity, BaseEntity, Describe, Component, Hook, Init, Tick } from '@interactkit/sdk';
+import { Entity, BaseEntity, Describe, Component, Hook, Init, Tick, type Remote } from '@interactkit/sdk';
 import { Memory } from './memory.js';
 
 @Entity()
 export class Agent extends BaseEntity {
   @Describe() describe() { return 'Agent'; }
-  @Component() private memory!: Memory;
+  @Component() private memory!: Remote<Memory>;
 
   @Hook(Init.Runner())
   async onInit() {}

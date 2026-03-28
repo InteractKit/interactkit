@@ -1,4 +1,4 @@
-import { Entity, BaseEntity, Describe, State, Tool, Hook, Init, Component } from '@interactkit/sdk';
+import { Entity, BaseEntity, Describe, State, Tool, Hook, Init, Component, type Remote } from '@interactkit/sdk';
 
 @Entity()
 export class Worker extends BaseEntity {
@@ -12,7 +12,7 @@ export class Worker extends BaseEntity {
 @Entity()
 export class Agent extends BaseEntity {
   @Describe() describe() { return 'Agent'; }
-  @Component() private worker!: Worker;
+  @Component() private worker!: Remote<Worker>;
 
   @Hook(Init.Runner())
   async onInit() {

@@ -291,9 +291,20 @@ Access it with `this.id`. You never set IDs manually.
 
 ---
 
-## All Properties Must Be Private
+## Visibility Rules
 
-The only public things on an entity are `@Tool` methods. State, components, refs, and streams are all `private`. This keeps entities cleanly separated. They only interact through tools.
+- **Public:** `@Tool` methods and `@Stream` properties (parents subscribe to child streams)
+- **Private:** State, components, and refs
+
+Entities interact through tools. Parents access child streams through the component proxy (`this.child.streamName.on('data', ...)`).
+
+## Entity Type
+
+When you omit `type` from `@Entity()` (recommended), it's auto-derived from the class name: `PascalCase` → `kebab-case`. For example, `ResearchBrain` becomes `research-brain`.
+
+## No Custom Constructors
+
+`BaseEntity` has a `protected` constructor. You cannot define your own — the build enforces this. Use `@Hook(Init.Runner())` for initialization logic.
 
 ---
 

@@ -1,12 +1,12 @@
-import { Entity, BaseEntity, Describe, Component, Hook, Init } from '@interactkit/sdk';
+import { Entity, BaseEntity, Describe, Component, Hook, Init, type Remote } from '@interactkit/sdk';
 import { Db } from './db.js';
 import { Cache } from './cache.js';
 
 @Entity()
 export class World extends BaseEntity {
   @Describe() describe() { return 'World'; }
-  @Component() private db!: Db;
-  @Component() private cache!: Cache;
+  @Component() private db!: Remote<Db>;
+  @Component() private cache!: Remote<Cache>;
 
   @Hook(Init.Runner())
   async onInit() {

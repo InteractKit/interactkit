@@ -1,12 +1,23 @@
-import { BaseWrapper, type EntityTree, type ElementDescriptor } from './base-wrapper.js';
-import type { BaseEntity } from '../types.js';
+import {
+  BaseWrapper,
+  type EntityTree,
+  type ElementDescriptor,
+} from "./base-wrapper.js";
+import type { BaseEntity } from "../types.js";
 
-interface MethodEntry { element: ElementDescriptor; fn: Function }
+interface MethodEntry {
+  element: ElementDescriptor;
+  fn: Function;
+}
 
 export class MethodWrapper extends BaseWrapper {
   private static _instance: MethodWrapper | null = null;
-  static instance(): MethodWrapper { return (MethodWrapper._instance ??= new MethodWrapper()); }
-  private constructor() { super(); }
+  static instance(): MethodWrapper {
+    return (MethodWrapper._instance ??= new MethodWrapper());
+  }
+  private constructor() {
+    super();
+  }
 
   private entries = new Map<string, MethodEntry>();
   private listeningEntities = new Set<string>();
@@ -14,7 +25,8 @@ export class MethodWrapper extends BaseWrapper {
   register(id: string, element: ElementDescriptor): void {
     const entity = element.entity as any;
     const fn = entity[element.name];
-    if (typeof fn === 'function') this.entries.set(id, { element, fn: fn.bind(entity) });
+    if (typeof fn === "function")
+      this.entries.set(id, { element, fn: fn.bind(entity) });
   }
 
   init(_tree: EntityTree, instances: Map<string, BaseEntity>): void {
@@ -24,21 +36,36 @@ export class MethodWrapper extends BaseWrapper {
     const entityListeners = new Map<string, BaseEntity>();
 
     for (const [id, entry] of this.entries) {
-      const entityPath = this.session(id).parentPath ?? id.split('.')[0];
-      if (!this.isParentLocal(entityPath, instances) && !entityListeners.has(entityPath)) {
+      const entityPath = this.session(id).parentPath ?? id.split(".")[0];
+      if (
+        !this.isParentLocal(entityPath, instances) &&
+        !entityListeners.has(entityPath)
+      ) {
         entityListeners.set(entityPath, entry.element.entity);
       }
     }
 
+    console.log(
+      `[MethodWrapper.init] ${this.entries.size} entries, ${entityListeners.size} remote listeners, instances: [${[...instances.keys()].join(", ")}]`,
+    );
     for (const [entityId, instance] of entityListeners) {
+      console.log(
+        `[MethodWrapper.init] setupRemoteListener: ${entityId} → ${instance.constructor.name}`,
+      );
       this.setupRemoteListener(entityId, instance);
     }
   }
 
-  handle(_tree: EntityTree, _instance: BaseEntity, id: string, method: string, args: unknown[]): unknown {
+  handle(
+    _tree: EntityTree,
+    _instance: BaseEntity,
+    id: string,
+    method: string,
+    args: unknown[],
+  ): unknown {
     const entry = this.entries.get(id);
     if (!entry) return undefined;
-    if (method === 'invoke') return entry.fn(...args);
+    if (method === "invoke") return entry.fn(...args);
     return undefined;
   }
 
@@ -48,18 +75,30 @@ export class MethodWrapper extends BaseWrapper {
     this.listeningEntities.add(entityId);
 
     this.listen(entityId, async (envelope) => {
-      const methodName = envelope.type.split('.').pop()!;
+      const methodName = envelope.type.split(".").pop()!;
       const fn = (instance as any)[methodName];
-      if (typeof fn === 'function') return fn.call(instance, envelope.payload);
-      throw new Error(`Method "${methodName}" not found on entity "${entityId}"`);
+      if (typeof fn === "function") return fn.call(instance, envelope.payload);
+      throw new Error(
+        `Method "${methodName}" not found on entity "${entityId}" instance of ${instance.constructor.name}`,
+      );
     });
   }
 
-  async emitToRemote(id: string, channel: string, data: unknown): Promise<void> {
+  async emitToRemote(
+    id: string,
+    channel: string,
+    data: unknown,
+  ): Promise<void> {
     await this.session(id).pubsub.publish(channel, data);
   }
 
-  async listenFromRemote(id: string, channel: string, handler: (data: unknown) => void): Promise<void> {
-    await this.session(id).pubsub.subscribe(channel, (msg: unknown) => handler(msg));
+  async listenFromRemote(
+    id: string,
+    channel: string,
+    handler: (data: unknown) => void,
+  ): Promise<void> {
+    await this.session(id).pubsub.subscribe(channel, (msg: unknown) =>
+      handler(msg),
+    );
   }
 }

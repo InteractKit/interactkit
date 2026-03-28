@@ -8,6 +8,7 @@ import {
   State,
   Tool,
   z,
+  type Remote,
 } from "@interactkit/sdk";
 import { Brain } from "./brain.js";
 import { Mouth } from "./mouth.js";
@@ -30,10 +31,10 @@ export class Agent extends BaseEntity {
   @Configurable({ label: "Agent Name", group: "Identity" })
   private name = "Atlas";
 
-  @Component() private brain!: Brain;
-  @Component() private mouth!: Mouth;
-  @Component() private memory!: Memory;
-  @Component() private sensor!: Sensor;
+  @Component() private brain!: Remote<Brain>;
+  @Component() private mouth!: Remote<Mouth>;
+  @Component() private memory!: Remote<Memory>;
+  @Component() private sensor!: Remote<Sensor>;
 
   @State({ description: "Recorded speech transcripts" })
   private transcripts: string[] = [];

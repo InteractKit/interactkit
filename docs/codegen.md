@@ -75,8 +75,7 @@ The build catches mistakes before your app runs:
 | `@Ref` target doesn't exist as sibling | Build fails |
 | Public method missing `@Tool` | Build fails |
 | `@Hook` without runner or typed parameter | Build fails |
-| `@LLMEntity` missing `@Executor` or `@Context` | Build fails |
-| `@LLMExecutionTrigger` without `@Tool` methods | Build fails |
+| `LLMEntity` subclass missing `@Executor` | Build fails |
 | Distributed `@Component`/`@Ref` missing `Remote<T>` | Build fails |
 | Remote `@Hook` input missing `Remote<T>` | Build fails |
 

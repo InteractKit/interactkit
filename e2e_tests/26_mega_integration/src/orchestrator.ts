@@ -1,12 +1,12 @@
-import { Entity, BaseEntity, Describe, Component, Ref, Tool } from '@interactkit/sdk';
+import { Entity, BaseEntity, Describe, Component, Ref, Tool, type Remote } from '@interactkit/sdk';
 import { TaskQueue } from './task-queue.js';
 import { ResultStore } from './result-store.js';
 
 @Entity()
 export class Orchestrator extends BaseEntity {
   @Describe() describe() { return 'Orchestrator'; }
-  @Component() private taskQueue!: TaskQueue;
-  @Component() private resultStore!: ResultStore;
+  @Component() private taskQueue!: Remote<TaskQueue>;
+  @Component() private resultStore!: Remote<ResultStore>;
 
   @Tool({ description: 'Submit and process task' })
   async submit(input: { id: string; data: string; result: string; worker: string }) {

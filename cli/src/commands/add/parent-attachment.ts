@@ -51,7 +51,7 @@ export function attachToParent(parentClassName: string, childClassName: string, 
   }
 
   const propName = childClassName.charAt(0).toLowerCase() + childClassName.slice(1);
-  const componentLine = `  @Component() private ${propName}!: ${childClassName};`;
+  const componentLine = `  @Component() private ${propName}!: Remote<${childClassName}>;`;
 
   const classMatch = updated.match(new RegExp(`export class ${parentClassName}[^{]*\\{`));
   if (classMatch && classMatch.index !== undefined) {
@@ -60,12 +60,18 @@ export function attachToParent(parentClassName: string, childClassName: string, 
     updated = updated.slice(0, afterBrace) + '\n' + componentLine + updated.slice(afterBrace);
   }
 
-  if (!updated.includes('Component')) {
-    updated = updated.replace(
-      /import \{([^}]+)\} from '@interactkit\/sdk'/,
-      (_, imports) => `import {${imports.trim()}, Component } from '@interactkit/sdk'`,
-    );
-  }
+  // Ensure Component and Remote imports exist
+  const ensureImport = (content: string, name: string): string => {
+    const re = /import \{([^}]*)\} from '@interactkit\/sdk'/;
+    const match = content.match(re);
+    if (match && new RegExp(`\\b${name}\\b`).test(match[1])) return content;
+    return content.replace(re, (_, imports) => {
+      const cleaned = imports.trim().replace(/,\s*$/, '');
+      return `import { ${cleaned}, ${name} } from '@interactkit/sdk'`;
+    });
+  };
+  updated = ensureImport(updated, 'Component');
+  updated = ensureImport(updated, 'type Remote');
 
   writeFileSync(parentFile, updated);
   return true;

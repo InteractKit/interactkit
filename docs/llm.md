@@ -249,14 +249,14 @@ interactkit add <Name> [options]
 # Transport (pick one):
   --mcp-stdio <command>       # stdio transport (e.g. "npx -y @slack/mcp-server")
   --mcp-http  <url>           # HTTP transport (e.g. "http://localhost:3001/mcp")
-  --mcp-sse   <url>           # SSE transport
 
 # Wiring:
-  --attach <EntityName>       # add as @Ref on this entity automatically
+  --attach <EntityName>       # add as @Component to this entity automatically
 
 # Optional:
-  --tools <tool1,tool2>       # only expose these tools (default: all)
-  --out <path>                # output file path (default: src/<name>.entity.ts)
+  --mcp-header <key=value>    # add header for MCP connection (repeatable)
+  --mcp-env <key=value>       # add env var for stdio MCP server (repeatable)
+  --remote                    # use RedisPubSubAdapter for distributed communication
 ```
 
 ---

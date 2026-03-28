@@ -1,12 +1,12 @@
-import { Entity, BaseEntity, Describe, Component, Hook, Init } from '@interactkit/sdk';
+import { Entity, BaseEntity, Describe, Component, Hook, Init, type Remote } from '@interactkit/sdk';
 import { TeamA } from './team-a.js';
 import { TeamB } from './team-b.js';
 
 @Entity()
 export class World extends BaseEntity {
   @Describe() describe() { return 'World'; }
-  @Component() private teamA!: TeamA;
-  @Component() private teamB!: TeamB;
+  @Component() private teamA!: Remote<TeamA>;
+  @Component() private teamB!: Remote<TeamB>;
 
   @Hook(Init.Runner())
   async onInit() {

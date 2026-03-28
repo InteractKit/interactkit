@@ -13,7 +13,7 @@ export class Agent extends BaseEntity {
   @Describe() describe() {
     return "Agent";
   }
-  @Component() private worker!: Worker;
+  @Component() private worker!: Remote<Worker>;
 
   @Hook(Init.Runner())
   async onInit() {

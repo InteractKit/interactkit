@@ -72,6 +72,25 @@ export function parseType(type: Type, depth = 0): ParsedType {
     // Date
     if (name === 'Date') return { kind: 'date' };
 
+    // Map<K, V> → map
+    if (name === 'Map') {
+      const typeArgs = type.getTypeArguments();
+      return {
+        kind: 'map',
+        key: typeArgs.length > 0 ? parseType(typeArgs[0], depth + 1) : { kind: 'string' },
+        value: typeArgs.length > 1 ? parseType(typeArgs[1], depth + 1) : { kind: 'unknown' },
+      };
+    }
+
+    // Set<T> → set
+    if (name === 'Set') {
+      const typeArgs = type.getTypeArguments();
+      return {
+        kind: 'set',
+        element: typeArgs.length > 0 ? parseType(typeArgs[0], depth + 1) : { kind: 'unknown' },
+      };
+    }
+
     // Promise<T> → unwrap
     if (name === 'Promise') {
       const typeArgs = type.getTypeArguments();
@@ -123,6 +142,8 @@ export function parsedTypeToZod(parsed: ParsedType): string {
     case 'unknown': return 'z.unknown()';
     case 'never': return 'z.never()';
     case 'date': return 'z.date()';
+    case 'map': return `z.map(${parsedTypeToZod(parsed.key)}, ${parsedTypeToZod(parsed.value)})`;
+    case 'set': return `z.set(${parsedTypeToZod(parsed.element)})`;
 
     case 'literal':
       return typeof parsed.value === 'string'

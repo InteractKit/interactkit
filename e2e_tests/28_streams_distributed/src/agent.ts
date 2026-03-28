@@ -1,10 +1,10 @@
-import { Entity, BaseEntity, Describe, Component, State, Hook, Init } from '@interactkit/sdk';
+import { Entity, BaseEntity, Describe, Component, State, Hook, Init, type Remote } from '@interactkit/sdk';
 import { Sensor } from './sensor.js';
 
 @Entity()
 export class Agent extends BaseEntity {
   @Describe() describe() { return 'Agent'; }
-  @Component() private sensor!: Sensor;
+  @Component() private sensor!: Remote<Sensor>;
 
   @State({ description: 'received' })
   private received: number[] = [];

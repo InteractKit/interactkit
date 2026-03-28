@@ -45,13 +45,7 @@ export class MethodWrapper extends BaseWrapper {
       }
     }
 
-    console.log(
-      `[MethodWrapper.init] ${this.entries.size} entries, ${entityListeners.size} remote listeners, instances: [${[...instances.keys()].join(", ")}]`,
-    );
     for (const [entityId, instance] of entityListeners) {
-      console.log(
-        `[MethodWrapper.init] setupRemoteListener: ${entityId} → ${instance.constructor.name}`,
-      );
       this.setupRemoteListener(entityId, instance);
     }
   }

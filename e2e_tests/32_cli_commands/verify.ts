@@ -113,7 +113,7 @@ try {
   // Remove Helper component from MyAgent since we deleted helper.ts
   const agentForBuild = read('my-agent.ts')
     .replace(/import \{ Helper \}.*\n/, '')
-    .replace(/.*@Component\(\) private helper!: Helper;.*\n/, '');
+    .replace(/.*@Component\(\) private helper!: Remote<Helper>;.*\n/, '');
   writeFileSync(join(entities, 'my-agent.ts'), agentForBuild);
 
   console.log('[32] === Test 11: full build succeeds ===');

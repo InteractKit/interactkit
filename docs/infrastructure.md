@@ -6,12 +6,14 @@ InteractKit uses pluggable adapters for database, pub/sub, and observability. Al
 
 ```typescript
 // interactkit.config.ts
+import { Agent } from './src/entities/agent.js';
 import { PrismaDatabaseAdapter } from '@interactkit/prisma';
 import { RedisPubSubAdapter } from '@interactkit/redis';
 import { DevObserver } from '@interactkit/sdk';
 import type { InteractKitConfig } from '@interactkit/sdk';
 
 export default {
+  root: Agent,
   database: new PrismaDatabaseAdapter({ url: 'file:./app.db' }),
   pubsub: new RedisPubSubAdapter({ host: 'localhost', port: 6379 }),
   observer: new DevObserver(),
@@ -167,16 +169,18 @@ class MyObserver extends BaseObserver {
 
 ## Config
 
-All infrastructure is configured in `interactkit.config.ts` at the project root. Adapters take connection config via their constructors:
+All infrastructure is configured in `interactkit.config.ts` at the project root. The `root` field specifies the root entity class (making `--root` optional on the CLI). Adapters take connection config via their constructors:
 
 ```typescript
 // interactkit.config.ts
+import { Agent } from './src/entities/agent.js';
 import { PrismaDatabaseAdapter } from '@interactkit/prisma';
 import { RedisPubSubAdapter } from '@interactkit/redis';
 import { DevObserver } from '@interactkit/sdk';
 import type { InteractKitConfig } from '@interactkit/sdk';
 
 export default {
+  root: Agent,
   database: new PrismaDatabaseAdapter({ url: 'file:./app.db' }),
   pubsub: new RedisPubSubAdapter({ host: 'localhost', port: 6379 }),
   observer: new DevObserver(),

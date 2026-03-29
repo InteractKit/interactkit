@@ -160,12 +160,14 @@ All infrastructure lives in `interactkit.config.ts` at the project root:
 
 ```typescript
 // interactkit.config.ts
+import { Agent } from './src/entities/agent.js';
 import { PrismaDatabaseAdapter } from '@interactkit/prisma';
 import { RedisPubSubAdapter } from '@interactkit/redis';
 import { DevObserver } from '@interactkit/sdk';
 import type { InteractKitConfig } from '@interactkit/sdk';
 
 export default {
+  root: Agent,
   database: new PrismaDatabaseAdapter({ url: 'file:./app.db' }),
   pubsub: new RedisPubSubAdapter({ host: 'localhost', port: 6379 }),
   observer: new DevObserver(),
@@ -194,6 +196,7 @@ Your agents can now send Slack messages, create GitHub issues, and process Strip
 
 | You want to... | You do this |
 |----------------|------------|
+| Build your project | `interactkit build` |
 | Create a new project | `interactkit init my-world` |
 | Add an agent with a brain | `interactkit add Brain --llm --attach Agent` |
 | Add memory | `interactkit add Memory --attach Agent` |

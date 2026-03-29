@@ -39,6 +39,7 @@ function acquireHttpServer(port: number, path: string, handler: RequestHandler):
       }
     });
     httpPool.set(port, managed);
+    m.server.on('error', (e: Error) => { console.error(`HttpRequest: server error on port ${port}:`, e.message); });
     m.server.listen(port);
   }
   if (managed.handlers.has(path)) {

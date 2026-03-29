@@ -19,7 +19,7 @@ class Agent extends LLMEntity {
   async search(input: { query: string }) { return this.memory.search(input); }
 }
 
-// interactkit build --root=src/entities/agent:Agent
+// interactkit build
 // interactkit start
 ```
 
@@ -41,7 +41,7 @@ class Agent extends LLMEntity {
 ```bash
 interactkit init my-agent
 cd my-agent && pnpm install
-interactkit dev --root=src/entities/agent:Agent
+interactkit dev
 ```
 
 ## CLI
@@ -49,23 +49,26 @@ interactkit dev --root=src/entities/agent:Agent
 ```bash
 interactkit init <name>                                        # scaffold a new project
 interactkit add <name> [--llm] [--detached] [--attach Parent]  # generate entity file
-interactkit build --root=src/path:ExportName                   # codegen + tsc + boot
-interactkit dev --root=src/path:ExportName                     # build + watch mode
+interactkit build                                              # codegen + tsc + boot (reads root from config)
+interactkit build --root=src/path:ExportName                   # override root entity from CLI
+interactkit dev                                                # build + watch mode
 interactkit start                                              # run the built app
 ```
 
 ## Configuration
 
-All infrastructure is configured in `interactkit.config.ts` at the project root:
+All infrastructure is configured in `interactkit.config.ts` at the project root. The `root` field specifies the root entity class, making `--root` optional on the CLI:
 
 ```typescript
 // interactkit.config.ts
+import { Agent } from './src/entities/agent.js';
 import { PrismaDatabaseAdapter } from '@interactkit/prisma';
 import { RedisPubSubAdapter } from '@interactkit/redis';
 import { DevObserver } from '@interactkit/sdk';
 import type { InteractKitConfig } from '@interactkit/sdk';
 
 export default {
+  root: Agent,
   database: new PrismaDatabaseAdapter({ url: 'file:./app.db' }),
   pubsub: new RedisPubSubAdapter({ host: 'localhost', port: 6379 }),
   observer: new DevObserver(),

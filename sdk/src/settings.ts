@@ -1,6 +1,7 @@
 import type { DatabaseAdapter } from "./database/adapter.js";
 import type { LocalPubSubAdapter, RemotePubSubAdapter } from "./pubsub/adapter.js";
 import type { ObserverAdapter } from "./observer/adapter.js";
+import type { BaseEntity } from "./entity/types.js";
 
 /**
  * Typed project settings — exported from interactkit.config.ts.
@@ -10,17 +11,19 @@ import type { ObserverAdapter } from "./observer/adapter.js";
  * import { RedisPubSubAdapter } from '@interactkit/redis';
  * import { DevObserver } from '@interactkit/sdk';
  * import type { InteractKitConfig } from '@interactkit/sdk';
+ * import { Agent } from './src/entities/agent.js';
  *
  * export default {
+ *   root: Agent,
  *   database: new PrismaDatabaseAdapter({ url: 'file:./app.db' }),
  *   pubsub: new RedisPubSubAdapter({ host: 'localhost', port: 6379 }),
  *   observer: new DevObserver(),
- *   timeout: 15_000,
- *   stateFlushMs: 50,
  * } satisfies InteractKitConfig;
  * ```
  */
 export interface InteractKitConfig {
+  /** Root entity class — the entry point of the entity tree. */
+  root?: { prototype: BaseEntity } & Function;
   /** Database adapter instance — required for state persistence. */
   database: DatabaseAdapter;
   /** Remote pubsub adapter — used by entities marked `detached: true`. */

@@ -283,12 +283,14 @@ All infrastructure is configured globally in `interactkit.config.ts` at the proj
 
 ```typescript
 // interactkit.config.ts
+import { Agent } from './src/entities/agent.js';
 import { PrismaDatabaseAdapter } from '@interactkit/prisma';
 import { RedisPubSubAdapter } from '@interactkit/redis';
 import { DevObserver } from '@interactkit/sdk';
 import type { InteractKitConfig } from '@interactkit/sdk';
 
 export default {
+  root: Agent,
   database: new PrismaDatabaseAdapter({ url: 'file:./app.db' }),
   pubsub: new RedisPubSubAdapter({ host: 'localhost', port: 6379 }),
   observer: new DevObserver(),
@@ -537,7 +539,8 @@ src/
 ## Build
 
 ```bash
-interactkit build --root=src/entities/agent:Agent  # codegen + tsc + boot -> .interactkit/
+interactkit build                                  # codegen + tsc + boot -> .interactkit/ (reads root from config)
+interactkit build --root=src/entities/agent:Agent  # override root entity from CLI
 interactkit start                                  # run the built app
 interactkit dev                                    # build + run + watch for changes (auto-restarts)
 pnpm build                                         # tsc only (no codegen)

@@ -10,5 +10,5 @@ export class Agent extends BaseEntity {
   async onInit() {}
 
   @Hook(Tick.Runner({ intervalMs: 1000 }))
-  async onTick() {}
+  async onTick(input: Remote<Tick.Input>) {}
 }

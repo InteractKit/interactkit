@@ -23,11 +23,11 @@ my-agent/
 ## Build and Run
 
 ```bash
-pnpm run build     # or: interactkit build --root=src/entities/agent:Agent
+pnpm run build     # or: interactkit build
 pnpm run start     # or: interactkit start
 ```
 
-`--root` points to your top-level entity. Use `pnpm run dev` to auto-rebuild on file changes.
+The root entity is read from `interactkit.config.ts` (the `root` field). Use `pnpm run dev` to auto-rebuild on file changes. You can override the root from the CLI with `--root=src/path:ExportName`.
 
 ## Add More Entities
 
@@ -65,8 +65,9 @@ This generates an entity file with the MCP transport pre-configured. See [Extens
 | `interactkit add <name> --attach Parent` | Generate and attach as `@Component` to Parent |
 | `interactkit attach <Child> <Parent>` | Attach existing entity as `@Component` (auto-infers `Remote<T>`) |
 | `interactkit attach <Child> <Parent> --ref` | Attach as `@Ref` instead of `@Component` |
-| `interactkit build --root=path:Export` | Build everything |
-| `interactkit dev --root=path:Export` | Build + watch for changes |
+| `interactkit build` | Build everything (reads root from config) |
+| `interactkit build --root=path:Export` | Build with a root override |
+| `interactkit dev` | Build + watch for changes |
 | `interactkit start` | Run your app |
 
 ---
@@ -199,10 +200,12 @@ Want state to survive restarts? Configure a database adapter in `interactkit.con
 
 ```typescript
 // interactkit.config.ts
+import { Agent } from './src/entities/agent.js';
 import { PrismaDatabaseAdapter } from '@interactkit/prisma';
 import type { InteractKitConfig } from '@interactkit/sdk';
 
 export default {
+  root: Agent,
   database: new PrismaDatabaseAdapter({ url: 'file:./app.db' }),
 } satisfies InteractKitConfig;
 ```
@@ -211,16 +214,18 @@ All entities share this database automatically -- no per-entity configuration ne
 
 ## Config
 
-All infrastructure is configured in `interactkit.config.ts` at the project root. Adapters take connection config via their constructors:
+All infrastructure is configured in `interactkit.config.ts` at the project root. The `root` field specifies the root entity class (making `--root` optional on the CLI). Adapters take connection config via their constructors:
 
 ```typescript
 // interactkit.config.ts
+import { Agent } from './src/entities/agent.js';
 import { PrismaDatabaseAdapter } from '@interactkit/prisma';
 import { RedisPubSubAdapter } from '@interactkit/redis';
 import { DevObserver } from '@interactkit/sdk';
 import type { InteractKitConfig } from '@interactkit/sdk';
 
 export default {
+  root: Agent,
   database: new PrismaDatabaseAdapter({ url: 'file:./app.db' }),
   pubsub: new RedisPubSubAdapter({ host: 'localhost', port: 6379 }),
   observer: new DevObserver(),

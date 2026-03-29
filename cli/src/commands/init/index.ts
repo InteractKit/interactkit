@@ -67,8 +67,8 @@ export async function initCommand(projectName: string) {
     private: true,
     type: 'module',
     scripts: {
-      build: `interactkit build --root=src/entities/${template.root.file}:${template.root.class}`,
-      dev: `interactkit dev --root=src/entities/${template.root.file}:${template.root.class}`,
+      build: 'interactkit build',
+      dev: 'interactkit dev',
       start: 'interactkit start',
       ...(database !== 'none' ? { 'db:migrate': 'prisma migrate dev', 'db:push': 'prisma db push' } : {}),
     },
@@ -113,13 +113,17 @@ node_modules/
 
   // ─── interactkit.config.ts ────────────────────────────────
 
+  const rootImport = `import { ${template.root.class} } from './src/entities/${template.root.file}.js';`;
+
   if (database === 'sqlite') {
     writeFileSync(resolve(projectDir, 'interactkit.config.ts'),
 `import { PrismaDatabaseAdapter } from '@interactkit/prisma';
 import { DevObserver } from '@interactkit/sdk';
 import type { InteractKitConfig } from '@interactkit/sdk';
+${rootImport}
 
 export default {
+  root: ${template.root.class},
   database: new PrismaDatabaseAdapter({ url: 'file:./interactkit.db' }),
   observer: new DevObserver(),
 } satisfies InteractKitConfig;
@@ -129,8 +133,10 @@ export default {
 `import { PrismaDatabaseAdapter } from '@interactkit/prisma';
 import { DevObserver } from '@interactkit/sdk';
 import type { InteractKitConfig } from '@interactkit/sdk';
+${rootImport}
 
 export default {
+  root: ${template.root.class},
   database: new PrismaDatabaseAdapter({ url: process.env.DATABASE_URL ?? 'postgresql://localhost:5432/interactkit' }),
   observer: new DevObserver(),
 } satisfies InteractKitConfig;
@@ -139,8 +145,10 @@ export default {
     writeFileSync(resolve(projectDir, 'interactkit.config.ts'),
 `import { DevObserver } from '@interactkit/sdk';
 import type { InteractKitConfig } from '@interactkit/sdk';
+${rootImport}
 
 export default {
+  root: ${template.root.class},
   database: undefined!,  // No database — state is in-memory only
   observer: new DevObserver(),
 } satisfies InteractKitConfig;

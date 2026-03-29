@@ -351,6 +351,50 @@ importers:
         specifier: ^5.5.0
         version: 5.9.3
 
+  e2e_tests/15_distributed_basic:
+    dependencies:
+      '@interactkit/redis':
+        specifier: workspace:*
+        version: link:../../extensions/redis
+      '@interactkit/sdk':
+        specifier: workspace:*
+        version: link:../../sdk
+      reflect-metadata:
+        specifier: ^0.2.2
+        version: 0.2.2
+    devDependencies:
+      '@interactkit/cli':
+        specifier: workspace:*
+        version: link:../../cli
+      '@types/node':
+        specifier: ^25.5.0
+        version: 25.5.0
+      typescript:
+        specifier: ^5.5.0
+        version: 5.9.3
+
+  e2e_tests/15_distributed_runtime:
+    dependencies:
+      '@interactkit/redis':
+        specifier: workspace:*
+        version: link:../../extensions/redis
+      '@interactkit/sdk':
+        specifier: workspace:*
+        version: link:../../sdk
+      reflect-metadata:
+        specifier: ^0.2.2
+        version: 0.2.2
+    devDependencies:
+      '@interactkit/cli':
+        specifier: workspace:*
+        version: link:../../cli
+      '@types/node':
+        specifier: ^25.5.0
+        version: 25.5.0
+      typescript:
+        specifier: ^5.5.0
+        version: 5.9.3
+
   e2e_tests/15_distributed_state_sync:
     dependencies:
       '@interactkit/prisma':
@@ -410,6 +454,28 @@ importers:
         specifier: ^5.5.0
         version: 5.9.3
 
+  e2e_tests/16_distributed_stress:
+    dependencies:
+      '@interactkit/redis':
+        specifier: workspace:*
+        version: link:../../extensions/redis
+      '@interactkit/sdk':
+        specifier: workspace:*
+        version: link:../../sdk
+      reflect-metadata:
+        specifier: ^0.2.2
+        version: 0.2.2
+    devDependencies:
+      '@interactkit/cli':
+        specifier: workspace:*
+        version: link:../../cli
+      '@types/node':
+        specifier: ^25.5.0
+        version: 25.5.0
+      typescript:
+        specifier: ^5.5.0
+        version: 5.9.3
+
   e2e_tests/17_distributed_multiunit:
     dependencies:
       '@interactkit/redis':
@@ -435,6 +501,50 @@ importers:
         specifier: ^5.5.0
         version: 5.9.3
 
+  e2e_tests/17_distributed_state_sync:
+    dependencies:
+      '@interactkit/redis':
+        specifier: workspace:*
+        version: link:../../extensions/redis
+      '@interactkit/sdk':
+        specifier: workspace:*
+        version: link:../../sdk
+      reflect-metadata:
+        specifier: ^0.2.2
+        version: 0.2.2
+    devDependencies:
+      '@interactkit/cli':
+        specifier: workspace:*
+        version: link:../../cli
+      '@types/node':
+        specifier: ^25.5.0
+        version: 25.5.0
+      typescript:
+        specifier: ^5.5.0
+        version: 5.9.3
+
+  e2e_tests/18_distributed_bidirectional:
+    dependencies:
+      '@interactkit/redis':
+        specifier: workspace:*
+        version: link:../../extensions/redis
+      '@interactkit/sdk':
+        specifier: workspace:*
+        version: link:../../sdk
+      reflect-metadata:
+        specifier: ^0.2.2
+        version: 0.2.2
+    devDependencies:
+      '@interactkit/cli':
+        specifier: workspace:*
+        version: link:../../cli
+      '@types/node':
+        specifier: ^25.5.0
+        version: 25.5.0
+      typescript:
+        specifier: ^5.5.0
+        version: 5.9.3
+
   e2e_tests/18_shutdown:
     dependencies:
       '@interactkit/sdk':
@@ -443,6 +553,28 @@ importers:
       dotenv:
         specifier: ^16.4.0
         version: 16.6.1
+      reflect-metadata:
+        specifier: ^0.2.2
+        version: 0.2.2
+    devDependencies:
+      '@interactkit/cli':
+        specifier: workspace:*
+        version: link:../../cli
+      '@types/node':
+        specifier: ^25.5.0
+        version: 25.5.0
+      typescript:
+        specifier: ^5.5.0
+        version: 5.9.3
+
+  e2e_tests/19_distributed_multiunit:
+    dependencies:
+      '@interactkit/redis':
+        specifier: workspace:*
+        version: link:../../extensions/redis
+      '@interactkit/sdk':
+        specifier: workspace:*
+        version: link:../../sdk
       reflect-metadata:
         specifier: ^0.2.2
         version: 0.2.2

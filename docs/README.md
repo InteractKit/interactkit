@@ -12,21 +12,10 @@ Create worlds where AI agents live, think, and work together. Each agent has its
 npm i -g @interactkit/cli
 interactkit init my-world
 cd my-world && pnpm install
-```
-
-Add your OpenAI key to `.env`:
-
-```
-OPENAI_API_KEY=sk-...
-```
-
-Start it:
-
-```bash
 pnpm dev
 ```
 
-You now have a running agent with an LLM brain, memory, and an HTTP endpoint.
+You now have a running agent with an LLM brain, memory, and tools.
 
 ---
 
@@ -38,16 +27,16 @@ Teams of specialized agents that delegate, collaborate, and solve problems toget
 
 ```
 SupportTeam
-  ├── Triage (LLM)              ← classifies issues, routes to specialists
-  ├── BillingAgent
-  │   ├── BillingBrain (LLM)    ← handles refunds, invoices
-  │   ├── Stripe (MCP)          ← real Stripe API
-  │   └── Memory
-  ├── TechAgent
-  │   ├── TechBrain (LLM)       ← debugs, searches docs
-  │   ├── Docs
-  │   └── Jira (MCP)            ← creates tickets
-  └── SharedContext              ← all agents share conversation history
+  +-- Triage (LLM)              <-- classifies issues, routes to specialists
+  +-- BillingAgent
+  |   +-- BillingBrain (LLM)    <-- handles refunds, invoices
+  |   +-- Stripe (MCP)          <-- real Stripe API
+  |   +-- Memory
+  +-- TechAgent
+  |   +-- TechBrain (LLM)       <-- debugs, searches docs
+  |   +-- Docs
+  |   +-- Jira (MCP)            <-- creates tickets
+  +-- SharedContext              <-- all agents share conversation history
 ```
 
 Each agent has its own brain, its own tools, its own domain. The triage agent routes. The specialists handle. No orchestration code -- each LLM figures out what to do at its level.
@@ -58,17 +47,17 @@ Dozens of AI personas, each with unique personalities, memories, and social live
 
 ```
 Simulation
-  ├── Persona("Alice")
-  │   ├── Brain (LLM)           ← Alice's personality
-  │   ├── Memory                ← grows over time
-  │   ├── Reddit                ← posts, reacts
-  │   └── Twitter               ← independent presence
-  ├── Persona("Bob")
-  │   ├── Brain (LLM)           ← completely different personality
-  │   ├── Memory                ← independent memory
-  │   └── Reddit
-  └── Coordinator
-      └── Analytics
+  +-- Persona("Alice")
+  |   +-- Brain (LLM)           <-- Alice's personality
+  |   +-- Memory                <-- grows over time
+  |   +-- Reddit                <-- posts, reacts
+  |   +-- Twitter               <-- independent presence
+  +-- Persona("Bob")
+  |   +-- Brain (LLM)           <-- completely different personality
+  |   +-- Memory                <-- independent memory
+  |   +-- Reddit
+  +-- Coordinator
+      +-- Analytics
 ```
 
 State persists between runs. Over weeks, each persona accumulates unique memories and evolves its behavior. That's a virtual world.
@@ -79,10 +68,10 @@ Agents that watch, decide, and act on their own -- no human in the loop.
 
 ```
 InfraMonitor
-  ├── Brain (LLM)               ← decides what to do
-  ├── Slack (MCP)               ← sends alerts
-  ├── PagerDuty (MCP)           ← escalates incidents
-  └── CloudAPI                  ← scales infrastructure
+  +-- Brain (LLM)               <-- decides what to do
+  +-- Slack (MCP)               <-- sends alerts
+  +-- PagerDuty (MCP)           <-- escalates incidents
+  +-- CloudAPI                  <-- scales infrastructure
 ```
 
 Wire hooks to timers, cron schedules, or HTTP webhooks:
@@ -99,17 +88,17 @@ Research, write, review -- agents that pass work through a pipeline.
 
 ```
 ContentTeam
-  ├── Planner (LLM)             ← decides what to create
-  ├── Researcher
-  │   ├── ResearchBrain (LLM)   ← finds information
-  │   ├── Browser               ← web access
-  │   └── Memory
-  ├── Writer
-  │   ├── WriterBrain (LLM)     ← drafts content
-  │   └── Templates
-  └── Reviewer
-      ├── ReviewerBrain (LLM)   ← checks quality
-      └── StyleGuide
+  +-- Planner (LLM)             <-- decides what to create
+  +-- Researcher
+  |   +-- ResearchBrain (LLM)   <-- finds information
+  |   +-- Browser               <-- web access
+  |   +-- Memory
+  +-- Writer
+  |   +-- WriterBrain (LLM)     <-- drafts content
+  |   +-- Templates
+  +-- Reviewer
+      +-- ReviewerBrain (LLM)   <-- checks quality
+      +-- StyleGuide
 ```
 
 ### Distributed Agent Networks
@@ -156,7 +145,7 @@ class Brain extends LLMEntity {
   @Describe()
   describe() { return 'You are a helpful assistant.'; }
   @Executor() private llm = new ChatOpenAI({ model: 'gpt-4o-mini' });
-  @Ref() private memory!: Memory;
+  @Ref() private memory!: Remote<Memory>;
 }
 ```
 
@@ -165,8 +154,8 @@ Snap them together:
 ```typescript
 @Entity()
 class Agent extends BaseEntity {
-  @Component() private brain!: Brain;
-  @Component() private memory!: Memory;
+  @Component() private brain!: Remote<Brain>;
+  @Component() private memory!: Remote<Memory>;
 }
 ```
 
@@ -198,8 +187,8 @@ Pick your path:
 | Understand the philosophy | [Why InteractKit](why.md) |
 | Build agent teams | [LLM Entities](llm.md) (router pattern, shared context) |
 | Add timers, cron, webhooks | [Hooks](hooks.md) |
-| Scale across machines | [Infrastructure](infrastructure.md) → [Deployment](deployment.md) |
-| Connect external services | [LLM Entities](llm.md#mcp-as-entities) |
+| Scale across machines | [Infrastructure](infrastructure.md) then [Deployment](deployment.md) |
+| Connect external services | [Extensions](extensions.md#mcp-servers-as-entities) |
 
 | Reference | What's inside |
 |-----------|--------------|

@@ -7,21 +7,18 @@ npm i -g @interactkit/cli
 interactkit init my-agent
 ```
 
-This gives you a working project with three entities:
+This gives you a working project:
 
 ```
 my-agent/
   src/entities/
-    agent.ts              ← root entity (has Brain and Memory as components)
-    brain.ts              ← LLM entity (sees Memory via @Ref)
-    memory.ts             ← stores and retrieves information
-  interactkit.config.ts   ← database, pubsub, and observer config
-  .env                    ← OPENAI_API_KEY and other secrets
+    agent.ts              <- root entity (has Brain and Memory as components)
+    brain.ts              <- LLM entity (sees Memory via @Ref)
+    memory.ts             <- stores and retrieves information
+  interactkit.config.ts   <- database, pubsub, and observer config
   package.json
   tsconfig.json
 ```
-
-Put your `OPENAI_API_KEY` in `.env` and it's available immediately.
 
 ## Build and Run
 
@@ -54,7 +51,7 @@ interactkit add GitHub --mcp-stdio "npx -y @github/mcp-server" \
   --mcp-env "GITHUB_TOKEN=$GITHUB_TOKEN"
 ```
 
-This generates an entity file with the MCP transport pre-configured. Use `--mcp-header` for auth headers and `--mcp-env` for environment variables. See [Extensions](./extensions.md#mcp-servers-as-entities) for full details.
+This generates an entity file with the MCP transport pre-configured. See [Extensions](./extensions.md#mcp-servers-as-entities) for full details.
 
 ### CLI Commands
 
@@ -119,10 +116,10 @@ class Memory extends BaseEntity {
 
 ## Composing Entities
 
-Entities can contain other entities. The parent lists them as `@Component()`:
+Entities can contain other entities. The parent lists them as `@Component()`. All components and refs require `Remote<T>` -- the build enforces this:
 
 ```typescript
-import { Entity, BaseEntity, Describe, Component } from '@interactkit/sdk';
+import { Entity, BaseEntity, Describe, Component, type Remote } from '@interactkit/sdk';
 
 @Entity()
 class Agent extends BaseEntity {
@@ -131,16 +128,16 @@ class Agent extends BaseEntity {
     return 'Top-level agent that orchestrates brain, memory, and browser.';
   }
 
-  @Component() private brain!: Brain;
-  @Component() private memory!: Memory;
-  @Component() private browser!: Browser;
+  @Component() private brain!: Remote<Brain>;
+  @Component() private memory!: Remote<Memory>;
+  @Component() private browser!: Remote<Browser>;
 }
 ```
 
 Children can talk to siblings using `@Ref()`:
 
 ```typescript
-import { Entity, BaseEntity, Describe, Ref, Tool } from '@interactkit/sdk';
+import { Entity, BaseEntity, Describe, Ref, Tool, type Remote } from '@interactkit/sdk';
 
 @Entity()
 class Brain extends BaseEntity {
@@ -149,7 +146,7 @@ class Brain extends BaseEntity {
     return 'Coordinates memory lookups and actions.';
   }
 
-  @Ref() private memory!: Memory;    // sibling reference
+  @Ref() private memory!: Remote<Memory>;    // sibling reference
 
   @Tool({ description: 'Remember something' })
   async remember(input: { text: string }) {
@@ -174,22 +171,22 @@ src/entities/
   browser.ts
 ```
 
-As your project grows, group entities by sub-agent. If an entity only exists inside another entity, put it in that entity's folder:
+As your project grows, group entities by sub-agent:
 
 ```
 src/entities/
-  agent.ts                    ← root
-  brain.ts                    ← top-level Brain
+  agent.ts                    <- root
+  brain.ts                    <- top-level Brain
   researcher/
-    researcher.ts             ← sub-agent
-    research-brain.ts         ← Researcher's own Brain
-    browser.ts                ← Researcher's own Browser
+    researcher.ts             <- sub-agent
+    research-brain.ts         <- Researcher's own Brain
+    browser.ts                <- Researcher's own Browser
   writer/
-    writer.ts                 ← sub-agent
+    writer.ts                 <- sub-agent
     writer-brain.ts
     templates.ts
   shared/
-    memory.ts                 ← used by multiple sub-agents
+    memory.ts                 <- used by multiple sub-agents
 ```
 
 The rule: **if it belongs to one parent, put it in that parent's folder. If it's reused, put it in `shared/` or at the top level.**
@@ -210,7 +207,7 @@ export default {
 } satisfies InteractKitConfig;
 ```
 
-All entities share this database automatically — no per-entity configuration needed.
+All entities share this database automatically -- no per-entity configuration needed.
 
 ## Config
 
@@ -239,4 +236,4 @@ export default {
 - [Entities](./entities.md): all the building blocks in detail
 - [LLM Entities](./llm.md): give an entity an LLM brain
 - [Hooks](./hooks.md): timers, cron jobs, events
-- [Infrastructure](./infrastructure.md): database, pub/sub, logging
+- [Infrastructure](./infrastructure.md): database, pub/sub, observability

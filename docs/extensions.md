@@ -1,27 +1,61 @@
 # Extensions
 
-Extensions add custom hook types and entities to InteractKit. They're just npm packages.
+Extensions add custom hook types, adapters, and entities to InteractKit. They're just npm packages.
 
 ## Using an Extension
 
-Install it and use like any entity:
+Install the package and import what you need:
+
+```bash
+pnpm add @interactkit/cron
+```
 
 ```typescript
-import { Entity, BaseEntity, Component } from '@interactkit/sdk';
-import { TwilioPhone } from '@interactkit/twilio';
+import { Entity, BaseEntity, Hook } from '@interactkit/sdk';
+import { Cron } from '@interactkit/cron';
 
 @Entity()
-class Agent extends BaseEntity {
-  @Component() private phone!: TwilioPhone;
-  @Component() private brain!: Brain;
+class Worker extends BaseEntity {
+  @Hook(Cron.Runner({ expression: '0 9 * * 1' }))
+  async onSchedule(input: Cron.Input) {
+    // runs every Monday at 9am
+  }
 }
+```
+
+For adapter extensions, install and use in `interactkit.config.ts`:
+
+```bash
+pnpm add @interactkit/redis @interactkit/prisma
+```
+
+```typescript
+// interactkit.config.ts
+import { PrismaDatabaseAdapter } from '@interactkit/prisma';
+import { RedisPubSubAdapter } from '@interactkit/redis';
+import type { InteractKitConfig } from '@interactkit/sdk';
+
+export default {
+  database: new PrismaDatabaseAdapter({ url: 'file:./app.db' }),
+  pubsub: new RedisPubSubAdapter({ host: 'localhost', port: 6379 }),
+} satisfies InteractKitConfig;
 ```
 
 The build discovers extensions automatically.
 
+## Extension Packages
+
+| Package | What it provides |
+|---------|-----------------|
+| `@interactkit/redis` | `RedisPubSubAdapter({ host?, port?, url? })` -- horizontal scaling via Redis |
+| `@interactkit/prisma` | `PrismaDatabaseAdapter({ url })` -- Prisma-backed state persistence |
+| `@interactkit/cron` | `Cron` hook -- cron scheduling via node-cron |
+| `@interactkit/http` | `HttpRequest` hook -- HTTP server |
+| `@interactkit/websocket` | `WsMessage`, `WsConnection` hooks -- WebSocket server |
+
 ## Building an Extension
 
-An extension exports a namespace with `Input` + `Runner`, and entity classes that use them.
+An extension exports a namespace with `Input` + `Runner`, and optionally entity classes that use them.
 
 ### 1. Hook Namespace
 
@@ -47,10 +81,21 @@ export namespace Sms {
   }
 
   export function Runner(config: { phoneNumber: string }): HookHandler<Input> {
-    return { __hookHandler: true, runnerClass: RunnerImpl, config };
+    return {
+      __hookHandler: true,
+      runnerClass: RunnerImpl,
+      config,
+      initConfig: { /* defaults, overridable via interactkit.config.ts hooks */ },
+    };
   }
 }
 ```
+
+The `HookRunner` lifecycle:
+
+- `init(config)` -- set up shared resources. Config = defaults from `initConfig` merged with overrides from `interactkit.config.ts` `hooks` field.
+- `register(emit, config)` -- add an emit callback per entity. Config = per-entity run config from `@Hook(Runner(config))`.
+- `stop()` -- tear down resources.
 
 ### 2. Entity Classes
 
@@ -75,7 +120,7 @@ export class TwilioPhone extends BaseEntity {
 }
 ```
 
-## Package Structure
+### Package Structure
 
 ```
 @interactkit/twilio/
@@ -100,17 +145,17 @@ interactkit add GitHub --mcp-stdio "npx -y @github/mcp-server"
 This generates entity files with the MCP transport pre-configured. Use them like any other entity:
 
 ```typescript
-import { Entity, BaseEntity, Component } from '@interactkit/sdk';
+import { Entity, BaseEntity, Component, type Remote } from '@interactkit/sdk';
 
 @Entity()
 class Agent extends BaseEntity {
-  @Component() private brain!: Brain;
-  @Component() private slack!: Slack;
-  @Component() private github!: GitHub;
+  @Component() private brain!: Remote<Brain>;
+  @Component() private slack!: Remote<Slack>;
+  @Component() private github!: Remote<GitHub>;
 }
 ```
 
-All refs and components are visible to the LLM by default -- no extra wiring needed. The LLM gets all the MCP server's tools automatically. See [LLM Entities](llm.md#mcp-as-entities) for full details.
+All refs and components are visible to the LLM by default -- no extra wiring needed. The LLM gets all the MCP server's tools automatically.
 
 ### Authentication and Environment
 
@@ -133,4 +178,4 @@ Multiple `--mcp-header` and `--mcp-env` flags can be passed to set several value
 ## What's Next?
 
 - [Infrastructure](./infrastructure.md): database, pub/sub, and observer adapters
-- [Codegen](./codegen.md): what the build generates from your entities
+- [Hooks](./hooks.md): built-in and extension hooks in detail

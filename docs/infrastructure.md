@@ -1,6 +1,6 @@
 # Infrastructure
 
-InteractKit uses pluggable adapters for database, pub/sub, and observability. All infrastructure is configured globally in `interactkit.config.ts`. Entities default to local (in-process) communication — mark them `detached: true` to use remote pubsub.
+InteractKit uses pluggable adapters for database, pub/sub, and observability. All infrastructure is configured globally in `interactkit.config.ts`. Entities default to local (in-process) communication -- mark them `detached: true` to use remote pubsub.
 
 ## Setup
 
@@ -15,16 +15,18 @@ export default {
   database: new PrismaDatabaseAdapter({ url: 'file:./app.db' }),
   pubsub: new RedisPubSubAdapter({ host: 'localhost', port: 6379 }),
   observer: new DevObserver(),
+  timeout: 15_000,
+  stateFlushMs: 50,
 } satisfies InteractKitConfig;
 ```
 
 ```typescript
-import { Entity, BaseEntity, Component } from '@interactkit/sdk';
+import { Entity, BaseEntity, Component, type Remote } from '@interactkit/sdk';
 
 @Entity()
 class Agent extends BaseEntity {
-  @Component() private brain!: Remote<Brain>;   // local — same process
-  @Component() private worker!: Remote<Worker>; // detached — can scale independently
+  @Component() private brain!: Remote<Brain>;   // local -- same process
+  @Component() private worker!: Remote<Worker>; // detached -- can scale independently
 }
 
 @Entity()  // local, co-located with parent
@@ -48,7 +50,7 @@ class Worker extends BaseEntity { /* ... */ }
 - **Local** -- values pass by reference. Functions, class instances, everything works natively. Zero overhead.
 - **Remote** -- values serialize to JSON. Functions and class instances returned from remote calls become live proxies you can call across machines. Cleanup is automatic.
 
-When you use a remote adapter, wrap component and ref types with `Remote<T>` for type safety. The build enforces this. See [Distributed Entities](./entities.md#distributed-entities).
+`Remote<T>` is required on all `@Component` and `@Ref` properties -- the build enforces this. See [Distributed Entities](./entities.md#distributed-entities).
 
 The pub/sub adapter has two delivery modes:
 
@@ -69,17 +71,17 @@ class Worker extends BaseEntity {
     return { result: input.task.toUpperCase(), pid: process.pid };
   }
 }
-// Run 3 instances → tasks distribute across all 3
+// Run 3 instances -> tasks distribute across all 3
 ```
 
 ### Database
 
-`PrismaDatabaseAdapter` stores entity state as JSON. Needs an `EntityState` model:
+`PrismaDatabaseAdapter` (from `@interactkit/prisma`) stores entity state as JSON. Needs an `EntityState` model:
 
 ```prisma
 datasource db {
   provider = "sqlite"   // or "postgresql"
-  url      = env("DATABASE_URL")
+  url      = "file:./app.db"
 }
 
 model EntityState {
@@ -89,7 +91,7 @@ model EntityState {
 ```
 
 State persistence is automatic:
-- `@State` properties save to DB via reactive proxy (debounced, 10ms)
+- `@State` properties save to DB via reactive proxy (debounced, configurable via `stateFlushMs`)
 - State restores on entity restart
 - State changes broadcast to other replicas via pub/sub
 
@@ -159,7 +161,7 @@ class MyObserver extends BaseObserver {
 | Tool calls between entities | Pub/Sub | `enqueue`/`consume` on entity channels |
 | Hook events from hook server | Pub/Sub | `enqueue`/`consume` on hook channels |
 | State sync between replicas | Pub/Sub | `publish`/`subscribe` on state channels |
-| Stream data (child → parent) | Pub/Sub | `publish`/`subscribe` on stream channels (Redis), or direct in-memory (InProcess) |
+| Stream data (child to parent) | Pub/Sub | `publish`/`subscribe` on stream channels (Redis), or direct in-memory (InProcess) |
 | State persistence | Database | Auto-save on mutation, restore on boot |
 | Event observability | Observer | All events + errors flowing through the bus |
 
@@ -183,10 +185,10 @@ export default {
 } satisfies InteractKitConfig;
 ```
 
-| Adapter | Constructor config |
-|---------|-------------------|
-| `RedisPubSubAdapter` | `{ host: string, port: number }` or `{ url: string }` |
-| `PrismaDatabaseAdapter` | `{ url: string }` |
+| Package | Adapter | Constructor config |
+|---------|---------|-------------------|
+| `@interactkit/redis` | `RedisPubSubAdapter` | `{ host: string, port: number }` or `{ url: string }` |
+| `@interactkit/prisma` | `PrismaDatabaseAdapter` | `{ url: string }` |
 
 Missing config throws a clear error at startup.
 
@@ -194,5 +196,5 @@ Missing config throws a clear error at startup.
 
 ## What's Next?
 
-- [Codegen](./codegen.md): what the build generates
 - [Deployment](./deployment.md): scaling and deploying your agents
+- [Extensions](./extensions.md): custom hooks and adapter packages

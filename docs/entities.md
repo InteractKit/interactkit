@@ -44,29 +44,6 @@ Every entity should have a `@Describe()` method. It returns a string that tells 
 import { Entity, BaseEntity, State, Describe, Tool } from '@interactkit/sdk';
 
 @Entity()
-class Browser extends BaseEntity {
-  @State({ description: 'Search history' })
-  private history: string[] = [];
-
-  @Describe()
-  describe() {
-    return `A web browser. Can search the web and return results.`;
-  }
-
-  @Tool({ description: 'Search the web' })
-  async search(input: { query: string }): Promise<string[]> {
-    this.history.push(input.query);
-    return await doSearch(input.query);
-  }
-}
-```
-
-Because `@Describe()` is a method (not a static string), you can include dynamic state via template literals. The description updates as the entity's state changes:
-
-```typescript
-import { Entity, BaseEntity, State, Describe, Tool } from '@interactkit/sdk';
-
-@Entity()
 class Memory extends BaseEntity {
   @State({ description: 'Stored entries' })
   private entries: string[] = [];
@@ -146,16 +123,16 @@ The description tells other entities (and LLMs) what the tool does. If you forge
 
 ## Components (`@Component`): Children
 
-An entity can contain other entities as children:
+An entity can contain other entities as children. All `@Component` and `@Ref` properties require `Remote<T>` -- the build enforces this:
 
 ```typescript
-import { Entity, BaseEntity, Component } from '@interactkit/sdk';
+import { Entity, BaseEntity, Component, type Remote } from '@interactkit/sdk';
 
 @Entity()
 class Agent extends BaseEntity {
-  @Component() private brain!: Brain;
-  @Component() private memory!: Memory;
-  @Component() private browser!: Browser;
+  @Component() private brain!: Remote<Brain>;
+  @Component() private memory!: Remote<Memory>;
+  @Component() private browser!: Remote<Browser>;
 }
 ```
 
@@ -165,8 +142,6 @@ Call child methods like normal functions. InteractKit routes them through an eve
 const results = await this.browser.search({ query: 'restaurants' });
 ```
 
-When an entity is `detached`, wrap component types with `Remote<T>` for type-safe distributed access. See [Distributed Entities](#distributed-entities) below.
-
 ---
 
 ## Refs (`@Ref`): Sibling References
@@ -174,17 +149,17 @@ When an entity is `detached`, wrap component types with `Remote<T>` for type-saf
 Sometimes a child needs to talk to a sibling. Use `@Ref()`:
 
 ```typescript
-import { Entity, BaseEntity, Component, Ref, Tool } from '@interactkit/sdk';
+import { Entity, BaseEntity, Component, Ref, Tool, type Remote } from '@interactkit/sdk';
 
 @Entity()
 class Agent extends BaseEntity {
-  @Component() private brain!: Brain;
-  @Component() private memory!: Memory;
+  @Component() private brain!: Remote<Brain>;
+  @Component() private memory!: Remote<Memory>;
 }
 
 @Entity()
 class Brain extends BaseEntity {
-  @Ref() private memory!: Memory;  // points to sibling
+  @Ref() private memory!: Remote<Memory>;  // points to sibling
 
   @Tool({ description: 'Remember something' })
   async remember(input: { text: string }) {
@@ -193,7 +168,7 @@ class Brain extends BaseEntity {
 }
 ```
 
-The build verifies the ref target exists as a sibling. Like components, use `Remote<T>` when the entity is detached. See [Distributed Entities](#distributed-entities).
+The build verifies the ref target exists as a sibling.
 
 Refs are also how multiple `LLMEntity` instances share a single conversation history via `ConversationContext`. See [Shared Conversation Context](./llm.md#shared-conversation-context).
 
@@ -204,7 +179,7 @@ Refs are also how multiple `LLMEntity` instances share a single conversation his
 Streams let a child push data up to its parent in real time. They work both in-process and across Redis:
 
 ```typescript
-import { Entity, BaseEntity, Component, Stream, Hook, Init, Tick } from '@interactkit/sdk';
+import { Entity, BaseEntity, Component, Stream, Hook, Init, Tick, type Remote } from '@interactkit/sdk';
 import type { EntityStream } from '@interactkit/sdk';
 
 @Entity({ detached: true })
@@ -219,11 +194,10 @@ class Sensor extends BaseEntity {
 
 @Entity()
 class Monitor extends BaseEntity {
-  @Component() private sensor!: Sensor;
+  @Component() private sensor!: Remote<Sensor>;
 
   @Hook(Init.Runner())
   async onInit(input: Init.Input) {
-    // Works even if Sensor runs in a separate process
     this.sensor.readings.on('data', (value: unknown) => {
       console.log('Reading:', value);
     });
@@ -237,10 +211,10 @@ When child and parent share a process, streams are direct in-memory calls. When 
 
 ## Distributed Entities
 
-Add `detached: true` to an entity and it can run on a different machine (using the remote pubsub from `interactkit.config.ts`). Wrap its type with `Remote<T>` and every method call, property access, and return value becomes type-safe async:
+Add `detached: true` to an entity and it can run on a different machine (using the remote pubsub from `interactkit.config.ts`). `Remote<T>` is required on all `@Component` and `@Ref` properties -- the build enforces this. Every method call, property access, and return value becomes type-safe async:
 
 ```typescript
-import { Entity, BaseEntity, Component, type Remote } from '@interactkit/sdk';
+import { Entity, BaseEntity, Component, Tool, Hook, Init, type Remote } from '@interactkit/sdk';
 
 @Entity({ detached: true })
 class Worker extends BaseEntity {
@@ -271,7 +245,7 @@ Everything works as you'd expect:
 - Return functions: a function returned from a remote call is still callable
 - Return objects: class instances returned from remote calls keep their methods
 
-The build enforces `Remote<T>` -- you can't forget it on a detached entity. Run 5 replicas, tasks distribute automatically, state syncs via the remote pubsub. No code changes.
+Run 5 replicas, tasks distribute automatically, state syncs via the remote pubsub. No code changes.
 
 ---
 
@@ -298,11 +272,11 @@ Entities interact through tools. Parents access child streams through the compon
 
 ## Entity Type
 
-When you omit `type` from `@Entity()` (recommended), it's auto-derived from the class name: `PascalCase` → `kebab-case`. For example, `ResearchBrain` becomes `research-brain`.
+When you omit `type` from `@Entity()` (recommended), it's auto-derived from the class name: `PascalCase` to `kebab-case`. For example, `ResearchBrain` becomes `research-brain`.
 
 ## No Custom Constructors
 
-`BaseEntity` has a `protected` constructor. You cannot define your own — the build enforces this. Use `@Hook(Init.Runner())` for initialization logic.
+`BaseEntity` has a `protected` constructor. You cannot define your own -- the build enforces this. Use `@Hook(Init.Runner())` for initialization logic.
 
 ---
 

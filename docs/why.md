@@ -22,16 +22,16 @@ With InteractKit, you describe it as a tree:
 
 ```
 SupportTeam
-  ├── Triage (LLM)
-  ├── BillingAgent
-  │   ├── BillingBrain (LLM)
-  │   ├── Stripe (MCP)
-  │   └── Memory
-  ├── TechAgent
-  │   ├── TechBrain (LLM)
-  │   ├── Docs
-  │   └── Jira (MCP)
-  └── SharedContext
+  +-- Triage (LLM)
+  +-- BillingAgent
+  |   +-- BillingBrain (LLM)
+  |   +-- Stripe (MCP)
+  |   +-- Memory
+  +-- TechAgent
+  |   +-- TechBrain (LLM)
+  |   +-- Docs
+  |   +-- Jira (MCP)
+  +-- SharedContext
 ```
 
 Each box is a class. Each LLM sees exactly the tools it needs. The triage agent routes. The specialists handle. You write the tree, not the orchestration.
@@ -48,7 +48,7 @@ Teams of specialists that mirror how real teams work:
 - **Content teams**: a researcher, writer, editor, and publisher -- pipeline-style delegation
 - **DevOps teams**: a monitor, incident responder, and post-mortem writer working together
 
-Each agent has its own LLM, its own memory, its own external integrations. The lead agent delegates. Sub-agents handle their domain. Scale the bottleneck by running more replicas.
+Each agent has its own LLM, its own memory, its own external integrations. The lead agent delegates. Sub-agents handle their domain. Scale the bottleneck by marking it `detached: true` and running more replicas.
 
 ### Virtual Worlds & Social Simulations
 
@@ -56,20 +56,20 @@ AI personas with persistent identities that evolve over time:
 
 ```
 Simulation
-  ├── Persona("Alice")
-  │   ├── Brain (LLM)        ← unique personality
-  │   ├── Memory             ← accumulates over weeks
-  │   ├── Reddit             ← posts, votes, comments
-  │   └── Twitter            ← separate presence
-  ├── Persona("Bob")  ...
-  ├── Persona("Carol")  ...
-  └── Coordinator
+  +-- Persona("Alice")
+  |   +-- Brain (LLM)        <-- unique personality
+  |   +-- Memory             <-- accumulates over weeks
+  |   +-- Reddit             <-- posts, votes, comments
+  |   +-- Twitter            <-- separate presence
+  +-- Persona("Bob")  ...
+  +-- Persona("Carol")  ...
+  +-- Coordinator
 ```
 
 - Each persona has its own LLM with a unique personality prompt
 - Memory persists between runs -- Alice remembers what she said last week
 - Hooks trigger autonomous behavior (post every 4 hours, react to mentions)
-- State syncs across replicas if you need to scale
+- State syncs across replicas via remote pubsub
 
 Over time, each persona develops a unique history. They don't just respond -- they *live*.
 
@@ -104,12 +104,12 @@ Agents that combine different capabilities seamlessly:
 
 ```
 Assistant
-  ├── Brain (LLM)
-  ├── Browser          ← search, read pages
-  ├── CodeRunner       ← execute snippets
-  ├── FileManager      ← read, write, organize files
-  ├── Memory           ← long-term context
-  └── Slack (MCP)      ← communicate results
+  +-- Brain (LLM)
+  +-- Browser          <-- search, read pages
+  +-- CodeRunner       <-- execute snippets
+  +-- FileManager      <-- read, write, organize files
+  +-- Memory           <-- long-term context
+  +-- Slack (MCP)      <-- communicate results
 ```
 
 ---
@@ -138,7 +138,7 @@ The tree IS the architecture. Adding a new capability means adding a new entity 
 | Shared context | `ConversationContext` lets multiple brains share one conversation. |
 | Persistent state | `@State` auto-saves to database, restores on restart, syncs replicas. |
 | External services | `interactkit add Slack --mcp-stdio "..."` generates a typed entity. |
-| Scaling | `Remote<T>` + Redis adapter. Same code runs across machines. |
+| Scaling | `detached: true` + `Remote<T>`. Same code runs across machines. |
 | Autonomy | `@Hook` with tick, cron, HTTP, events. Agents act on their own. |
 | Observability | Streams expose every LLM response and tool call in real time. |
 

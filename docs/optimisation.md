@@ -4,13 +4,13 @@ InteractKit defaults to simplicity. Everything runs in one process with zero con
 
 ## Pub/Sub: The Single Biggest Lever
 
-Every cross-entity call goes through pub/sub. The adapter you choose determines latency, scalability, and deployment topology.
+Every cross-entity call goes through pub/sub. The adapter determines latency, scalability, and deployment topology.
 
 `PubSubAdapter` has two subclass families: `LocalPubSubAdapter` (no serialization, pass by reference) and `RemotePubSubAdapter` (JSON serialization + automatic proxy for non-serializable values).
 
 ```
 LocalPubSubAdapter                RemotePubSubAdapter
-  InProcessBusAdapter (default)     RedisPubSubAdapter
+  InProcessBusAdapter (default)     RedisPubSubAdapter (@interactkit/redis)
   ~0ms latency                      ~1-5ms latency
   Single process only               Horizontal scaling
   No network overhead               Cross-process, cross-machine
@@ -22,34 +22,37 @@ Remote adapters add proxy overhead: non-serializable values (functions, class in
 
 ### When to Use What
 
-| Scenario | Adapter | Why |
+| Scenario | Approach | Why |
 |----------|---------|-----|
-| Dev / prototyping | InProcess | Zero setup, instant |
-| LLM tool loop (many rapid calls) | InProcess | Latency matters in tight loops |
-| Voice / real-time | InProcess | Sub-ms response required |
-| Multiple replicas | Redis | Competing consumer distributes work |
-| Separate processes | Redis | Cross-process communication |
-| State sync across instances | Redis | Broadcast state changes |
+| Dev / prototyping | Default (InProcess) | Zero setup, instant |
+| LLM tool loop (many rapid calls) | Keep co-located | Latency matters in tight loops |
+| Voice / real-time | Keep co-located | Sub-ms response required |
+| Multiple replicas | `detached: true` | Competing consumer distributes work |
+| Separate processes | `detached: true` | Cross-process communication |
+| State sync across instances | `detached: true` | Broadcast state changes via remote pubsub |
 
 ### Mix and Match
 
-Set Redis on the root, override InProcess on hot paths:
+Mark hot-path entities as co-located (default), detach the rest:
 
 ```typescript
-import { Entity, BaseEntity, Component } from '@interactkit/sdk';
+import { Entity, BaseEntity, Component, type Remote } from '@interactkit/sdk';
 
-@Entity({ detached: true })
+@Entity()
 class Agent extends BaseEntity {
-  @Component() private brain!: Brain;       // Redis — can scale separately
-  @Component() private memory!: Memory;     // Redis — can scale separately
-  @Component() private cache!: Cache;       // InProcess — fast, co-located
+  @Component() private cache!: Remote<Cache>;       // co-located -- fast
+  @Component() private brain!: Remote<Brain>;       // co-located -- fast
+  @Component() private memory!: Remote<Memory>;     // detached -- can scale separately
 }
 
 @Entity()
 class Cache extends BaseEntity { /* sub-ms access */ }
+
+@Entity({ detached: true })
+class Memory extends BaseEntity { /* scales independently */ }
 ```
 
-The cache stays in the same process as the agent. Brain and memory can run anywhere.
+The cache stays in the same process as the agent. Memory can run anywhere.
 
 ## State: Reactive Proxy Costs
 
@@ -57,7 +60,7 @@ Every `@State` property uses a JavaScript proxy that tracks mutations. This is n
 
 ### Debounced Flush
 
-State changes are batched in a 10ms debounce window. Multiple mutations in the same tick = one DB write:
+State changes are batched in a debounce window (configurable via `stateFlushMs` in `interactkit.config.ts`, default 10ms). Multiple mutations in the same tick = one DB write:
 
 ```typescript
 // These three mutations produce ONE flush, not three:
@@ -90,24 +93,24 @@ When state changes, the new state is broadcast to all replicas via `publish`. Th
 @State({ description: 'cache' }) private cache: Record<string, LargeObject> = {};
 ```
 
-## Streams: In-Process vs Redis
+## Streams: In-Process vs Remote
 
-Streams use the child entity's pub/sub adapter:
+Streams use the child entity's communication model:
 
-| Child adapter | Stream transport | Latency | Scalable |
-|---------------|-----------------|---------|----------|
-| InProcess | Direct function call | ~0ms | No |
-| Redis | `publish`/`subscribe` | ~1-5ms | Yes |
+| Child config | Stream transport | Latency | Scalable |
+|--------------|-----------------|---------|----------|
+| Default | Direct function call | ~0ms | No |
+| `detached: true` | Remote pubsub | ~1-5ms | Yes |
 
-For high-frequency streams (sensors, ticks), keep the child InProcess if the parent needs every event with minimal delay. For event-driven streams where occasional latency is fine, Redis lets you scale the emitter.
+For high-frequency streams (sensors, ticks), keep the child co-located if the parent needs every event with minimal delay. For event-driven streams where occasional latency is fine, detaching lets you scale the emitter.
 
 ## Hooks: inProcess vs Remote
 
-Hooks declared with `inProcess: true` (like `Init`) run directly — zero overhead. Remote hooks (`Tick`, `Cron`, `HttpRequest`) go through the queue:
+Hooks declared with `inProcess: true` (like `Init`) run directly -- zero overhead. Remote hooks (`Tick`, `Cron`, `HttpRequest`) go through the queue:
 
 ```
-inProcess hook:  runner → method call (direct)
-remote hook:     runner → enqueue → consume → method call (via Redis)
+inProcess hook:  runner -> method call (direct)
+remote hook:     runner -> enqueue -> consume -> method call (via pubsub)
 ```
 
 For high-frequency ticks, consider whether you actually need the hook server pattern. If the entity always runs in one process, you can create a custom tick runner with `inProcess: true`:
@@ -142,10 +145,10 @@ export namespace FastTick {
 Every tool call across entities is a request/response through the event bus:
 
 ```
-caller → enqueue request → consumer processes → publish reply → caller receives
+caller -> enqueue request -> consumer processes -> publish reply -> caller receives
 ```
 
-For InProcess, this is a synchronous function call chain. For Redis, it's 2 network round trips (enqueue + publish reply). Minimize cross-entity calls in hot paths:
+For InProcess, this is a synchronous function call chain. For remote pubsub, it's 2 network round trips (enqueue + publish reply). Minimize cross-entity calls in hot paths:
 
 ```typescript
 // Slow: 3 cross-entity calls
@@ -159,7 +162,7 @@ const all = await this.memory.getMany({ keys: ['x', 'y', 'z'] });
 
 ## Entity Count
 
-Each entity registers with the dispatcher and listens on the event bus. For InProcess, this is cheap (Map lookups). For Redis, each entity creates subscriptions. Keep entity count reasonable — tens to low hundreds, not thousands.
+Each entity registers with the dispatcher and listens on the event bus. For InProcess, this is cheap (Map lookups). For remote pubsub, each entity creates subscriptions. Keep entity count reasonable -- tens to low hundreds, not thousands.
 
 If you need thousands of instances of the same type, use one entity with internal state management rather than thousands of entities.
 
@@ -168,17 +171,17 @@ If you need thousands of instances of the same type, use one entity with interna
 | Setup | Best for | Entities |
 |-------|----------|----------|
 | Single process (`_entry.js`) | Dev, small projects | All in one |
-| Multi-unit (`_unit-*.js`) | Production, scaling | Split by adapter |
-| Multi-replica | High throughput | Multiple instances of Redis entities |
+| Multi-unit (`_unit-*.js`) | Production, scaling | Split by detached flag |
+| Multi-replica | High throughput | Multiple instances of detached entities |
 
 ### Scaling Decision Tree
 
 ```
 Is this entity called frequently?
-  ├── Yes → Does it need sub-ms latency?
-  │         ├── Yes → InProcess (co-locate with caller)
-  │         └── No  → Redis (separate process, scale replicas)
-  └── No  → Redis (separate for isolation, don't bother scaling)
+  +-- Yes -> Does it need sub-ms latency?
+  |          +-- Yes -> Keep co-located (default)
+  |          +-- No  -> detached: true (separate process, scale replicas)
+  +-- No  -> detached: true (separate for isolation, don't bother scaling)
 ```
 
 ---

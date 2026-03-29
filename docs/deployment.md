@@ -6,15 +6,15 @@
 
 ```
 .interactkit/generated/
-├── _entry.js                    # Single-process entrypoint (all entities)
-├── _unit-agent.js               # Agent unit entrypoint
-├── _unit-memory.js              # Memory unit entrypoint
-├── _hooks.js                    # Hook server entrypoint
-├── _all.js                      # All units + hooks in one process
-├── deployment.json              # Deployment plan
-├── Dockerfile                   # Multi-stage Docker build
-├── docker-compose.yml           # Distributed: one service per unit
-└── docker-compose.single.yml   # Single container: everything together
++-- _entry.js                    # Single-process entrypoint (all entities)
++-- _unit-agent.js               # Agent unit entrypoint
++-- _unit-memory.js              # Memory unit entrypoint
++-- _hooks.js                    # Hook server entrypoint
++-- _all.js                      # All units + hooks in one process
++-- deployment.json              # Deployment plan
++-- Dockerfile                   # Multi-stage Docker build
++-- docker-compose.yml           # Distributed: one service per unit
++-- docker-compose.single.yml    # Single container: everything together
 ```
 
 ## Single Process
@@ -34,7 +34,7 @@ node .interactkit/build/src/_entry.js
 
 ## Distributed
 
-Each deployment unit runs as a separate service, connected via Redis:
+Each deployment unit runs as a separate service, connected via remote pubsub:
 
 ```bash
 docker compose -f .interactkit/generated/docker-compose.yml up
@@ -42,28 +42,28 @@ docker compose -f .interactkit/generated/docker-compose.yml up
 
 This starts:
 - One service per deployment unit
-- A Redis instance for cross-unit communication
+- A Redis instance for cross-unit communication (if using `RedisPubSubAdapter`)
 - A hook server for remote hooks (Tick, Cron, HTTP, etc.)
 - Scalable units get 2 replicas by default
 
 ### How Units Are Determined
 
-The build analyzes your entity tree and groups entities by their pub/sub adapter:
+The build analyzes your entity tree and groups entities by their communication model:
 
-| Adapter | Scaling | Rule |
-|---------|---------|------|
-| `InProcessBusAdapter` (default) | Must share a process | Grouped with parent |
-| `RedisPubSubAdapter` | Can scale independently | Gets its own unit |
+| Entity config | Scaling | Rule |
+|---------------|---------|------|
+| Default (no `detached`) | Must share a process | Grouped with parent |
+| `detached: true` | Can scale independently | Gets its own unit |
 | `EntityStream` on InProcess | Must share a process | Grouped with parent |
-| `EntityStream` on Redis | Can scale independently | Streams publish via Redis automatically |
+| `EntityStream` on detached | Can scale independently | Streams publish via remote pubsub |
 
 ```typescript
-import { Entity, BaseEntity, Component } from '@interactkit/sdk';
+import { Entity, BaseEntity, Component, type Remote } from '@interactkit/sdk';
 
 @Entity()
 class Agent extends BaseEntity {
-  @Component() brain!: Brain;      // InProcess → same unit as Agent
-  @Component() memory!: Memory;    // detached → separate unit, scalable
+  @Component() private brain!: Remote<Brain>;      // InProcess -- same unit as Agent
+  @Component() private memory!: Remote<Memory>;    // detached -- separate unit, scalable
 }
 
 @Entity({ detached: true })
@@ -95,7 +95,7 @@ memory:
     replicas: 5   # 5 Memory instances sharing the workload
 ```
 
-State syncs automatically between replicas via Redis broadcast.
+State syncs automatically between replicas via pubsub broadcast.
 
 ### Hooks
 
@@ -110,10 +110,10 @@ Hooks that run remotely (Tick, Cron, HTTP) are separated into a hook server. The
 
 | File | Use case |
 |------|----------|
-| `_entry.js` | Single process — boots full tree via `boot()` |
-| `_unit-{name}.js` | Distributed — boots one unit via `Runtime` |
-| `_hooks.js` | Hook server — runs Tick/Cron/HTTP runners |
-| `_all.js` | Dev convenience — imports all units + hooks |
+| `_entry.js` | Single process -- boots full tree via `boot()` |
+| `_unit-{name}.js` | Distributed -- boots one unit via `Runtime` |
+| `_hooks.js` | Hook server -- runs Tick/Cron/HTTP runners |
+| `_all.js` | Dev convenience -- imports all units + hooks |
 
 ## Running Without Docker
 
@@ -127,18 +127,11 @@ node .interactkit/build/src/_unit-agent.js
 node .interactkit/build/src/_hooks.js
 ```
 
-## Environment Variables
-
-| Variable | Purpose |
-|----------|---------|
-| `REDIS_HOST` | Redis host (default: from config) |
-| `REDIS_PORT` | Redis port (default: from config) |
-| `DATABASE_URL` | Prisma database URL |
-| `NODE_ENV` | Set to `production` in Docker |
+All connection config (Redis host/port, database URL, etc.) comes from `interactkit.config.ts` -- no environment variables needed.
 
 ---
 
 ## Related
 
 - [Infrastructure](./infrastructure.md): configure adapters that determine scaling
-- [Codegen](./codegen.md): how the deployment plan is generated
+- [Optimisation](./optimisation.md): when and what to tune

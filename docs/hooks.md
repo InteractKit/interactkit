@@ -4,7 +4,9 @@ Hooks let entities react to things: startup, timers, HTTP requests, cron schedul
 
 Add `@Hook(Runner)` to a method. The runner tells InteractKit *when* to call it. Config goes in `Runner(config)`.
 
-## Init: Run on Startup
+## Built-in Hooks
+
+### Init: Run on Startup
 
 ```typescript
 import { Hook, Init } from '@interactkit/sdk';
@@ -17,7 +19,7 @@ async onInit(input: Init.Input) {
 
 Runs once when the entity starts. `firstBoot` tells you if this is a fresh start or a restart with saved state.
 
-## Tick: Run on an Interval
+### Tick: Run on an Interval
 
 ```typescript
 import { Hook, Tick } from '@interactkit/sdk';
@@ -30,7 +32,13 @@ async onTick(input: Tick.Input) {
 
 Runs every 5 seconds. Default is 60 seconds if you don't specify.
 
-## Cron: Run on a Schedule
+---
+
+## Extension Hooks
+
+Extension packages provide additional hook types. Install the package and use the namespace:
+
+### Cron: Run on a Schedule
 
 ```typescript
 import { Hook } from '@interactkit/sdk';
@@ -52,6 +60,22 @@ export default {
   hooks: { cron: { timezone: 'America/New_York' } },
 } satisfies InteractKitConfig;
 ```
+
+### HttpRequest: Run on HTTP
+
+```typescript
+import { Hook } from '@interactkit/sdk';
+import { HttpRequest } from '@interactkit/http';
+
+@Hook(HttpRequest.Runner({ path: '/webhook' }))
+async onRequest(input: HttpRequest.Input) {
+  input.respond(200, JSON.stringify({ ok: true }));
+}
+```
+
+Install: `pnpm add @interactkit/http`.
+
+---
 
 ## Multiple Hooks
 
@@ -94,18 +118,63 @@ async onRequest(input: Remote<HttpRequest.Input>) {
 
 ---
 
-## Custom Hooks (Extensions)
+## HookRunner Interface
 
-Extension packages export their own `Runner` + `Input` under a namespace. Use them the same way:
+Every hook (built-in or extension) implements the `HookRunner` interface:
 
 ```typescript
-import { Sms } from '@interactkit/twilio';
+interface HookRunner<T> {
+  init(config: Record<string, unknown>): Promise<void>;
+  register(emit: (data: T) => void, config: Record<string, unknown>): void;
+  stop(): Promise<void>;
+}
+```
 
+- `init(config)` -- set up shared resources. Config = defaults from `initConfig` merged with overrides from `interactkit.config.ts` `hooks` field.
+- `register(emit, config)` -- add an emit callback per entity. Config = per-entity run config from `@Hook(Runner(config))`.
+- `stop()` -- tear down resources.
+
+---
+
+## Custom Hooks
+
+You can build your own hooks as extension packages. Export a namespace with `Input` + `Runner`:
+
+```typescript
+import type { HookRunner, HookHandler } from '@interactkit/sdk';
+
+export namespace Sms {
+  export interface Input {
+    from: string;
+    body: string;
+  }
+
+  class RunnerImpl implements HookRunner<Input> {
+    async init(config: Record<string, unknown>) {
+      // Set up shared resources
+    }
+    register(emit: (data: Input) => void, config: Record<string, unknown>) {
+      // Register per-entity emit callback
+    }
+    async stop() { /* cleanup */ }
+  }
+
+  export function Runner(config: { phoneNumber: string }): HookHandler<Input> {
+    return { __hookHandler: true, runnerClass: RunnerImpl, config };
+  }
+}
+```
+
+Use it like any other hook:
+
+```typescript
 @Hook(Sms.Runner({ phoneNumber: '+1234567890' }))
 async onSms(input: Sms.Input) {
   console.log(`SMS from ${input.from}: ${input.body}`);
 }
 ```
+
+See [Extensions](./extensions.md) for full details on building hook packages.
 
 ---
 

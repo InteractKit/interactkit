@@ -149,14 +149,14 @@ Each hook is a namespace with `.Input` (the data your method receives) and `.Run
 
 ```typescript
 // Built-in (shipped with @interactkit/sdk)
-Init.Input    { entityId: string; firstBoot: boolean; }      Init.Runner()
-Tick.Input    { tick: number; elapsed: number; }              Tick.Runner({ intervalMs: 5000 })
+Init.Input    { entityId: string; firstBoot: boolean; }      Init.Runner()                          // inProcess — use as-is
+Tick.Input    { tick: number; elapsed: number; }              Tick.Runner({ intervalMs: 5000 })      // use as Remote<Tick.Input>
 
-// Extensions (separate packages)
-Cron.Input    { lastRun: Date; expression: string; }         Cron.Runner({ expression: '...' })     // @interactkit/cron
-HttpRequest.Input  { method, path, body, respond, ... }      HttpRequest.Runner({ path: '/' })      // @interactkit/http
-WsMessage.Input    { data, clientId, send, close }           WsMessage.Runner()                     // @interactkit/websocket
-WsConnection.Input { clientId, send, close }                 WsConnection.Runner()                  // @interactkit/websocket
+// Extensions (separate packages) — all non-Init inputs are used as Remote<T>
+Cron.Input    { lastRun: Date; expression: string; }         Cron.Runner({ expression: '...' })     // @interactkit/cron   → Remote<Cron.Input>
+HttpRequest.Input  { method, path, body, respond, ... }      HttpRequest.Runner({ path: '/' })      // @interactkit/http   → Remote<HttpRequest.Input>
+WsMessage.Input    { data, clientId, send, close }           WsMessage.Runner()                     // @interactkit/websocket → Remote<WsMessage.Input>
+WsConnection.Input { clientId, send, close }                 WsConnection.Runner()                  // @interactkit/websocket → Remote<WsConnection.Input>
 ```
 
 Hook types are not hardcoded -- extension packages export their own namespaces with `.Input` + `.Runner(config)`. The runner is explicit in `@Hook(Runner)`, so no codegen type-tracing is needed. This enables recursive package usage.
@@ -389,7 +389,7 @@ class Webhook extends BaseEntity {
   private payloads: string[] = [];
 
   @Hook(HttpRequest.Runner({ port: 3100, path: '/webhook' }))
-  async onRequest(input: HttpRequest.Input) {
+  async onRequest(input: Remote<HttpRequest.Input>) {
     this.payloads.push(input.body);
     input.respond(200, JSON.stringify({ ok: true }));
   }

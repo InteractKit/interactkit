@@ -22,10 +22,10 @@ Runs once when the entity starts. `firstBoot` tells you if this is a fresh start
 ### Tick: Run on an Interval
 
 ```typescript
-import { Hook, Tick } from '@interactkit/sdk';
+import { Hook, Tick, type Remote } from '@interactkit/sdk';
 
 @Hook(Tick.Runner({ intervalMs: 5000 }))
-async onTick(input: Tick.Input) {
+async onTick(input: Remote<Tick.Input>) {
   console.log(`Tick #${input.tick}`);
 }
 ```
@@ -41,11 +41,11 @@ Extension packages provide additional hook types. Install the package and use th
 ### Cron: Run on a Schedule
 
 ```typescript
-import { Hook } from '@interactkit/sdk';
+import { Hook, type Remote } from '@interactkit/sdk';
 import { Cron } from '@interactkit/cron';
 
 @Hook(Cron.Runner({ expression: '0 * * * *' }))
-async onSchedule(input: Cron.Input) {
+async onSchedule(input: Remote<Cron.Input>) {
   console.log('Runs every hour');
 }
 ```
@@ -64,11 +64,11 @@ export default {
 ### HttpRequest: Run on HTTP
 
 ```typescript
-import { Hook } from '@interactkit/sdk';
+import { Hook, type Remote } from '@interactkit/sdk';
 import { HttpRequest } from '@interactkit/http';
 
 @Hook(HttpRequest.Runner({ path: '/webhook' }))
-async onRequest(input: HttpRequest.Input) {
+async onRequest(input: Remote<HttpRequest.Input>) {
   input.respond(200, JSON.stringify({ ok: true }));
 }
 ```
@@ -82,7 +82,7 @@ Install: `pnpm add @interactkit/http`.
 One entity can have as many hooks as it needs:
 
 ```typescript
-import { Entity, BaseEntity, Hook, Init, Tick } from '@interactkit/sdk';
+import { Entity, BaseEntity, Hook, Init, Tick, type Remote } from '@interactkit/sdk';
 import { Cron } from '@interactkit/cron';
 
 @Entity()
@@ -91,10 +91,10 @@ class Worker extends BaseEntity {
   async onInit(input: Init.Input) { /* setup */ }
 
   @Hook(Tick.Runner({ intervalMs: 10000 }))
-  async onTick(input: Tick.Input) { /* periodic work */ }
+  async onTick(input: Remote<Tick.Input>) { /* periodic work */ }
 
   @Hook(Cron.Runner({ expression: '0 9 * * 1' }))
-  async onSchedule(input: Cron.Input) { /* every Monday 9am */ }
+  async onSchedule(input: Remote<Cron.Input>) { /* every Monday 9am */ }
 }
 ```
 

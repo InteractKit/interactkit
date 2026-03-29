@@ -187,7 +187,7 @@ class Sensor extends BaseEntity {
   @Stream() readings!: EntityStream<number>;
 
   @Hook(Tick.Runner({ intervalMs: 1000 }))
-  async onTick(input: Tick.Input) {
+  async onTick(input: Remote<Tick.Input>) {
     this.readings.emit(Math.random() * 100);
   }
 }

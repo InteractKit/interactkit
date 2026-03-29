@@ -11,13 +11,13 @@ pnpm add @interactkit/cron
 ```
 
 ```typescript
-import { Entity, BaseEntity, Hook } from '@interactkit/sdk';
+import { Entity, BaseEntity, Hook, type Remote } from '@interactkit/sdk';
 import { Cron } from '@interactkit/cron';
 
 @Entity()
 class Worker extends BaseEntity {
   @Hook(Cron.Runner({ expression: '0 9 * * 1' }))
-  async onSchedule(input: Cron.Input) {
+  async onSchedule(input: Remote<Cron.Input>) {
     // runs every Monday at 9am
   }
 }

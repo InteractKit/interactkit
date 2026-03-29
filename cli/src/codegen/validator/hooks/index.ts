@@ -1,8 +1,7 @@
 import type { SubValidator } from '../types/sub-validator.js';
-import { isDetached } from '../types/infra-helpers.js';
 
-/** Hooks must have a runner, typed input, and use Remote<T> for detached hooks. */
-export const validateHooks: SubValidator = (entity, ctx) => {
+/** Hooks must have a runner, typed input, and always use Remote<T> on input. */
+export const validateHooks: SubValidator = (entity, _ctx) => {
   const errors: string[] = [];
   const loc = `${entity.className} (${entity.type})`;
 
@@ -14,11 +13,11 @@ export const validateHooks: SubValidator = (entity, ctx) => {
       errors.push(`${loc}: @Hook "${hook.methodName}" has no typed parameter — e.g. (input: Init.Input)`);
     }
 
-    // Non-local hooks on detached entities: input is proxied, must use Remote<T>
-    if (!hook.inProcess && isDetached(entity) && !hook.isRemoteInput) {
+    // All hook inputs must use Remote<T> for consistency
+    if (!hook.isRemoteInput && !hook.inProcess) {
       errors.push(
-        `${loc}: @Hook "${hook.methodName}" runs out-of-process on a detached entity — ` +
-        `type input as Remote<${hook.hookTypeName}.Input> for type-safe proxy access`,
+        `${loc}: @Hook "${hook.methodName}" input must be typed as Remote<${hook.hookTypeName}.Input> — ` +
+        `this ensures switching between local and distributed requires no code changes`,
       );
     }
   }

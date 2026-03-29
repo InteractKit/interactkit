@@ -1,7 +1,6 @@
 import { ClassDeclaration } from 'ts-morph';
 import { parseType, parsedTypeToZod } from '@/codegen/utils/parse-type.js';
 import { extractStringProp } from '@/codegen/utils/extract-string-prop.js';
-import { extractIdentProp } from '@/codegen/utils/extract-ident-prop.js';
 import type { ParsedInfra } from '../types/parsed-infra.js';
 import type { ParsedLLMInfo, ParsedLLMTool } from '../types/parsed-llm-info.js';
 import type { ParsedMCPInfo } from '../types/parsed-mcp-info.js';
@@ -35,24 +34,7 @@ export function extractEntityMetadata(cls: ClassDeclaration): EntityMetadata | n
 
   if (!type) return null;
 
-  const pubsub = extractIdentProp(optionsText, 'pubsub');
-  const database = extractIdentProp(optionsText, 'database');
-  const logger = extractIdentProp(optionsText, 'logger');
-
-  // Resolve whether pubsub extends RemotePubSubAdapter
-  let pubsubIsRemote: boolean | undefined;
-  if (pubsub) {
-    const sourceFile = cls.getSourceFile();
-    const project = sourceFile.getProject();
-    // Find the pubsub class declaration in the project
-    for (const sf of project.getSourceFiles()) {
-      const pubsubClass = sf.getClass(pubsub);
-      if (pubsubClass) {
-        pubsubIsRemote = extendsClass(pubsubClass, 'RemotePubSubAdapter');
-        break;
-      }
-    }
-  }
+  const detached = optionsText.includes('detached: true') || optionsText.includes('detached:true') || undefined;
 
   const baseClass = cls.getBaseClass();
   const baseClassName = baseClass?.getName();
@@ -63,7 +45,7 @@ export function extractEntityMetadata(cls: ClassDeclaration): EntityMetadata | n
     sourceFile: cls.getSourceFile().getFilePath(),
     baseClassName,
     persona,
-    infra: { pubsub, database, logger, pubsubIsRemote },
+    infra: { detached },
     hasConstructor: cls.getConstructors().length > 0,
   };
 }

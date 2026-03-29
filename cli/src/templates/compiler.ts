@@ -26,12 +26,8 @@ export interface TemplateDefinition {
   extraDeps?: Record<string, string>;
 }
 
-export interface CompileOptions {
-  database?: 'prisma' | 'none';
-}
-
 /** Compile a single entity definition to TypeScript source */
-export function compileEntity(entity: TemplateEntity, options?: CompileOptions): string {
+export function compileEntity(entity: TemplateEntity): string {
   const lines: string[] = [];
 
   // Collect imports
@@ -95,10 +91,7 @@ export function compileEntity(entity: TemplateEntity, options?: CompileOptions):
     sdkImports.add('Describe');
   }
 
-  // Database adapter (root entity only)
-  if (options?.database === 'prisma') {
-    sdkImports.add('PrismaDatabaseAdapter');
-  }
+  // Database is now configured in interactkit.config.ts, not in @Entity
 
   // Deduplicate file imports (same class from same file)
   const seen = new Set<string>();
@@ -123,11 +116,7 @@ export function compileEntity(entity: TemplateEntity, options?: CompileOptions):
   lines.push('');
 
   // Class declaration
-  const entityOpts = [`description: '${entity.description}'`];
-  if (options?.database === 'prisma') {
-    entityOpts.push('database: PrismaDatabaseAdapter');
-  }
-  lines.push(`@Entity({ ${entityOpts.join(', ')} })`);
+  lines.push(`@Entity({ description: '${entity.description}' })`);
   lines.push(`export class ${entity.class} extends ${entity.extends} {`);
 
   // State properties

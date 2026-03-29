@@ -31,7 +31,7 @@ program
   .option('--mcp-http <url>', 'Generate entity from MCP server via HTTP')
   .option('--mcp-header <key=value>', 'Add header for MCP connection (repeatable)', (v: string, acc: string[]) => [...acc, v], [])
   .option('--mcp-env <key=value>', 'Add env var for stdio MCP server (repeatable)', (v: string, acc: string[]) => [...acc, v], [])
-  .option('--remote', 'Use RedisPubSubAdapter for distributed/cross-process communication')
+  .option('--detached', 'Mark entity as detached (uses remote pubsub from config)')
   .action(async (name: string, opts) => {
     await addCommand(name, opts);
   });

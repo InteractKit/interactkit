@@ -1,4 +1,4 @@
-import { Entity, BaseEntity, Describe, State, Tool, RedisPubSubAdapter } from '@interactkit/sdk';
+import { Entity, BaseEntity, Describe, State, Tool } from '@interactkit/sdk';
 
 export class Counter {
   private n = 0;
@@ -13,7 +13,7 @@ export class NestedObj {
   getCounter() { return new Counter(); }
 }
 
-@Entity({ pubsub: RedisPubSubAdapter })
+@Entity({ detached: true })
 export class Worker extends BaseEntity {
   @Describe() describe() { return 'Worker'; }
 

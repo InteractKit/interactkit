@@ -256,7 +256,7 @@ interactkit add <Name> [options]
 # Optional:
   --mcp-header <key=value>    # add header for MCP connection (repeatable)
   --mcp-env <key=value>       # add env var for stdio MCP server (repeatable)
-  --remote                    # use RedisPubSubAdapter for distributed communication
+  --detached                  # mark entity as detached (uses remote pubsub from config)
 ```
 
 ---

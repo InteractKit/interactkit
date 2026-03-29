@@ -1,17 +1,9 @@
-import type { DatabaseAdapter } from '../database/adapter.js';
-import type { PubSubAdapter } from '../pubsub/adapter.js';
-import type { LogAdapter } from '../logger/adapter.js';
-
 /** Options passed to @Entity decorator */
 export interface EntityOptions {
   /** Human-readable description of what this entity does */
   description?: string;
-  /** Database adapter class — root entities only, sub-entities inherit */
-  database?: new (...args: unknown[]) => DatabaseAdapter;
-  /** PubSub adapter class — root entities or per-entity override */
-  pubsub?: new (...args: unknown[]) => PubSubAdapter;
-  /** Logger adapter class — root entities only, sub-entities inherit */
-  logger?: new (...args: unknown[]) => LogAdapter;
+  /** Mark this entity as detached — communicates via remote pubsub from config */
+  detached?: boolean;
 }
 
 /** Abstract base class all entities extend */

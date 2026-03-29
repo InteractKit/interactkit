@@ -27,7 +27,7 @@ The SDK has three layers: **Authoring** (what devs write), **Codegen** (pre-buil
 
 | Decorator | Target | Purpose |
 |-----------|--------|---------|
-| `@Entity({ type?, description?, persona?, database?, pubsub?, logger? })` | class | Marks a class as an entity. `type` is auto-derived from class name (PascalCase to snake_case) if omitted. Root entities optionally pass infra config; sub-entities inherit from parent. |
+| `@Entity({ type?, description?, persona?, detached? })` | class | Marks a class as an entity. `type` is auto-derived from class name (PascalCase to snake_case) if omitted. `detached: true` means entity communicates via remote pubsub from config. |
 | `@State({ description, validate? })` | property | Required on all state properties (must be `private`) — describes what the state holds. Optional `validate` accepts a Zod schema for inline validation. |
 | `@Component()` | property | Marks a property as a child entity component (must be `private`). Use `Remote<T>` type when entity has remote pubsub. |
 | `@Stream()` | property | Marks an `EntityStream<T>` property. Streams are always public — parent entities can subscribe to them after boot |
@@ -149,8 +149,11 @@ Each hook is a namespace with `.Input` (the data your method receives) and `.Run
 // Built-in (shipped with @interactkit/sdk)
 Init.Input    { entityId: string; firstBoot: boolean; }      Init.Runner()
 Tick.Input    { tick: number; elapsed: number; }              Tick.Runner({ intervalMs: 5000 })
-Cron.Input    { lastRun: Date; }                              Cron.Runner({ expression: '0 * * * *' })
-Event.Input   { eventName: string; payload: T; source: string; }  Event.Runner()
+
+// Extensions (separate packages)
+Cron.Input    { lastRun: Date; expression: string; }         Cron.Runner({ expression: '...' })     // @interactkit/cron
+HttpRequest.Input  { method, path, body, respond, ... }      HttpRequest.Runner({ path: '/' })      // @interactkit/http
+WsMessage.Input    { data, clientId, send, close }           WsMessage.Runner()                     // @interactkit/websocket
 ```
 
 Hook types are not hardcoded — extension packages export their own namespaces with `.Input` + `.Runner(config)`. The runner is explicit in `@Hook(Runner)`, so no codegen type-tracing is needed. This enables recursive package usage.
@@ -273,46 +276,45 @@ export type MethodName = ...;
 
 ## 3. Infrastructure — configured on @Entity
 
-Root entities carry optional `database`, `pubsub`, `logger`, and `runners` params. Sub-entities inherit from their parent by default, but can override with their own adapters.
+Database is configured globally in `interactkit.config.ts` (not per-entity). Root entities carry optional `pubsub` and `observer` params. Sub-entities inherit from their parent by default, but can override with their own adapters.
 
 ```typescript
-@Entity({
-  // type auto-derived as 'person' from class name Person
-  persona: true,
-  database: PrismaClient,       // slow, scalable — shared state store
-  pubsub: RedisPubSubAdapter,   // slow, scalable — horizontal scaling across instances
-  logger: ConsoleLogAdapter,    // sees all serialized events + errors automatically
-})
-class Person extends BaseEntity {
-  @Component() private brain!: Brain;   // inherits Person's DB + pubsub + logger by default
-  @Component() private phone!: Phone;   // same
-}
+// interactkit.config.ts
+import { PrismaDatabaseAdapter } from '@interactkit/prisma';
+import type { InteractKitConfig } from '@interactkit/sdk';
 
-@Entity()  // type auto-derived as 'brain'
-class Brain extends BaseEntity {
-  // inherits parent's infra — no override needed
-}
-
-@Entity({
-  // type auto-derived as 'phone'
-  pubsub: InProcessBusAdapter,  // override — fast, in-process for real-time voice
-})
-class Phone extends BaseEntity {
-  // uses Person's database (inherited) but its own fast pubsub (overridden)
-}
+export default {
+  database: new PrismaDatabaseAdapter({ url: 'file:./app.db' }),
+  pubsub: new RedisPubSubAdapter({ host: 'localhost', port: 6379 }),
+  observer: new ConsoleObserver(),
+  timeout: 15_000,       // event bus request timeout (default: 30000)
+  stateFlushMs: 50,      // state persistence debounce (default: 10)
+} satisfies InteractKitConfig;
 ```
 
-### Per-entity infra overrides
+```typescript
+@Entity({ persona: true })
+class Person extends BaseEntity {
+  @Component() private brain!: Remote<Brain>;   // local — same process
+  @Component() private phone!: Remote<Phone>;   // detached — can run on another machine
+}
 
-Any sub-entity can override `database` or `pubsub` independently. This lets you mix transports based on latency requirements:
+@Entity()  // local, co-located with parent
+class Brain extends BaseEntity { }
+
+@Entity({ detached: true })  // communicates via remote pubsub from config
+class Phone extends BaseEntity { }
+```
+
+### Detached entities
+
+Entities marked `detached: true` communicate via the remote pubsub adapter configured in `interactkit.config.ts`. Non-detached entities use `InProcessBusAdapter` (local, zero-latency). Database is global (from config).
 
 | Adapter | Latency | Scaling | Use case |
 |---------|---------|---------|----------|
-| `InProcessBusAdapter` | ~0ms | Single process | Real-time voice, hot loops |
-| `RedisPubSubAdapter` | ~1-5ms | Horizontal | Cross-instance entity communication |
-| `PrismaClient` | ~5-20ms | Horizontal | Durable state persistence |
-
-The runtime resolves infra per entity: check own `@Entity` params first, then walk up the parent chain. This means you get **fast paths where you need them** (voice) and **scalable paths everywhere else** (state sync, config) — without the entity code knowing the difference.
+| `InProcessBusAdapter` | ~0ms | Single process | Default for all non-detached entities |
+| `RedisPubSubAdapter` | ~1-5ms | Horizontal | Detached entities — cross-instance communication |
+| `PrismaDatabaseAdapter` | ~5-20ms | Horizontal | Durable state persistence (global, via config) |
 
 ### Adapter interfaces
 
@@ -333,9 +335,11 @@ interface DatabaseAdapter {
   delete(entityId: string): Promise<void>;
 }
 
-interface LogAdapter {
+interface ObserverAdapter {
   event(envelope: EventEnvelope): void;   // every serialized event flowing through the bus
   error(envelope: EventEnvelope, error: Error): void;  // failed events
+  on(event: string, handler: (...args: unknown[]) => void): void;   // subscribe to observer events
+  off(event: string, handler: (...args: unknown[]) => void): void;  // unsubscribe
 }
 ```
 
@@ -363,6 +367,7 @@ Extension packages live in `extensions/` in the monorepo. Each is published inde
 
 | Package | Hooks | What it does |
 |---------|-------|-------------|
+| `@interactkit/cron` | `Cron` | Cron scheduling via node-cron |
 | `@interactkit/http` | `HttpRequest` | Spins up an HTTP server, fires on incoming requests |
 | `@interactkit/websocket` | `WsMessage`, `WsConnection` | WebSocket server, fires on messages and new connections |
 
@@ -398,14 +403,21 @@ export namespace MyHook {
   export interface Input { data: string; }
 
   class RunnerImpl implements HookRunner<Input> {
-    async start(emit: (data: Input) => void, config: Record<string, unknown>) {
-      // listen for external events, call emit() when they arrive
+    async init(config: Record<string, unknown>) {
+      // set up shared resources (server, connection) using config from interactkit.config.ts
+    }
+    register(emit: (data: Input) => void, config: Record<string, unknown>) {
+      // add emit callback with per-entity run config
     }
     async stop() { /* tear down */ }
   }
 
-  export function Runner(config: { /* your config */ }): HookHandler<Input> {
-    return { __hookHandler: true, runnerClass: RunnerImpl, config: config as any };
+  export function Runner(config: { /* per-entity run config */ }): HookHandler<Input> {
+    return {
+      __hookHandler: true, runnerClass: RunnerImpl,
+      config: config as any,
+      initConfig: { /* defaults, overridable via interactkit.config.ts hooks */ },
+    };
   }
 }
 ```
@@ -421,20 +433,25 @@ export namespace MyHook {
 
 ```typescript
 interface HookRunner<T> {
-  start(emit: (data: T) => void, config: Record<string, unknown>): Promise<void>;
+  init(config: Record<string, unknown>): Promise<void>;
+  register(emit: (data: T) => void, config: Record<string, unknown>): void;
   stop(): Promise<void>;
 }
 
 interface HookHandler<T = any> {
   readonly __hookHandler: true;
   readonly runnerClass: new (...args: any[]) => HookRunner<T>;
-  readonly config: Record<string, unknown>;
+  readonly config: Record<string, unknown>;        // per-entity run config
+  readonly initConfig?: Record<string, unknown>;   // defaults, merged with interactkit.config.ts hooks
+  readonly inProcess?: boolean;
 }
 ```
 
-- `Runner(config)` returns a `HookHandler` — the `@Hook` decorator stores both the runner class and config in metadata.
-- `emit` — provided by the runtime. Runner calls it when external data arrives, runtime routes it to the entity's `@Hook` method.
-- Runner knows nothing about entities — it just listens for external events and emits typed data.
+- `init(config)` — set up shared resources. Config = defaults from `initConfig` merged with overrides from `interactkit.config.ts` `hooks` field.
+- `register(emit, config)` — add an emit callback per entity. Config = per-entity run config from `@Hook(Runner(config))` + runtime additions (entityId).
+- `stop()` — tear down resources.
+- **Local hooks** (`inProcess: true`): init + register + stop all in the entity process.
+- **Remote hooks** (`inProcess: false`): `_hooks.ts` process calls init, then listens for register events from entity processes via pubsub.
 
 ---
 
@@ -475,9 +492,8 @@ src/
   hooks/
     init.ts                  # Init namespace (Input + Runner)
     tick.ts                  # Tick namespace (Input + Runner)
-    cron.ts                  # Cron namespace (Input + Runner)
-    event.ts                 # Event namespace (Input + Runner)
     runner.ts                # HookRunner<T> + HookHandler<T> interfaces
+  settings.ts                # InteractKitConfig type
   events/
     bus.ts                   # PubSub adapter-based event bus
     dispatcher.ts            # Event routing + validation
@@ -489,9 +505,11 @@ src/
   database/
     adapter.ts               # DatabaseAdapter interface
     prisma.ts                # Prisma-backed implementation
-  logger/
-    adapter.ts               # LogAdapter interface
-    console.ts               # ConsoleLogAdapter — default stdout
+  observer/
+    adapter.ts               # ObserverAdapter interface
+    base.ts                  # BaseObserver — abstract base with event emitter
+    console.ts               # ConsoleObserver — default stdout
+    dev.ts                   # DevObserver — colored dev-mode output
 ```
 
 ## Dependencies
@@ -502,7 +520,7 @@ src/
 |---------|------|
 | `zod` | Runtime validation (generated code, re-exported as `z`) |
 | `ioredis` | Redis pub/sub adapter |
-| `config` | Configuration management |
+
 | `@modelcontextprotocol/sdk` | MCP client for tool discovery |
 
 **Peer dependencies (users install alongside SDK):**

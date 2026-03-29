@@ -1,7 +1,4 @@
 import type { BaseEntity } from '../types.js';
-import type { PubSubAdapter } from '../../pubsub/adapter.js';
-import type { DatabaseAdapter } from '../../database/adapter.js';
-import type { LogAdapter } from '../../logger/adapter.js';
 
 // ─── Entity Tree ────────────────────────────────────────
 
@@ -18,7 +15,7 @@ export interface EntityNode {
   id: string;
   type: string;
   className: string;
-  infra: { pubsub?: string; database?: string; logger?: string };
+  infra: { detached?: boolean };
   state: Array<{ name: string; id: string }>;
   refs: Array<{ propertyName: string; targetEntityType: string; id: string }>;
   components: EntityNodeComponent[];
@@ -37,16 +34,4 @@ export interface ElementDescriptor {
   name: string;
   kind: 'state' | 'component' | 'ref' | 'stream' | 'method' | 'hook';
   metadata?: unknown;
-}
-
-// ─── Named adapter instances ────────────────────────────
-
-export interface NamedPubSub { name: string; adapter: PubSubAdapter }
-export interface NamedDatabase { name: string; adapter: DatabaseAdapter }
-export interface NamedLogger { name: string; adapter: LogAdapter }
-
-export interface WrapperInfra {
-  pubsubs: NamedPubSub[];
-  databases: NamedDatabase[];
-  loggers: NamedLogger[];
 }

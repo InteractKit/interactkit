@@ -9,10 +9,6 @@ export interface DeploymentUnit {
   reason: string;
   /** Can this unit be horizontally scaled (multiple replicas)? */
   scalable: boolean;
-  /** Pubsub adapter used between units */
-  busAdapter: string;
-  /** Database adapter (if any) */
-  databaseAdapter?: string;
 }
 
 export interface DeploymentPlan {
@@ -24,7 +20,6 @@ export interface DeploymentPlan {
   connections: Array<{
     from: string;
     to: string;
-    adapter: string;
     methods: string[];
   }>;
 }
@@ -33,10 +28,9 @@ export interface DeploymentPlan {
  * Analyze entity infra config and generate a deployment plan.
  *
  * Rules:
- * - Entities using InProcessBusAdapter MUST share a process with their parent/siblings
- * - Entities using RedisPubSubAdapter (or any distributed adapter) CAN be separated
+ * - Non-detached entities MUST share a process with their parent/siblings
+ * - Detached entities CAN be separated into their own deployment unit
  * - EntityStream requires co-location (in-memory data flow)
- * - EntityRef siblings that both use InProcess must be co-located
  */
 export function generateDeploymentPlan(entities: EntityInfo[]): DeploymentPlan {
   const entityMap = new Map(entities.map(e => [e.type, e]));
@@ -49,38 +43,14 @@ export function generateDeploymentPlan(entities: EntityInfo[]): DeploymentPlan {
     }
   }
 
-  // Determine resolved pubsub per entity (own or inherited from parent)
-  const resolvedPubsub = new Map<string, string>();
-  function resolvePubsub(entityType: string): string {
-    if (resolvedPubsub.has(entityType)) return resolvedPubsub.get(entityType)!;
-    const entity = entityMap.get(entityType);
-    if (entity?.infra.pubsub) {
-      resolvedPubsub.set(entityType, entity.infra.pubsub);
-      return entity.infra.pubsub;
-    }
-    const parent = parentOf.get(entityType);
-    if (parent) {
-      const inherited = resolvePubsub(parent);
-      resolvedPubsub.set(entityType, inherited);
-      return inherited;
-    }
-    resolvedPubsub.set(entityType, 'InProcessBusAdapter');
-    return 'InProcessBusAdapter';
-  }
-
-  for (const entity of entities) {
-    resolvePubsub(entity.type);
-  }
-
   // Group entities into co-location clusters
-  // InProcess entities must be with their parent
-  // Streams require co-location
+  // Non-detached entities must be with their parent
+  // Streams require co-location (unless entity is detached)
   const clusters = new Map<string, Set<string>>(); // clusterName → entityTypes
   const entityCluster = new Map<string, string>();  // entityType → clusterName
 
   function assignCluster(entityType: string, clusterName: string) {
     if (entityCluster.has(entityType)) {
-      // Merge clusters if already assigned to a different one
       const existing = entityCluster.get(entityType)!;
       if (existing !== clusterName) {
         const existingSet = clusters.get(existing)!;
@@ -99,37 +69,29 @@ export function generateDeploymentPlan(entities: EntityInfo[]): DeploymentPlan {
     return clusterName;
   }
 
-  // First pass: group InProcess entities with their parent
+  // First pass: group non-detached entities with their parent
   for (const entity of entities) {
-    const pubsub = resolvedPubsub.get(entity.type)!;
     const parent = parentOf.get(entity.type);
-
-    if (pubsub === 'InProcessBusAdapter' || !pubsub.includes('Redis')) {
-      // Must be co-located with parent
+    if (!entity.infra.detached) {
       const clusterName = parent ? `unit-${parent}` : `unit-${entity.type}`;
       assignCluster(entity.type, clusterName);
       if (parent) assignCluster(parent, clusterName);
     }
   }
 
-  // Second pass: entities with streams using InProcess must be co-located with parent
-  // Entities with streams on Redis can be distributed (streams publish via Redis)
+  // Second pass: non-detached entities with streams must be co-located with parent
   for (const entity of entities) {
-    if (entity.streams.length > 0) {
-      const ps = resolvedPubsub.get(entity.type);
-      const isInProcess = !ps || ps === 'InProcessBusAdapter' || !ps.includes('Redis');
-      if (isInProcess) {
-        const parent = parentOf.get(entity.type);
-        if (parent) {
-          const clusterName = entityCluster.get(parent) ?? `unit-${parent}`;
-          assignCluster(entity.type, clusterName);
-          assignCluster(parent, clusterName);
-        }
+    if (entity.streams.length > 0 && !entity.infra.detached) {
+      const parent = parentOf.get(entity.type);
+      if (parent) {
+        const clusterName = entityCluster.get(parent) ?? `unit-${parent}`;
+        assignCluster(entity.type, clusterName);
+        assignCluster(parent, clusterName);
       }
     }
   }
 
-  // Third pass: assign remaining entities to their own cluster
+  // Third pass: assign remaining (detached) entities to their own cluster
   for (const entity of entities) {
     if (!entityCluster.has(entity.type)) {
       assignCluster(entity.type, `unit-${entity.type}`);
@@ -140,39 +102,17 @@ export function generateDeploymentPlan(entities: EntityInfo[]): DeploymentPlan {
   const units: DeploymentUnit[] = [];
   for (const [clusterName, entityTypes] of clusters) {
     const types = [...entityTypes];
-    const hasInProcess = types.some(t => {
-      const ps = resolvedPubsub.get(t);
-      return !ps || ps === 'InProcessBusAdapter' || !ps.includes('Redis');
-    });
-    const hasInProcessStreams = types.some(t => {
-      const e = entityMap.get(t);
-      if (!e || e.streams.length === 0) return false;
-      const ps = resolvedPubsub.get(t);
-      return !ps || ps === 'InProcessBusAdapter' || !ps.includes('Redis');
-    });
+    const allLocal = types.every(t => !entityMap.get(t)?.infra.detached);
 
     const reasons: string[] = [];
-    if (hasInProcess) reasons.push('InProcessBusAdapter requires co-location');
-    if (hasInProcessStreams) reasons.push('EntityStream requires co-location');
+    if (allLocal) reasons.push('co-located (not detached)');
     if (reasons.length === 0) reasons.push('default grouping');
-
-    // Determine bus adapter for cross-unit communication
-    const rootEntity = types.find(t => !parentOf.has(t)) ?? types[0];
-    const busAdapter = resolvedPubsub.get(rootEntity) ?? 'InProcessBusAdapter';
-
-    // Database
-    const dbAdapters = types
-      .map(t => entityMap.get(t)?.infra.database)
-      .filter(Boolean);
-    const databaseAdapter = dbAdapters[0];
 
     units.push({
       name: clusterName,
       entities: types.sort(),
       reason: reasons.join('; '),
-      scalable: !hasInProcess && !hasInProcessStreams,
-      busAdapter,
-      databaseAdapter,
+      scalable: !allLocal,
     });
   }
 
@@ -189,7 +129,6 @@ export function generateDeploymentPlan(entities: EntityInfo[]): DeploymentPlan {
         connections.push({
           from: myCluster,
           to: childCluster,
-          adapter: resolvedPubsub.get(comp.entityType) ?? 'RedisPubSubAdapter',
           methods,
         });
       }

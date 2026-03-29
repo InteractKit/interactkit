@@ -1,32 +1,37 @@
 # Infrastructure
 
-InteractKit uses pluggable adapters for database, pub/sub, and logging. Set them on your root entity. Children inherit them.
+InteractKit uses pluggable adapters for database, pub/sub, and observability. All infrastructure is configured globally in `interactkit.config.ts`. Entities default to local (in-process) communication — mark them `detached: true` to use remote pubsub.
 
 ## Setup
 
 ```typescript
-import { Entity, BaseEntity, Component, PrismaDatabaseAdapter, RedisPubSubAdapter, ConsoleLogAdapter } from '@interactkit/sdk';
+// interactkit.config.ts
+import { PrismaDatabaseAdapter } from '@interactkit/prisma';
+import { RedisPubSubAdapter } from '@interactkit/redis';
+import { DevObserver } from '@interactkit/sdk';
+import type { InteractKitConfig } from '@interactkit/sdk';
 
-@Entity({
-  database: PrismaDatabaseAdapter,
-  pubsub: RedisPubSubAdapter,
-  logger: ConsoleLogAdapter,
-})
-class Agent extends BaseEntity {
-  @Component() private brain!: Brain;   // inherits all three
-  @Component() private memory!: Memory; // inherits all three
-}
+export default {
+  database: new PrismaDatabaseAdapter({ url: 'file:./app.db' }),
+  pubsub: new RedisPubSubAdapter({ host: 'localhost', port: 6379 }),
+  observer: new DevObserver(),
+} satisfies InteractKitConfig;
 ```
 
-Any child can override an adapter:
-
 ```typescript
-import { Entity, BaseEntity, InProcessBusAdapter } from '@interactkit/sdk';
+import { Entity, BaseEntity, Component } from '@interactkit/sdk';
 
-@Entity({
-  pubsub: InProcessBusAdapter, // override just pub/sub
-})
-class Memory extends BaseEntity { /* ... */ }
+@Entity()
+class Agent extends BaseEntity {
+  @Component() private brain!: Remote<Brain>;   // local — same process
+  @Component() private worker!: Remote<Worker>; // detached — can scale independently
+}
+
+@Entity()  // local, co-located with parent
+class Brain extends BaseEntity { /* ... */ }
+
+@Entity({ detached: true })  // uses remote pubsub from config
+class Worker extends BaseEntity { /* ... */ }
 ```
 
 ## Built-in Adapters
@@ -52,12 +57,12 @@ The pub/sub adapter has two delivery modes:
 | `publish` / `subscribe` | Broadcast -- all subscribers get every message | Reply channels, state sync |
 | `enqueue` / `consume` | Queue -- one consumer picks each message | Tool calls, hooks, work distribution |
 
-Entities with `RedisPubSubAdapter` get competing consumer semantics. Run 3 replicas and each request goes to exactly one:
+Entities with `detached: true` get competing consumer semantics. Run 3 replicas and each request goes to exactly one:
 
 ```typescript
-import { Entity, BaseEntity, Tool, RedisPubSubAdapter } from '@interactkit/sdk';
+import { Entity, BaseEntity, Tool } from '@interactkit/sdk';
 
-@Entity({ pubsub: RedisPubSubAdapter })
+@Entity({ detached: true })
 class Worker extends BaseEntity {
   @Tool({ description: 'Process task' })
   async process(input: { task: string }) {
@@ -88,14 +93,14 @@ State persistence is automatic:
 - State restores on entity restart
 - State changes broadcast to other replicas via pub/sub
 
-### Logging
+### Observer
 
 | Adapter | Output |
 |---------|--------|
-| `ConsoleLogAdapter` | Plain stdout/stderr |
-| `DevLogAdapter` | Colored, formatted (used in `pnpm dev`) |
+| `ConsoleObserver` | Plain stdout/stderr |
+| `DevObserver` | Colored, formatted (used in `pnpm dev`) |
 
-Loggers see all events flowing through the event bus -- tool calls, hook events, errors.
+Observers see all events flowing through the event bus -- tool calls, hook events, errors. They can also emit events back via `on()`/`off()` for subscribers to react to.
 
 ## Custom Adapters
 
@@ -129,15 +134,21 @@ class MyDatabase implements DatabaseAdapter {
 }
 ```
 
-### Logger
+### Observer
 
 ```typescript
-import type { LogAdapter } from '@interactkit/sdk';
+import { BaseObserver } from '@interactkit/sdk';
 import type { EventEnvelope } from '@interactkit/sdk';
 
-class MyLogger implements LogAdapter {
-  event(envelope: EventEnvelope): void { /* every event */ }
-  error(envelope: EventEnvelope, error: Error): void { /* failed events */ }
+class MyObserver extends BaseObserver {
+  event(envelope: EventEnvelope): void {
+    /* log/process every event */
+    this.emit('event', envelope); // notify subscribers
+  }
+  error(envelope: EventEnvelope, error: Error): void {
+    /* log/process failed events */
+    this.emit('error', envelope, error);
+  }
 }
 ```
 
@@ -150,27 +161,32 @@ class MyLogger implements LogAdapter {
 | State sync between replicas | Pub/Sub | `publish`/`subscribe` on state channels |
 | Stream data (child → parent) | Pub/Sub | `publish`/`subscribe` on stream channels (Redis), or direct in-memory (InProcess) |
 | State persistence | Database | Auto-save on mutation, restore on boot |
-| Event logging | Logger | All events + errors flowing through the bus |
+| Event observability | Observer | All events + errors flowing through the bus |
 
 ## Config
 
-Adapters read from `config/default.json`:
+All infrastructure is configured in `interactkit.config.ts` at the project root. Adapters take connection config via their constructors:
 
-```json
-{
-  "interactkit": {
-    "redis": { "host": "127.0.0.1", "port": 6379 },
-    "database": { "url": "file:./interactkit.db" }
-  }
-}
+```typescript
+// interactkit.config.ts
+import { PrismaDatabaseAdapter } from '@interactkit/prisma';
+import { RedisPubSubAdapter } from '@interactkit/redis';
+import { DevObserver } from '@interactkit/sdk';
+import type { InteractKitConfig } from '@interactkit/sdk';
+
+export default {
+  database: new PrismaDatabaseAdapter({ url: 'file:./app.db' }),
+  pubsub: new RedisPubSubAdapter({ host: 'localhost', port: 6379 }),
+  observer: new DevObserver(),
+  timeout: 15_000,      // event bus request timeout (default: 30000)
+  stateFlushMs: 50,     // state persistence debounce (default: 10)
+} satisfies InteractKitConfig;
 ```
 
-Or environment variables:
-
-| Adapter | Env vars |
-|---------|----------|
-| `RedisPubSubAdapter` | `REDIS_URL` or `REDIS_HOST` + `REDIS_PORT` |
-| `PrismaDatabaseAdapter` | `DATABASE_URL` |
+| Adapter | Constructor config |
+|---------|-------------------|
+| `RedisPubSubAdapter` | `{ host: string, port: number }` or `{ url: string }` |
+| `PrismaDatabaseAdapter` | `{ url: string }` |
 
 Missing config throws a clear error at startup.
 

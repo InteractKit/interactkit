@@ -36,16 +36,16 @@ Remote adapters add proxy overhead: non-serializable values (functions, class in
 Set Redis on the root, override InProcess on hot paths:
 
 ```typescript
-import { Entity, BaseEntity, Component, RedisPubSubAdapter, InProcessBusAdapter } from '@interactkit/sdk';
+import { Entity, BaseEntity, Component } from '@interactkit/sdk';
 
-@Entity({ pubsub: RedisPubSubAdapter })
+@Entity({ detached: true })
 class Agent extends BaseEntity {
   @Component() private brain!: Brain;       // Redis — can scale separately
   @Component() private memory!: Memory;     // Redis — can scale separately
   @Component() private cache!: Cache;       // InProcess — fast, co-located
 }
 
-@Entity({ pubsub: InProcessBusAdapter })
+@Entity()
 class Cache extends BaseEntity { /* sub-ms access */ }
 ```
 
@@ -121,8 +121,12 @@ export namespace FastTick {
   class RunnerImpl implements HookRunner<Input> {
     private timer?: ReturnType<typeof setInterval>;
     private count = 0;
-    async start(emit: (data: Input) => void, config: Record<string, unknown>) {
-      this.timer = setInterval(() => emit({ tick: ++this.count }), config.intervalMs as number);
+    private intervalMs = 60_000;
+    async init(config: Record<string, unknown>) {
+      this.intervalMs = (config.intervalMs as number) ?? 60_000;
+    }
+    register(emit: (data: Input) => void, _config: Record<string, unknown>) {
+      this.timer = setInterval(() => emit({ tick: ++this.count }), this.intervalMs);
     }
     async stop() { if (this.timer) clearInterval(this.timer); }
   }

@@ -1,6 +1,6 @@
-import { Entity, BaseEntity, Describe, State, Tool, RedisPubSubAdapter } from '@interactkit/sdk';
+import { Entity, BaseEntity, Describe, State, Tool } from '@interactkit/sdk';
 
-@Entity({ pubsub: RedisPubSubAdapter })
+@Entity({ detached: true })
 export class Memory extends BaseEntity {
   @Describe() describe() { return `Memory: ${this.entries.length}`; }
   @State({ description: 'entries' }) private entries: string[] = [];

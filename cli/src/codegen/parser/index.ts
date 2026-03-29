@@ -43,7 +43,7 @@ export function extractEntities(project: Project, opts?: { validate?: boolean })
     sourceFile: string;
     baseClassName?: string;
     persona: boolean;
-    infra: { pubsub?: string; database?: string; logger?: string };
+    infra: { detached?: boolean };
     hasConstructor: boolean;
   }> = [];
   const classToEntityType = new Map<string, string>();

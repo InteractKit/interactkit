@@ -1,7 +1,7 @@
-import { Entity, BaseEntity, Describe, State, Tool, Hook, Init, RedisPubSubAdapter, type Remote } from '@interactkit/sdk';
+import { Entity, BaseEntity, Describe, State, Tool, Hook, Init, type Remote } from '@interactkit/sdk';
 import { HttpRequest } from '@interactkit/http';
 
-@Entity({ pubsub: RedisPubSubAdapter })
+@Entity({ detached: true })
 export class Worker extends BaseEntity {
   @Describe() describe() { return `Worker: ${this.requests.length} requests`; }
   @State({ description: 'received requests' }) private requests: string[] = [];

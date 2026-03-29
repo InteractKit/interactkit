@@ -1,4 +1,5 @@
 import { resolve } from 'node:path';
+import { copyFileSync, existsSync } from 'node:fs';
 import { runCodegen } from './codegen.js';
 import { generateEntry } from './generate-entry.js';
 import { generateHooks } from './generate-hooks.js';
@@ -25,6 +26,12 @@ export async function buildCommand(flags: BuildFlags) {
   const rootClassName = flags.root ? flags.root.slice(flags.root.lastIndexOf(':') + 1) : undefined;
   const entities = runCodegen(projectPath, generatedDir, rootClassName);
   const rootEntity = rootClassName ? entities.find(e => e.className === rootClassName) : entities[0];
+
+  // Copy interactkit.config.ts into generated dir
+  const configSrc = resolve(cwd, 'interactkit.config.ts');
+  if (existsSync(configSrc)) {
+    copyFileSync(configSrc, resolve(generatedDir, 'interactkit.config.ts'));
+  }
 
   // Step 2: Generate entrypoints into .interactkit/generated/
   generateEntry(generatedDir, flags.root, dev);

@@ -1,6 +1,6 @@
 import type { PubSubAdapter } from '../../pubsub/adapter.js';
 import type { DatabaseAdapter } from '../../database/adapter.js';
-import type { LogAdapter } from '../../logger/adapter.js';
+import type { ObserverAdapter } from '../../observer/adapter.js';
 import type { EntityNode, EntityNodeComponent, EntityTree, ElementDescriptor } from './types.js';
 
 /**
@@ -10,23 +10,26 @@ import type { EntityNode, EntityNodeComponent, EntityTree, ElementDescriptor } f
  */
 export class EntitySession {
   readonly id: string;
-  private readonly pubsubs: Map<string, PubSubAdapter>;
-  private readonly databases: Map<string, DatabaseAdapter>;
-  private readonly loggers: Map<string, LogAdapter>;
+  private readonly localPubsub: PubSubAdapter;
+  private readonly remotePubsub: PubSubAdapter | undefined;
+  private readonly db: DatabaseAdapter | undefined;
+  private readonly obs: ObserverAdapter | undefined;
   private readonly tree: EntityTree;
 
   constructor(
     id: string,
     tree: EntityTree,
-    pubsubs: Map<string, PubSubAdapter>,
-    databases: Map<string, DatabaseAdapter>,
-    loggers: Map<string, LogAdapter>,
+    localPubsub: PubSubAdapter,
+    remotePubsub: PubSubAdapter | undefined,
+    database: DatabaseAdapter | undefined,
+    observer: ObserverAdapter | undefined,
   ) {
     this.id = id;
     this.tree = tree;
-    this.pubsubs = pubsubs;
-    this.databases = databases;
-    this.loggers = loggers;
+    this.localPubsub = localPubsub;
+    this.remotePubsub = remotePubsub;
+    this.db = database;
+    this.obs = observer;
   }
 
   // ─── Path calculations (relative to this.id) ─────────
@@ -126,47 +129,40 @@ export class EntitySession {
 
   // ─── Infra resolution ─────────────────────────────────
 
-  private resolveNodeInfra(id: string): EntityNode['infra'] {
-    const node = this.findNode(id);
-    if (node) {
-      const { pubsub, database, logger } = node.infra;
-      if (pubsub || database || logger) return node.infra;
+  /** Whether the given entity node (or its parent entity) is detached. */
+  private isDetached(id: string): boolean {
+    // Try the exact ID first, then walk up to find the nearest entity node
+    let current = id;
+    while (current) {
+      const node = this.findNode(current);
+      if (node) return node.infra.detached ?? false;
+      const parent = EntitySession.parentOf(current);
+      if (!parent) break;
+      current = parent;
     }
-    const parent = EntitySession.parentOf(id);
-    if (parent) return this.resolveNodeInfra(parent);
-    return this.tree.infra;
+    return false;
   }
 
-  /** Resolved pubsub for this session's ID. */
+  /** Resolved pubsub — remote if detached, local otherwise. */
   get pubsub(): PubSubAdapter {
-    const name = this.resolveNodeInfra(this.id).pubsub;
-    if (name && this.pubsubs.has(name)) return this.pubsubs.get(name)!;
-    const first = this.pubsubs.values().next();
-    if (!first.done) return first.value;
-    throw new Error(`No pubsub adapter for "${this.id}"`);
+    if (this.isDetached(this.id) && this.remotePubsub) return this.remotePubsub;
+    return this.localPubsub;
   }
 
-  /** Resolved database for this session's ID. */
+  /** Global database adapter (configured in interactkit.config.ts). */
   get database(): DatabaseAdapter | undefined {
-    const name = this.resolveNodeInfra(this.id).database;
-    if (name && this.databases.has(name)) return this.databases.get(name)!;
-    const first = this.databases.values().next();
-    return first.done ? undefined : first.value;
+    return this.db;
   }
 
-  /** Resolved logger for this session's ID. */
-  get logger(): LogAdapter | undefined {
-    const name = this.resolveNodeInfra(this.id).logger;
-    if (name && this.loggers.has(name)) return this.loggers.get(name)!;
-    const first = this.loggers.values().next();
-    return first.done ? undefined : first.value;
+  /** Global observer (configured in interactkit.config.ts). */
+  get observer(): ObserverAdapter | undefined {
+    return this.obs;
   }
 
-  /** Resolve pubsub for an arbitrary ID. */
+  /** Resolve pubsub for an arbitrary ID (e.g. a target entity). */
   pubsubFor(id: string): PubSubAdapter {
-    const name = this.resolveNodeInfra(id).pubsub;
-    if (name && this.pubsubs.has(name)) return this.pubsubs.get(name)!;
-    return this.pubsub; // fallback to own
+    if (this.isDetached(id) && this.remotePubsub) return this.remotePubsub;
+    return this.localPubsub;
   }
 
   /** Check if this ID and another share the same pubsub (co-located). */

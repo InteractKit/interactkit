@@ -1,6 +1,6 @@
 # Hooks
 
-Hooks let entities react to things: startup, timers, schedules, and events.
+Hooks let entities react to things: startup, timers, HTTP requests, cron schedules, and more.
 
 Add `@Hook(Runner)` to a method. The runner tells InteractKit *when* to call it. Config goes in `Runner(config)`.
 
@@ -33,7 +33,8 @@ Runs every 5 seconds. Default is 60 seconds if you don't specify.
 ## Cron: Run on a Schedule
 
 ```typescript
-import { Hook, Cron } from '@interactkit/sdk';
+import { Hook } from '@interactkit/sdk';
+import { Cron } from '@interactkit/cron';
 
 @Hook(Cron.Runner({ expression: '0 * * * *' }))
 async onSchedule(input: Cron.Input) {
@@ -41,27 +42,24 @@ async onSchedule(input: Cron.Input) {
 }
 ```
 
-Standard 5-field cron: `minute hour day month weekday`.
+Standard cron expressions, powered by `node-cron`. Install: `pnpm add @interactkit/cron`.
 
-## Event: React to Events
+Timezone can be set globally in `interactkit.config.ts`:
 
 ```typescript
-import { Hook, Event } from '@interactkit/sdk';
-
-@Hook(Event.Runner())
-async onEvent(input: Event.Input<{ action: string }>) {
-  console.log(`Got event: ${input.eventName}`, input.payload);
-}
+export default {
+  // ...
+  hooks: { cron: { timezone: 'America/New_York' } },
+} satisfies InteractKitConfig;
 ```
-
-Fires when another entity publishes an event to the bus.
 
 ## Multiple Hooks
 
 One entity can have as many hooks as it needs:
 
 ```typescript
-import { Entity, BaseEntity, Hook, Init, Tick, Cron } from '@interactkit/sdk';
+import { Entity, BaseEntity, Hook, Init, Tick } from '@interactkit/sdk';
+import { Cron } from '@interactkit/cron';
 
 @Entity()
 class Worker extends BaseEntity {
@@ -76,22 +74,23 @@ class Worker extends BaseEntity {
 }
 ```
 
-## Remote Hooks and `Remote<T>`
+## Local vs Remote Hooks
 
-Non-inProcess hooks (Tick, Cron, HTTP, etc.) run in a separate hook server process. When the entity uses `RemotePubSubAdapter`, hook inputs are delivered via pub/sub. Use `Remote<T>` on the input type for type safety:
+- **Local** (`inProcess: true`): Init hooks run in the entity process. The runner is created, init'd, and register'd all in one place.
+- **Remote** (`inProcess: false`): Tick, Cron, HTTP, WebSocket hooks run in a separate `_hooks.ts` process. The hook process calls `init()` to set up shared resources, then listens for entity registrations via pubsub. Each entity sends a register event on boot; the hook process calls `register(emit, config)` per entity.
+
+For detached entities, use `Remote<T>` on the input type for type-safe proxy access:
 
 ```typescript
 import { Hook, type Remote } from '@interactkit/sdk';
 import { HttpRequest } from '@interactkit/http';
 
-@Hook(HttpRequest.Runner({ port: 3100, path: '/webhook' }))
+@Hook(HttpRequest.Runner({ path: '/webhook' }))
 async onRequest(input: Remote<HttpRequest.Input>) {
   const method = await input.method;    // property access returns Promise
   await input.respond(200, 'ok');       // function calls work transparently
 }
 ```
-
-`Remote<T>` on hook inputs is enforced at build time for entities with remote pubsub. `Init` hooks are exempt -- they always run in-process.
 
 ---
 
@@ -113,4 +112,4 @@ async onSms(input: Sms.Input) {
 ## What's Next?
 
 - [Extensions](./extensions.md): build custom hook types as packages
-- [Infrastructure](./infrastructure.md): database, pub/sub, and logging
+- [Infrastructure](./infrastructure.md): database, pub/sub, and observer adapters

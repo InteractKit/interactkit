@@ -34,12 +34,18 @@ export function injectPaths(project: Project, pathMap: Map<string, string>): voi
         filesNeedingImport.add(sourceFile.getFilePath());
 
         // Strip Remote<T> → T so design:type emits the real class
+        // Also replace `!` with `= {} as T` so the property has a value at runtime
         const typeNode = prop.getTypeNode();
         if (typeNode) {
           const text = typeNode.getText();
           const match = text.match(/^Remote<(.+)>$/);
           if (match) {
-            prop.setType(match[1]);
+            const innerType = match[1];
+            prop.setType(innerType);
+            if (prop.hasExclamationToken()) {
+              prop.setHasExclamationToken(false);
+              prop.setInitializer(`{} as any`);
+            }
           }
         }
       }

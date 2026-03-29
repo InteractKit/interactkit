@@ -1,262 +1,151 @@
 # Why InteractKit
 
-Most AI frameworks give you one agent with a list of tools. That works for a chatbot. But real systems are bigger than a chatbot.
+Most AI frameworks give you one agent with a list of tools. That's fine for a chatbot.
 
-What if you want 50 personas running a social simulation? A team of specialists that delegate to each other? A monitoring system that detects, decides, and acts -- no human in the loop? These need **architecture**, not a bigger tool list.
+But what about a team of 10 agents that delegate to each other? A virtual world with 50 personas living their own lives? A monitoring system that detects, decides, and acts without a human?
 
-InteractKit gives you architecture: **composable, self-describing entities**.
-
-An entity is a TypeScript class that does one thing. It remembers things (`@State`). It can do things (`@Tool`). It describes itself (`@Describe()`). You snap entities together into a tree, and the tree **is** the architecture -- every entity knows what its siblings can do, every LLM gets a system prompt composed automatically from the descriptions around it.
+These need **architecture**, not a bigger tool list.
 
 ---
 
-## Think of It Like a Company
+## The Problem
 
-A company has departments. Each department has teams. Each team has people. Each person has a job.
+You want to build a customer support system. You need:
+- A triage agent that classifies tickets
+- A billing specialist that talks to Stripe
+- A tech specialist that searches docs and creates Jira tickets
+- Shared conversation so the user doesn't repeat themselves
 
-InteractKit works the same way. Entities contain entities, as deep as you need:
+With most frameworks, you'd wire this together manually -- routing logic, state management, context passing, tool visibility control. Hundreds of lines of glue code.
 
-```
-Company
-  ├── CEO (LLM)                    ← delegates to departments
-  ├── Engineering
-  │   ├── EngineeringLead (LLM)    ← manages engineers
-  │   ├── Frontend
-  │   │   ├── FrontendDev (LLM)
-  │   │   └── ComponentLibrary
-  │   └── Backend
-  │       ├── BackendDev (LLM)
-  │       └── Database
-  ├── Marketing
-  │   ├── MarketingLead (LLM)
-  │   ├── Copywriter (LLM)
-  │   └── Analytics
-  └── Support
-      ├── SupportBrain (LLM)
-      ├── TicketSystem
-      └── KnowledgeBase
-```
-
-Every box is an entity. Each one has its own state, its own tools, and its own LLM if it needs one. The CEO delegates to department leads. Department leads delegate to their teams. You don't write the coordination logic. Each LLM figures out what to do at its level.
-
----
-
-## What You Can Build
-
-### LLM Agents
-
-An entity with an LLM brain that calls tools:
-
-```typescript
-import { Entity, LLMEntity, Executor, Ref, Describe } from '@interactkit/sdk';
-import { ChatOpenAI } from '@langchain/openai';
-
-@Entity()
-class Brain extends LLMEntity {
-  @Executor() private llm = new ChatOpenAI({ model: 'gpt-4o-mini' });
-
-  @Ref() private browser!: Browser;
-  @Ref() private memory!: Memory;
-
-  @Describe()
-  describe() {
-    return `You are a helpful research assistant with access to a browser and memory.`;
-  }
-}
-```
-
-The `@Describe()` method returns a string that feeds directly into the LLM's system prompt. Because it's a method, it can include dynamic state -- the prompt evolves as the entity's world changes.
-
-You say `brain.invoke({ message: "Find info about TypeScript and save it" })`. The LLM calls `browser.search()`, reads the results, calls `memory.store()`, and gives you a final answer. All automatic.
-
-### Multi-Agent Systems
-
-Agents contain other agents. Each sub-agent has its own LLM, its own tools, its own state:
+With InteractKit, you describe it as a tree:
 
 ```
-ContentTeam
-  ├── Planner (LLM)            ← decides the plan, delegates
-  ├── Researcher               ← finds information
-  │   ├── ResearchBrain (LLM)
-  │   ├── Browser
+SupportTeam
+  ├── Triage (LLM)
+  ├── BillingAgent
+  │   ├── BillingBrain (LLM)
+  │   ├── Stripe (MCP)
   │   └── Memory
-  ├── Writer                   ← drafts content
-  │   ├── WriterBrain (LLM)
-  │   └── Templates
-  └── Reviewer                 ← checks quality
-      ├── ReviewerBrain (LLM)
-      └── StyleGuide
+  ├── TechAgent
+  │   ├── TechBrain (LLM)
+  │   ├── Docs
+  │   └── Jira (MCP)
+  └── SharedContext
 ```
 
-The Planner calls `researcher.research()`, then `writer.write()`, then `reviewer.review()`. Each sub-agent handles its own domain with its own tools. The Researcher's Brain can call `browser.search()` and `memory.store()` without the Planner knowing or caring how research works internally.
+Each box is a class. Each LLM sees exactly the tools it needs. The triage agent routes. The specialists handle. You write the tree, not the orchestration.
 
-When multiple brains need to share conversation history -- so the Writer knows what the Researcher found without repeating context -- use `ConversationContext`. The parent owns it as a `@Component`, each brain references it via `@Ref`, and switching between brains preserves the full conversation. See [Shared Conversation Context](./llm.md#shared-conversation-context).
+---
 
-You didn't write orchestration logic. Each LLM figures out what to do at its level.
+## What People Are Building
 
-### Simulations
+### Agent Swarms for Business Automation
 
-Run many independent entities, each with their own world inside them:
+Teams of specialists that mirror how real teams work:
+
+- **Sales teams**: a lead qualifier, a CRM updater, a follow-up scheduler, each with their own brain and tools
+- **Content teams**: a researcher, writer, editor, and publisher -- pipeline-style delegation
+- **DevOps teams**: a monitor, incident responder, and post-mortem writer working together
+
+Each agent has its own LLM, its own memory, its own external integrations. The lead agent delegates. Sub-agents handle their domain. Scale the bottleneck by running more replicas.
+
+### Virtual Worlds & Social Simulations
+
+AI personas with persistent identities that evolve over time:
 
 ```
 Simulation
   ├── Persona("Alice")
-  │   ├── Brain (LLM)          ← Alice's personality and decision-making
-  │   ├── Memory               ← what Alice remembers
-  │   ├── Reddit               ← Alice's Reddit presence
-  │   │   ├── Humanizer        ← makes text sound like Alice
-  │   │   └── PostHistory      ← tracks what Alice has posted
-  │   └── Twitter
-  │       ├── Humanizer
-  │       └── PostHistory
-  ├── Persona("Bob")
-  │   ├── Brain (LLM)          ← Bob's personality (different from Alice)
-  │   ├── Memory               ← what Bob remembers (independent)
-  │   └── Reddit
-  │       ├── Humanizer
-  │       └── PostHistory
+  │   ├── Brain (LLM)        ← unique personality
+  │   ├── Memory             ← accumulates over weeks
+  │   ├── Reddit             ← posts, votes, comments
+  │   └── Twitter            ← separate presence
+  ├── Persona("Bob")  ...
+  ├── Persona("Carol")  ...
   └── Coordinator
-      ├── Brain (LLM)
-      └── Analytics
 ```
 
-Each persona acts on its own schedule (hooks). Alice's Brain decides what to post. Her Reddit Humanizer makes it sound like her. Her Memory accumulates over time. Bob does the same thing independently, with a completely different personality and history.
+- Each persona has its own LLM with a unique personality prompt
+- Memory persists between runs -- Alice remembers what she said last week
+- Hooks trigger autonomous behavior (post every 4 hours, react to mentions)
+- State syncs across replicas if you need to scale
 
-State persists between runs. Over weeks, each persona builds up unique memories and behavior patterns. That's a simulation.
+Over time, each persona develops a unique history. They don't just respond -- they *live*.
 
-### Autonomous Background Systems
+### Autonomous Infrastructure
 
-Entities don't just wait to be called. They can act on their own:
+Systems that watch, think, and act without human intervention:
+
+- A monitor checks metrics every minute
+- If something is wrong, it asks a Brain what to do
+- The Brain calls Slack to alert, PagerDuty to escalate, or CloudAPI to scale
+- A Cron hook runs daily reports
 
 ```typescript
-import { Entity, BaseEntity, Ref, Hook, Tick } from '@interactkit/sdk';
-
-@Entity()
-class Monitor extends BaseEntity {
-  @Ref() private brain!: Brain;
-
-  @Hook(Tick.Runner({ intervalMs: 60000 }))
-  async onTick(input: Tick.Input) {
-    const cpu = await checkCPU();
-    if (cpu > 90) {
-      await this.brain.invoke({ message: `CPU is at ${cpu}%` });
-    }
+@Hook(Tick.Runner({ intervalMs: 60000 }))
+async check() {
+  const status = await this.healthCheck.run();
+  if (!status.healthy) {
+    await this.brain.invoke({ message: `Issue detected: ${status.error}` });
   }
 }
 ```
 
-The Monitor checks CPU every minute. If it's high, it asks the Brain what to do. The Brain might call `slack.sendMessage()` or `pagerduty.alert()`. No human in the loop.
+No human in the loop. The agent swarm handles it end to end.
+
+### Multi-Modal Assistants
+
+Agents that combine different capabilities seamlessly:
+
+- A conversational agent with browser access, code execution, and file management
+- Each capability is its own entity with focused tools
+- The brain decides which to use based on the conversation
+
+```
+Assistant
+  ├── Brain (LLM)
+  ├── Browser          ← search, read pages
+  ├── CodeRunner       ← execute snippets
+  ├── FileManager      ← read, write, organize files
+  ├── Memory           ← long-term context
+  └── Slack (MCP)      ← communicate results
+```
 
 ---
 
-## How It Works Under the Hood
+## Why a Tree?
 
-### Entities Talk Through an Event Bus
+Think of it like a company. A company has departments. Departments have teams. Teams have people. Each person has a job.
 
-When you write `await this.memory.store({ text: 'hello' })`, it looks like a normal function call. Behind the scenes, it goes through an event bus.
+InteractKit works the same way. Entities contain entities, as deep as you need. Each entity:
 
-Why does this matter? Because it means you can run entities in the same process or on different machines. Same code either way. An entity never knows or cares where its siblings are running.
+- **Does one thing** (`@Tool` methods)
+- **Describes itself** (`@Describe()` feeds LLM prompts automatically)
+- **Remembers things** (`@State` persists to database)
+- **Knows its neighbors** (`@Ref` for siblings, `@Component` for children)
 
-### State Saves Automatically
-
-Every `@State` property gets saved to the database. When an entity restarts, its state comes back. You don't manage this yourself.
-
-```typescript
-@State({ description: 'Stored entries' })
-private entries: string[] = [];
-```
-
-### Streams Push Data in Real Time
-
-A child entity can push data to its parent as it happens:
-
-```typescript
-import { Entity, BaseEntity, Hook, Tick, EntityStream } from '@interactkit/sdk';
-
-@Entity()
-class Sensor extends BaseEntity {
-  private readings!: EntityStream<number>;
-
-  @Hook(Tick.Runner({ intervalMs: 1000 }))
-  async onTick(input: Tick.Input) {
-    this.readings.emit(Math.random() * 100);
-  }
-}
-```
-
-The parent listens to the stream and reacts. Feed it into a Brain and the LLM processes real-time data as it arrives.
-
-### MCP Servers Become Generated Code
-
-Any [MCP](https://modelcontextprotocol.io) server becomes a first-class entity via the CLI:
-
-```bash
-interactkit add Slack --mcp-stdio "npx -y @slack/mcp-server"
-```
-
-This introspects the MCP server and generates a typed entity with real `@Tool` methods -- not a runtime proxy. The generated code lives in your project, so you can read it, extend it, or override individual tools.
-
-Reference it from an LLMEntity and the LLM can use all of Slack's tools alongside your own. Your code, MCP-generated entities, extension packages -- they're all just entities with tools.
-
-### Scaling Is One Line
-
-```typescript
-@Entity({ pubsub: RedisPubSubAdapter })
-class Memory extends BaseEntity { /* ... */ }
-```
-
-Now Memory talks over Redis instead of in-memory. Run 5 replicas. The rest of the system doesn't change.
-
-### Functions Pass Across Machines
-
-A remote entity can return a function, and the caller can invoke it. Class instances, nested objects, curried functions -- they all work:
-
-```typescript
-@Entity({ pubsub: RedisPubSubAdapter })
-class Worker extends BaseEntity {
-  @Tool({ description: 'Get a processor function' })
-  async getProcessor() {
-    return (data: string) => data.toUpperCase();
-  }
-}
-
-@Entity()
-class Agent extends BaseEntity {
-  @Component() private worker!: Remote<Worker>;
-
-  async doWork() {
-    const fn = await this.worker.getProcessor();  // returns a live proxy
-    const result = await fn('hello');              // "HELLO" -- called across machines
-  }
-}
-```
-
-No special serialization. No manual proxy setup. It just works.
+The tree IS the architecture. Adding a new capability means adding a new entity to the tree. No routing tables, no config files, no glue code.
 
 ---
 
-## The Big Picture
+## What Makes It Different
 
-| Feature | What it does |
-|---------|-------------|
-| `@Entity` | A class that does one thing |
-| `@Describe()` | Returns the entity's current state as a string; auto-composes LLM system prompts |
-| `@State` | Data that saves automatically, syncs between replicas |
-| `@Tool` | A method other entities (or an LLM) can call |
-| `@Component` / `@Ref` | Entities compose into trees, siblings talk to each other |
-| `Remote<T>` | Type-safe distributed access -- methods, properties, even returned functions work across machines |
-| `LLMEntity` | Extend to make all refs/tools visible to the LLM |
-| `@Hook` | Entities act on their own: timers, crons, HTTP webhooks, events |
-| `interactkit add --mcp-stdio` | Any MCP server becomes a typed entity with one command |
-| `EntityStream` | Real-time data flows between entities |
-| Pluggable adapters | Swap database, pub/sub, logging without changing entity code |
-
-Each one is useful on its own. Together they let you build things that are hard to build any other way: multi-agent systems, real-world simulations, autonomous infrastructure, and anything else where independent pieces need their own state, their own logic, and the ability to talk to each other.
-
-**One entity does one thing. It describes itself. Entities compose into a tree. The tree is the architecture. The architecture tells the LLM what to do.**
+| Challenge | How InteractKit handles it |
+|-----------|--------------------------|
+| Agent coordination | Agents compose into a tree. Each LLM delegates to children/siblings. |
+| Tool visibility | Each brain only sees tools from its refs and components. No filtering. |
+| Shared context | `ConversationContext` lets multiple brains share one conversation. |
+| Persistent state | `@State` auto-saves to database, restores on restart, syncs replicas. |
+| External services | `interactkit add Slack --mcp-stdio "..."` generates a typed entity. |
+| Scaling | `Remote<T>` + Redis adapter. Same code runs across machines. |
+| Autonomy | `@Hook` with tick, cron, HTTP, events. Agents act on their own. |
+| Observability | Streams expose every LLM response and tool call in real time. |
 
 ---
 
 ## Next Steps
 
 Ready to build? Start with the [Getting Started](./getting-started.md) guide.
+
+Want to see the building blocks? Jump to [Entities](./entities.md) or [LLM Entities](./llm.md).

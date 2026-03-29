@@ -86,7 +86,7 @@ export class ComponentWrapper extends BaseWrapper {
         }
 
         return async (...args: unknown[]) => {
-          if (!bus) { const s = this.session(targetId); bus = new EventBus(s.pubsub, s.logger); }
+          if (!bus) { const s = this.session(targetId); bus = new EventBus(s.pubsub, s.observer); }
           return bus.request({
             id: randomUUID(), source: entity.id, target: targetId,
             type: `${entityType}.${p}`, payload: args[0], timestamp: Date.now(),

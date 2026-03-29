@@ -1,0 +1,38 @@
+import type { DatabaseAdapter } from "./database/adapter.js";
+import type { LocalPubSubAdapter, RemotePubSubAdapter } from "./pubsub/adapter.js";
+import type { ObserverAdapter } from "./observer/adapter.js";
+
+/**
+ * Typed project settings — exported from interactkit.config.ts.
+ *
+ * ```typescript
+ * import { PrismaDatabaseAdapter } from '@interactkit/prisma';
+ * import { RedisPubSubAdapter } from '@interactkit/redis';
+ * import { DevObserver } from '@interactkit/sdk';
+ * import type { InteractKitConfig } from '@interactkit/sdk';
+ *
+ * export default {
+ *   database: new PrismaDatabaseAdapter({ url: 'file:./app.db' }),
+ *   pubsub: new RedisPubSubAdapter({ host: 'localhost', port: 6379 }),
+ *   observer: new DevObserver(),
+ *   timeout: 15_000,
+ *   stateFlushMs: 50,
+ * } satisfies InteractKitConfig;
+ * ```
+ */
+export interface InteractKitConfig {
+  /** Database adapter instance — required for state persistence. */
+  database: DatabaseAdapter;
+  /** Remote pubsub adapter — used by entities marked `detached: true`. */
+  pubsub?: RemotePubSubAdapter;
+  /** Local bus — defaults to InProcessBusAdapter if not provided. */
+  localBus?: LocalPubSubAdapter;
+  /** Observer — sees all events flowing through the bus, can emit events back. */
+  observer?: ObserverAdapter;
+  /** Hook init config — passed to HookRunner.init(). Each hook reads the keys it needs. */
+  hooks?: Record<string, unknown>;
+  /** Event bus request timeout in ms. Default: 30000 */
+  timeout?: number;
+  /** State persistence debounce interval in ms. Default: 10 */
+  stateFlushMs?: number;
+}

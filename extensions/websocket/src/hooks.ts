@@ -74,7 +74,8 @@ function releaseWsServer(port: number, handler: MessageHandler | ConnectionHandl
 }
 
 // ─── WsMessage Hook ─────────────────────────────────────
-// Fires on every incoming WebSocket message.
+// Init config (from interactkit.config.ts): { ws: { port: 8080 } }
+// Run config (from @Hook decorator): per-entity overrides
 
 export namespace WsMessage {
   export interface Input {
@@ -85,15 +86,20 @@ export namespace WsMessage {
   }
 
   export interface Config {
-    port: number;
+    port?: number;
   }
 
   class RunnerImpl implements HookRunner<Input> {
     private port = 0;
     private handler: MessageHandler | null = null;
 
-    async start(emit: (data: Input) => void, config: Record<string, unknown>) {
-      this.port = config.port as number;
+    async init(config: Record<string, unknown>) {
+      const ws = config.ws as Record<string, unknown> | undefined;
+      this.port = (ws?.port as number) ?? 8080;
+    }
+
+    register(emit: (data: Input) => void, config: Record<string, unknown>) {
+      if (config.port) this.port = config.port as number;
       this.handler = (data, clientId, send, close) => {
         emit({ data, clientId, send, close });
       };
@@ -109,11 +115,12 @@ export namespace WsMessage {
     }
   }
 
-  export function Runner(config: Config): HookHandler<Input> {
+  export function Runner(config: Config = {}): HookHandler<Input> {
     return {
       __hookHandler: true as const,
       runnerClass: RunnerImpl,
       config: config as unknown as Record<string, unknown>,
+      initConfig: { ws: { port: config.port ?? 8080 } },
     };
   }
 }
@@ -129,15 +136,20 @@ export namespace WsConnection {
   }
 
   export interface Config {
-    port: number;
+    port?: number;
   }
 
   class RunnerImpl implements HookRunner<Input> {
     private port = 0;
     private handler: ConnectionHandler | null = null;
 
-    async start(emit: (data: Input) => void, config: Record<string, unknown>) {
-      this.port = config.port as number;
+    async init(config: Record<string, unknown>) {
+      const ws = config.ws as Record<string, unknown> | undefined;
+      this.port = (ws?.port as number) ?? 8080;
+    }
+
+    register(emit: (data: Input) => void, config: Record<string, unknown>) {
+      if (config.port) this.port = config.port as number;
       this.handler = (clientId, send, close) => {
         emit({ clientId, send, close });
       };
@@ -153,11 +165,12 @@ export namespace WsConnection {
     }
   }
 
-  export function Runner(config: Config): HookHandler<Input> {
+  export function Runner(config: Config = {}): HookHandler<Input> {
     return {
       __hookHandler: true as const,
       runnerClass: RunnerImpl,
       config: config as unknown as Record<string, unknown>,
+      initConfig: { ws: { port: config.port ?? 8080 } },
     };
   }
 }

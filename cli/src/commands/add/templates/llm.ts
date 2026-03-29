@@ -1,23 +1,16 @@
 /** Generate an LLM entity template. */
-export function llmTemplate(name: string, _type: string, remote?: boolean): string {
-  const sdkImports = remote
-    ? `Entity, LLMEntity, Hook, Init, State,\n  Executor, Tool, Describe, RedisPubSubAdapter,`
-    : `Entity, LLMEntity, Hook, Init, State,\n  Executor, Tool, Describe,`;
-  const entityOpts = remote
-    ? `{ description: 'TODO: describe this entity', pubsub: RedisPubSubAdapter }`
+export function llmTemplate(name: string, _type: string, detached?: boolean): string {
+  const entityOpts = detached
+    ? `{ description: 'TODO: describe this entity', detached: true }`
     : `{ description: 'TODO: describe this entity' }`;
   return `import {
-  ${sdkImports}
+  Entity, LLMEntity, Hook, Init, State,
+  Executor, Tool,
 } from '@interactkit/sdk';
 import { ChatOpenAI } from '@langchain/openai';
 
 @Entity(${entityOpts})
 export class ${name} extends LLMEntity {
-  @Describe()
-  describe() {
-    return 'You are a helpful assistant.';
-  }
-
   @Executor()
   private llm = new ChatOpenAI({ model: 'gpt-4o-mini' });
 

@@ -1,7 +1,7 @@
-import { Entity, BaseEntity, Describe, Component, Tool, RedisPubSubAdapter, type Remote } from '@interactkit/sdk';
+import { Entity, BaseEntity, Describe, Component, Tool, type Remote } from '@interactkit/sdk';
 import { StepC } from './step-c.js';
 
-@Entity({ pubsub: RedisPubSubAdapter })
+@Entity({ detached: true })
 export class StepB extends BaseEntity {
   @Describe() describe() { return 'StepB'; }
   @Component() private stepC!: Remote<StepC>;

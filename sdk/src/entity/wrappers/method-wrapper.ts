@@ -30,9 +30,6 @@ export class MethodWrapper extends BaseWrapper {
   }
 
   init(_tree: EntityTree, instances: Map<string, BaseEntity>): void {
-    // For each method, check if its owner entity's parent is NOT local.
-    // If so, this entity is a detached leaf — set up an EventBus listener
-    // so remote parents can call its methods.
     const entityListeners = new Map<string, BaseEntity>();
 
     for (const [id, entry] of this.entries) {
@@ -68,12 +65,18 @@ export class MethodWrapper extends BaseWrapper {
     if (this.listeningEntities.has(entityId)) return;
     this.listeningEntities.add(entityId);
 
+    // Use the entries map for dispatch — more reliable than prototype lookup
+    const entries = this.entries;
+
     this.listen(entityId, async (envelope) => {
       const methodName = envelope.type.split(".").pop()!;
+      const entryKey = `${entityId}.${methodName}`;
+      const entry = entries.get(entryKey);
+      if (entry) return entry.fn(envelope.payload);
       const fn = (instance as any)[methodName];
       if (typeof fn === "function") return fn.call(instance, envelope.payload);
       throw new Error(
-        `Method "${methodName}" not found on entity "${entityId}" instance of ${instance.constructor.name}`,
+        `Method "${methodName}" not found on entity "${entityId}" (${instance.constructor.name})`,
       );
     });
   }

@@ -28,8 +28,7 @@ export { InstanceFactory } from './entity/runner/instance-factory.js';
 export { BaseWrapper, EntitySession, StateWrapper, ComponentWrapper, RefWrapper, StreamWrapper,
   MethodWrapper, HookWrapper,
 } from './entity/wrappers/index.js';
-export type { EntityTree, EntityNode, ElementDescriptor, WrapperInfra,
-  NamedPubSub, NamedDatabase, NamedLogger,
+export type { EntityTree, EntityNode, ElementDescriptor,
 } from './entity/wrappers/index.js';
 
 // Infra
@@ -39,21 +38,20 @@ export type { InfraContext } from './entity/infra/index.js';
 // Hook namespaces
 export { Init } from './hooks/init.js';
 export { Tick } from './hooks/tick.js';
-export { Cron } from './hooks/cron.js';
-export { Event } from './hooks/event.js';
 export type { HookRunner, HookHandler } from './hooks/runner.js';
 
 // Adapter interfaces
-export type { PubSubAdapter, LocalPubSubAdapter, RemotePubSubAdapter } from './pubsub/adapter.js';
+export type { PubSubAdapter, LocalPubSubAdapter } from './pubsub/adapter.js';
 export type { DatabaseAdapter } from './database/adapter.js';
-export type { LogAdapter } from './logger/adapter.js';
+export type { ObserverAdapter } from './observer/adapter.js';
 
-// Adapter implementations
+// Adapter implementations (SDK ships local-only; Redis + Prisma are separate packages)
 export { InProcessBusAdapter } from './pubsub/in-process.js';
-export { RedisPubSubAdapter } from './pubsub/redis.js';
-export { PrismaDatabaseAdapter } from './database/prisma.js';
-export { ConsoleLogAdapter } from './logger/console.js';
-export { DevLogAdapter } from './logger/dev.js';
+export { BaseObserver } from './observer/base.js';
+export { ConsoleObserver } from './observer/console.js';
+export { DevObserver } from './observer/dev.js';
+// RemotePubSubAdapter base class (for extension authors)
+export { RemotePubSubAdapter } from './pubsub/adapter.js';
 
 // Event types + bus
 export type { EventEnvelope } from './events/types.js';
@@ -72,9 +70,8 @@ export type { LLMEntityOptions, ToolOptions, LLMMessage, LLMContextOptions, LLME
 export { MCP, getMCPMeta, MCPClientWrapper } from './mcp/index.js';
 export type { MCPOptions, MCPTransportConfig, MCPStdioTransport, MCPHttpTransport, MCPSseTransport, MCPToolInfo } from './mcp/index.js';
 
-// Config
-export { resolveRedisConfig, resolveDatabaseConfig } from './config.js';
-export type { RedisConfig, DatabaseConfig } from './config.js';
+// Settings
+export type { InteractKitConfig } from './settings.js';
 
 // Zod
 export { z } from 'zod';

@@ -6,6 +6,7 @@ export interface HookMetaEntry {
   method: string;
   runnerClass: new (...args: any[]) => HookRunner<any>;
   config: Record<string, unknown>;
+  initConfig?: Record<string, unknown>;
   inProcess: boolean;
 }
 
@@ -15,6 +16,7 @@ export function Hook(handler: HookHandler): MethodDecorator {
       method: String(propertyKey),
       runnerClass: handler.runnerClass,
       config: handler.config,
+      initConfig: handler.initConfig,
       inProcess: handler.inProcess ?? false,
     });
 }

@@ -1,0 +1,34 @@
+{
+  "name": "@interactkit/redis",
+  "version": "0.2.1",
+  "description": "Redis pub/sub adapter for InteractKit — distributed entity communication",
+  "type": "module",
+  "license": "MIT",
+  "keywords": ["interactkit", "extension", "redis", "pubsub", "distributed"],
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": ["dist"],
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "pnpm build"
+  },
+  "dependencies": {
+    "ioredis": "^5.10.1"
+  },
+  "peerDependencies": {
+    "@interactkit/sdk": "^0.2.0",
+    "reflect-metadata": "^0.2.0"
+  },
+  "devDependencies": {
+    "@interactkit/sdk": "workspace:*",
+    "@types/node": "^25.5.0",
+    "reflect-metadata": "^0.2.2",
+    "typescript": "^5.5.0"
+  }
+}

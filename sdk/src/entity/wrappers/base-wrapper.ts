@@ -2,14 +2,16 @@ import { randomUUID } from 'node:crypto';
 import type { BaseEntity } from '../types.js';
 import type { PubSubAdapter } from '../../pubsub/adapter.js';
 import type { DatabaseAdapter } from '../../database/adapter.js';
-import type { LogAdapter } from '../../logger/adapter.js';
+import type { ObserverAdapter } from '../../observer/adapter.js';
 import type { EventEnvelope } from '../../events/types.js';
+import type { InteractKitConfig } from '../../settings.js';
 import { EventBus } from '../../events/bus.js';
+import { InProcessBusAdapter } from '../../pubsub/in-process.js';
 import { EntitySession } from './entity-session.js';
-import type { EntityTree, ElementDescriptor, WrapperInfra } from './types.js';
+import type { EntityTree, ElementDescriptor } from './types.js';
 
 // Re-export types so existing consumers don't break
-export type { EntityTree, EntityNode, EntityNodeComponent, ElementDescriptor, WrapperInfra, NamedPubSub, NamedDatabase, NamedLogger } from './types.js';
+export type { EntityTree, EntityNode, EntityNodeComponent, ElementDescriptor } from './types.js';
 
 /**
  * Abstract singleton base for all wrappers.
@@ -20,20 +22,38 @@ export type { EntityTree, EntityNode, EntityNodeComponent, ElementDescriptor, Wr
 export abstract class BaseWrapper {
   // ─── Shared infra (set once, used by all wrappers) ────
 
-  private static pubsubs: Map<string, PubSubAdapter>;
-  private static databases: Map<string, DatabaseAdapter>;
-  private static loggers: Map<string, LogAdapter>;
+  private static localPubsub: PubSubAdapter;
+  private static remotePubsub: PubSubAdapter | undefined;
+  private static database: DatabaseAdapter | undefined;
+  private static observer: ObserverAdapter | undefined;
+  private static hooksConfig: Record<string, unknown> = {};
+  private static timeout: number = 30_000;
+  private static stateFlushMs: number = 10;
   private static tree: EntityTree;
   private static busCache = new Map<string, EventBus>();
   private static configured = false;
 
-  static configure(infra: WrapperInfra): void {
-    BaseWrapper.pubsubs = new Map(infra.pubsubs.map(p => [p.name, p.adapter]));
-    BaseWrapper.databases = new Map(infra.databases.map(d => [d.name, d.adapter]));
-    BaseWrapper.loggers = new Map(infra.loggers.map(l => [l.name, l.adapter]));
-    BaseWrapper.busCache.clear();
+  static configure(config?: InteractKitConfig): void {
+    if (!BaseWrapper.configured) {
+      BaseWrapper.localPubsub = config?.localBus ?? new InProcessBusAdapter();
+      BaseWrapper.remotePubsub = config?.pubsub;
+      BaseWrapper.database = config?.database;
+      BaseWrapper.observer = config?.observer;
+      BaseWrapper.hooksConfig = (config?.hooks as Record<string, unknown>) ?? {};
+      BaseWrapper.timeout = config?.timeout ?? 30_000;
+      BaseWrapper.stateFlushMs = config?.stateFlushMs ?? 10;
+    }
     BaseWrapper.configured = true;
   }
+
+  /** Hook init config from interactkit.config.ts */
+  static getHooksConfig(): Record<string, unknown> { return BaseWrapper.hooksConfig; }
+
+  /** Event bus timeout from config */
+  static getTimeout(): number { return BaseWrapper.timeout; }
+
+  /** State flush debounce from config */
+  static getStateFlushMs(): number { return BaseWrapper.stateFlushMs; }
 
   static setTree(tree: EntityTree): void { BaseWrapper.tree = tree; }
 
@@ -77,7 +97,7 @@ export abstract class BaseWrapper {
   protected session(id: string): EntitySession {
     let s = BaseWrapper.sessionCache.get(id);
     if (!s) {
-      s = new EntitySession(id, BaseWrapper.tree, BaseWrapper.pubsubs, BaseWrapper.databases, BaseWrapper.loggers);
+      s = new EntitySession(id, BaseWrapper.tree, BaseWrapper.localPubsub, BaseWrapper.remotePubsub, BaseWrapper.database, BaseWrapper.observer);
       BaseWrapper.sessionCache.set(id, s);
     }
     return s;
@@ -87,9 +107,9 @@ export abstract class BaseWrapper {
 
   protected resolveBus(id: string): EventBus {
     const s = this.session(id);
-    const key = s.node?.infra.pubsub ?? '__default';
+    const key = s.node?.infra.detached ? '__remote' : '__local';
     if (!BaseWrapper.busCache.has(key)) {
-      BaseWrapper.busCache.set(key, new EventBus(s.pubsub, s.logger));
+      BaseWrapper.busCache.set(key, new EventBus(s.pubsub, s.observer, BaseWrapper.timeout));
     }
     return BaseWrapper.busCache.get(key)!;
   }
@@ -150,14 +170,14 @@ export abstract class BaseWrapper {
     await this.resolveBus(targetId).publish(envelope);
   }
 
-  // ─── Logging convenience ──────────────────────────────
+  // ─── Observer convenience ─────────────────────────────
 
-  protected logEvent(id: string, envelope: EventEnvelope): void {
-    this.session(id).logger?.event(envelope);
+  protected observeEvent(id: string, envelope: EventEnvelope): void {
+    this.session(id).observer?.event(envelope);
   }
 
-  protected logError(id: string, envelope: EventEnvelope, error: Error): void {
-    this.session(id).logger?.error(envelope, error);
+  protected observeError(id: string, envelope: EventEnvelope, error: Error): void {
+    this.session(id).observer?.error(envelope, error);
   }
 
   static async destroyAll(): Promise<void> {

@@ -1,6 +1,6 @@
-import { Entity, BaseEntity, Describe, State, Tool, RedisPubSubAdapter, PrismaDatabaseAdapter } from '@interactkit/sdk';
+import { Entity, BaseEntity, Describe, State, Tool } from '@interactkit/sdk';
 
-@Entity({ pubsub: RedisPubSubAdapter, database: PrismaDatabaseAdapter })
+@Entity({ detached: true })
 export class Counter extends BaseEntity {
   @Describe() describe() { return `Counter: ${this.value}`; }
   @State({ description: 'value' }) private value = 0;

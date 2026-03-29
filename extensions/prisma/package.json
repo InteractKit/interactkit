@@ -1,0 +1,32 @@
+{
+  "name": "@interactkit/prisma",
+  "version": "0.2.1",
+  "description": "Prisma database adapter for InteractKit — persistent entity state",
+  "type": "module",
+  "license": "MIT",
+  "keywords": ["interactkit", "extension", "prisma", "database", "persistence"],
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": ["dist"],
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "pnpm build"
+  },
+  "peerDependencies": {
+    "@interactkit/sdk": "^0.2.0",
+    "@prisma/client": "^6.0.0",
+    "reflect-metadata": "^0.2.0"
+  },
+  "devDependencies": {
+    "@interactkit/sdk": "workspace:*",
+    "@types/node": "^25.5.0",
+    "reflect-metadata": "^0.2.2",
+    "typescript": "^5.5.0"
+  }
+}

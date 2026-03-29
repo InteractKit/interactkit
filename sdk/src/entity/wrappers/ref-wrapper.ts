@@ -106,7 +106,7 @@ export class RefWrapper extends BaseWrapper {
         const p = String(prop);
 
         return async (...args: unknown[]) => {
-          if (!bus) { const s = this.session(targetPath); bus = new EventBus(s.pubsub, s.logger); }
+          if (!bus) { const s = this.session(targetPath); bus = new EventBus(s.pubsub, s.observer); }
           return bus.request({
             id: randomUUID(), source: entity.id, target: targetPath,
             type: `${entityType}.${p}`, payload: args[0], timestamp: Date.now(),

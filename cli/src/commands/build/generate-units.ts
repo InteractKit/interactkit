@@ -24,7 +24,7 @@ function buildTypeToPathIds(entity: ParsedEntity, prefix: string): Map<string, s
 }
 
 /** Generate per-unit entrypoints + _all.ts from deployment plan. */
-export function generateUnits(entities: ParsedEntity[], generatedDir: string, dev: boolean, rootEntity?: ParsedEntity) {
+export function generateUnits(entities: ParsedEntity[], generatedDir: string, _dev: boolean, rootEntity?: ParsedEntity) {
   if (entities.length === 0) return;
 
   const plan = generateDeploymentPlan(entities);
@@ -43,11 +43,7 @@ export function generateUnits(entities: ParsedEntity[], generatedDir: string, de
   // Build type → path IDs from entity tree (for endIds calculation)
   const typeToPathIds = rootEntity ? buildTypeToPathIds(rootEntity, rootEntity.type) : new Map<string, string[]>();
 
-  // Collect ALL unique pubsub adapters used across the entire tree
-  const allPubsubs = new Set<string>(['InProcessBusAdapter']);
-  for (const e of entities) {
-    if (e.infra.pubsub) allPubsubs.add(e.infra.pubsub);
-  }
+  // Pubsub: local is always InProcessBusAdapter, remote comes from config
 
   const allUnitFiles: string[] = [];
 
@@ -85,8 +81,7 @@ export function generateUnits(entities: ParsedEntity[], generatedDir: string, de
       importLines.push(`import { ${entity.className} } from '${importPath}';`);
     }
 
-    const sdkImports = ['Runner', ...allPubsubs];
-    if (dev) sdkImports.push('DevLogAdapter');
+    const sdkImports = ['Runner'];
 
     // Generate one unit file per instance path
     for (let i = 0; i < startIds.length; i++) {
@@ -107,18 +102,15 @@ export function generateUnits(entities: ParsedEntity[], generatedDir: string, de
         `// Entities: ${unit.entities.join(', ')}`,
         `// Instance: ${sid}`,
         `// Scalable: ${unit.scalable}`,
-        `// Bus: ${unit.busAdapter}`,
-        "import 'dotenv/config';",
         "import 'reflect-metadata';",
         `import { ${sdkImports.join(', ')} } from '@interactkit/sdk';`,
+        "import type { InteractKitConfig } from '@interactkit/sdk';",
         "import { entityTree } from './entity-tree.js';",
+        "import _config from './interactkit.config.js';",
+        "const config = _config as InteractKitConfig;",
         ...importLines,
         '',
-        'const runner = new Runner(entityTree, {',
-        `  pubsubs: [${[...allPubsubs].map(ps => `{ name: "${ps}", adapter: new ${ps}() }`).join(', ')}],`,
-        '  databases: [],',
-        dev ? '  loggers: [{ name: "DevLogAdapter", adapter: new DevLogAdapter() }],' : '  loggers: [],',
-        '});',
+        'const runner = new Runner(entityTree, config);',
         '',
         `const { root, shutdown } = ${bootCall}`,
         `console.log(\`▸ ${unitName}: booted from \${root.id}\`);`,

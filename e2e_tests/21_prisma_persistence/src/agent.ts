@@ -1,6 +1,6 @@
-import { Entity, BaseEntity, Describe, State, Tool, Hook, Init, PrismaDatabaseAdapter } from '@interactkit/sdk';
+import { Entity, BaseEntity, Describe, State, Tool, Hook, Init } from '@interactkit/sdk';
 
-@Entity({ database: PrismaDatabaseAdapter })
+@Entity()
 export class Agent extends BaseEntity {
   @Describe() describe() { return `Agent: ${this.count} ops, ${this.log.length} logs`; }
   @State({ description: 'Counter' }) private count = 0;

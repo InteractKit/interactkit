@@ -1,8 +1,8 @@
 # InteractKit
 
-**Build worlds of AI agents in TypeScript. Scale them across machines with one line.**
+**Build agent swarms, virtual worlds, and autonomous systems in TypeScript.**
 
-Define agents as classes. Give them brains, memory, and tools with decorators. Snap them together into a tree -- the tree *is* the architecture. Entities call each other like normal functions, even across machines. Functions and objects pass transparently over the wire.
+InteractKit lets you create worlds where AI agents live, think, and collaborate. Each agent has its own brain, memory, and tools. Agents organize into teams. Teams scale across machines. One line of code.
 
 ```bash
 npm i -g @interactkit/cli
@@ -12,63 +12,121 @@ cd my-world && pnpm install && pnpm dev
 
 ---
 
-## Why InteractKit
+## Build a Customer Support Team
 
-Most AI frameworks give you one agent with a list of tools. That works for a chatbot. Real systems are bigger than a chatbot.
+A triage agent classifies incoming tickets. Billing and technical specialists handle their domains. Each has its own LLM, its own tools, its own knowledge.
 
-InteractKit gives you **composable, self-describing entities**. An entity does one thing. It describes itself. Entities compose into a tree. The tree is the architecture. The architecture tells the LLM what to do.
+```
+SupportTeam
+  ├── Triage (LLM)           ← classifies issues, routes to specialists
+  ├── BillingAgent
+  │   ├── BillingBrain (LLM) ← handles refunds, invoices, account issues
+  │   ├── Stripe (MCP)       ← real Stripe API access
+  │   └── Memory             ← remembers past interactions
+  ├── TechAgent
+  │   ├── TechBrain (LLM)    ← debugs problems, searches docs
+  │   ├── Docs               ← knowledge base search
+  │   └── Jira (MCP)         ← creates tickets automatically
+  └── SharedContext           ← all agents share the conversation
+```
+
+```bash
+interactkit init support-team
+interactkit add Triage --llm --attach SupportTeam
+interactkit add Stripe --mcp-stdio "npx -y @stripe/mcp" --attach BillingAgent
+interactkit add Jira --mcp-stdio "npx -y @jira/mcp" --attach TechAgent
+```
+
+No orchestration code. Each agent figures out what to do at its level.
+
+---
+
+## Run a Social Simulation
+
+50 AI personas, each with a unique personality, memory, and social presence. They post, react, and evolve over weeks.
+
+```
+Simulation
+  ├── Persona("Alice")
+  │   ├── Brain (LLM)        ← Alice's personality and decision-making
+  │   ├── Memory             ← what Alice remembers (grows over time)
+  │   ├── Reddit
+  │   │   ├── Humanizer      ← makes posts sound like Alice
+  │   │   └── PostHistory
+  │   └── Twitter
+  │       ├── Humanizer
+  │       └── PostHistory
+  ├── Persona("Bob")
+  │   ├── Brain (LLM)        ← completely different personality
+  │   ├── Memory             ← independent memory
+  │   └── Reddit
+  └── Coordinator
+      ├── Brain (LLM)        ← oversees the simulation
+      └── Analytics
+```
+
+Each persona acts on its own schedule. State persists between runs. Over weeks, each persona builds up unique memories and behavior patterns. That's a virtual world.
+
+---
+
+## Create an Autonomous Monitoring System
+
+Agents that watch, decide, and act -- no human in the loop.
+
+```typescript
+@Entity()
+class Monitor extends BaseEntity {
+  @Ref() private brain!: Brain;
+
+  @Hook(Tick.Runner({ intervalMs: 60000 }))
+  async onTick() {
+    const cpu = await checkCPU();
+    if (cpu > 90) {
+      await this.brain.invoke({ message: `CPU is at ${cpu}%. What should we do?` });
+    }
+  }
+}
+```
+
+The Brain decides whether to alert Slack, scale infrastructure, or create a PagerDuty incident. Wire in any external service with one CLI command:
+
+```bash
+interactkit add Slack --mcp-stdio "npx -y @slack/mcp" --attach Monitor
+interactkit add PagerDuty --mcp-stdio "npx -y @pagerduty/mcp" --attach Monitor
+```
+
+---
+
+## Build a Content Creation Pipeline
+
+A research agent finds information. A writer drafts content. A reviewer checks quality. They share context so nothing gets repeated.
 
 ```
 ContentTeam
-  ├── Planner (LLM)              <- decides what to do, delegates
+  ├── Planner (LLM)            ← decides the plan, delegates
   ├── Researcher
-  │   ├── ResearchBrain (LLM)    <- searches, reads, remembers
-  │   ├── Browser
-  │   └── Memory
+  │   ├── ResearchBrain (LLM)  ← searches and reads
+  │   ├── Browser              ← web access
+  │   └── Memory               ← stores findings
   ├── Writer
-  │   ├── WriterBrain (LLM)      <- drafts content using research
+  │   ├── WriterBrain (LLM)    ← drafts content from research
   │   └── Templates
-  └── SharedContext               <- shared conversation across all brains
+  ├── Reviewer
+  │   ├── ReviewerBrain (LLM)  ← checks quality and style
+  │   └── StyleGuide
+  └── SharedContext             ← all brains share the conversation
 ```
 
-Each brain has its own LLM, its own tools, its own state. The Planner calls `researcher.research()`, then `writer.write()`. Each sub-agent handles its own domain. You didn't write orchestration logic -- each LLM figures out what to do at its level.
+The Planner calls `researcher.research()`, then `writer.write()`, then `reviewer.review()`. Each sub-agent handles its own domain. You write the tree, not the coordination.
 
 ---
 
-## What You Can Build
+## Scale Across Machines
 
-- **Agent teams** -- a router brain triages to specialists, each with their own LLM and tools
-- **Agents with memory** -- persistent state that survives restarts, syncs across replicas
-- **MCP-powered worlds** -- Slack, GitHub, Jira, Stripe as typed entities with one CLI command
-- **Autonomous systems** -- entities that react to HTTP webhooks, cron schedules, timers
-- **Simulations** -- 50 personas, each with their own brain, memory, and social feeds
-- **Distributed systems** -- entities that scale horizontally, pass functions across machines
-
----
-
-## Quick Start
-
-```bash
-interactkit init my-world
-cd my-world
-pnpm install
-pnpm dev
-```
-
-Add entities:
-
-```bash
-interactkit add Memory --attach Agent                                  # plain entity
-interactkit add Brain --llm --attach Agent                             # LLM entity
-interactkit add Slack --mcp-stdio "npx -y @slack/mcp" --attach Agent   # MCP server → typed entity
-```
-
-Scale an entity to another machine:
+Any agent can run on a different machine. Same code. One decorator change.
 
 ```typescript
-import { Entity, BaseEntity, Component, Tool, type Remote, RedisPubSubAdapter } from '@interactkit/sdk';
-
-@Entity({ pubsub: RedisPubSubAdapter })
+@Entity({ detached: true })
 class Worker extends BaseEntity {
   @Tool({ description: 'Process task' })
   async process(input: { task: string }) { return input.task.toUpperCase(); }
@@ -76,7 +134,7 @@ class Worker extends BaseEntity {
 
 @Entity()
 class Agent extends BaseEntity {
-  @Component() private worker!: Remote<Worker>;  // type-safe distributed access
+  @Component() private worker!: Remote<Worker>;
 
   @Tool({ description: 'Do work' })
   async work(input: { task: string }) {
@@ -85,23 +143,85 @@ class Agent extends BaseEntity {
 }
 ```
 
-Run 5 replicas. Tasks distribute automatically. State syncs via Redis. Same code.
+Run 5 replicas. Tasks distribute automatically. Functions, objects, even callbacks pass transparently over the wire.
 
 ---
 
-## Key Features
+## How It Works
 
-**Self-describing entities.** Every entity has a `@Describe()` method that returns its current state as a string. LLMs get system prompts composed from live descriptions -- the prompt evolves as the world changes.
+Everything is an **entity** -- a TypeScript class that does one thing.
 
-**Transparent distribution.** Add `Remote<T>` to a component type and give it a Redis adapter. It now runs on a different machine. Method calls, return values, even *functions* -- all proxied automatically.
+```typescript
+@Entity()
+class Memory extends BaseEntity {
+  @Describe()
+  describe() { return `Memory with ${this.entries.length} entries.`; }
 
-**MCP servers as entities.** `interactkit add Slack --mcp-stdio "npx -y @slack/mcp"` generates a typed entity. The LLM gets all of Slack's tools alongside yours.
+  @State({ description: 'Stored entries' })
+  private entries: string[] = [];
 
-**Hooks.** Entities act on their own. `@Hook(Init.Runner())` for startup, `@Hook(Tick.Runner({ intervalMs: 5000 }))` for intervals, `@Hook(Cron.Runner({ expression: '0 9 * * 1' }))` for schedules, `@Hook(HttpRequest.Runner({ port: 3100 }))` for webhooks.
+  @Tool({ description: 'Store something' })
+  async store(input: { text: string }) { this.entries.push(input.text); }
 
-**State persistence.** `@State` properties auto-save to the database. State restores on restart. State syncs between replicas automatically.
+  @Tool({ description: 'Search entries' })
+  async search(input: { query: string }) {
+    return this.entries.filter(e => e.includes(input.query));
+  }
+}
+```
 
-**Build-time safety.** The build catches missing decorators, bad refs, unknown components, and missing `Remote<T>` on distributed entities before your app runs.
+Give an entity a brain and it can think:
+
+```typescript
+@Entity()
+class Brain extends LLMEntity {
+  @Describe()
+  describe() { return 'You are a helpful assistant. Search memory before answering.'; }
+
+  @Executor() private llm = new ChatOpenAI({ model: 'gpt-4o-mini' });
+  @Ref() private memory!: Memory;
+}
+```
+
+Snap entities together and the tree **is** the architecture:
+
+```typescript
+@Entity()
+class Agent extends BaseEntity {
+  @Component() private brain!: Brain;
+  @Component() private memory!: Memory;
+}
+```
+
+The LLM automatically sees all available tools. You don't write orchestration logic.
+
+---
+
+## Add Any External Service
+
+Any [MCP](https://modelcontextprotocol.io) server becomes a typed entity with one command:
+
+```bash
+interactkit add Slack --mcp-stdio "npx -y @slack/mcp" --attach Agent
+interactkit add GitHub --mcp-stdio "npx -y @github/mcp" --attach Agent
+interactkit add Stripe --mcp-stdio "npx -y @stripe/mcp" --attach Agent
+```
+
+Your agents can now send Slack messages, create GitHub issues, and process Stripe payments -- all as natural tool calls.
+
+---
+
+## Quick Reference
+
+| You want to... | You do this |
+|----------------|------------|
+| Create a new world | `interactkit init my-world` |
+| Add an agent with a brain | `interactkit add Brain --llm --attach Agent` |
+| Add memory | `interactkit add Memory --attach Agent` |
+| Connect Slack, GitHub, etc. | `interactkit add Slack --mcp-stdio "npx -y @slack/mcp"` |
+| Make an agent autonomous | Add `@Hook(Tick.Runner({ intervalMs: 5000 }))` |
+| Scale to another machine | Add `{ detached: true }` to `@Entity()` |
+| Share context between brains | Use `ConversationContext` as a shared `@Component` |
 
 ---
 
@@ -109,15 +229,15 @@ Run 5 replicas. Tasks distribute automatically. State syncs via Redis. Same code
 
 Full documentation at **[docs.interactkit.dev](https://docs.interactkit.dev)**
 
-| Guide | What you'll learn |
+| Guide | What you'll build |
 |-------|-------------------|
-| [Why InteractKit](https://docs.interactkit.dev/#/why) | Architecture philosophy, what you can build |
-| [Getting Started](https://docs.interactkit.dev/#/getting-started) | First project, first entity, CLI commands |
-| [Entities](https://docs.interactkit.dev/#/entities) | State, tools, components, refs, streams, `Remote<T>` |
-| [LLM Entities](https://docs.interactkit.dev/#/llm) | AI-powered entities with LangChain |
-| [Hooks](https://docs.interactkit.dev/#/hooks) | Init, tick, cron, HTTP, custom hooks |
-| [Infrastructure](https://docs.interactkit.dev/#/infrastructure) | Database, pub/sub, logging adapters |
-| [Deployment](https://docs.interactkit.dev/#/deployment) | Docker, scaling, distributed units |
+| [Getting Started](https://docs.interactkit.dev/#/getting-started) | Your first agent with brain and memory |
+| [Use Cases & Recipes](https://docs.interactkit.dev/#/why) | Agent teams, simulations, autonomous systems |
+| [Entities](https://docs.interactkit.dev/#/entities) | State, tools, components, refs, streams |
+| [LLM Entities](https://docs.interactkit.dev/#/llm) | Brains, shared context, router patterns |
+| [Hooks](https://docs.interactkit.dev/#/hooks) | Timers, cron, HTTP, webhooks |
+| [Infrastructure](https://docs.interactkit.dev/#/infrastructure) | Database, pub/sub, logging |
+| [Deployment](https://docs.interactkit.dev/#/deployment) | Docker, scaling, distributed systems |
 
 ## Packages
 

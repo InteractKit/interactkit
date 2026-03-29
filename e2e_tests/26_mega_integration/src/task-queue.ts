@@ -1,7 +1,7 @@
-import { Entity, BaseEntity, Describe, Component, State, Tool, RedisPubSubAdapter, type Remote } from '@interactkit/sdk';
+import { Entity, BaseEntity, Describe, Component, State, Tool, type Remote } from '@interactkit/sdk';
 import { Logger } from './logger.js';
 
-@Entity({ pubsub: RedisPubSubAdapter })
+@Entity({ detached: true })
 export class TaskQueue extends BaseEntity {
   @Describe() describe() { return `TaskQueue: ${this.tasks.length} tasks`; }
   @State({ description: 'tasks' }) private tasks: Array<{ id: string; data: string; status: string }> = [];

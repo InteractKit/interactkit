@@ -1,10 +1,11 @@
-import { execSync } from 'child_process';
+import { execSync, spawn } from 'child_process';
 
 const cwd = import.meta.dirname;
+const pids: number[] = [];
+function cleanup() { for (const pid of pids) { try { process.kill(pid, 'SIGTERM'); } catch {} } }
+process.on('exit', cleanup);
 
 const expected = [
-  'worker booted',
-  'worker received: POST /hook',
   'http response:',
   '"ok":true',
   'first request: POST:/hook:{"msg":"hello"}',
@@ -13,14 +14,23 @@ const expected = [
 
 try {
   execSync('interactkit build --root=src/agent:Agent', { stdio: 'pipe', cwd });
-  // Run _all.js which starts entity units + hook server in one process
+  execSync('redis-cli flushall', { stdio: 'pipe' });
+
+  // 1. Start hook server first (needs to be ready before entities register)
+  const hooks = spawn('node', ['.interactkit/build/src/_hooks.js'], { cwd, stdio: 'pipe' });
+  pids.push(hooks.pid!);
+  await new Promise(r => setTimeout(r, 2000));
+
+  // 2. Start worker
+  const worker = spawn('node', ['.interactkit/build/src/_unit-worker.js'], { cwd, stdio: 'pipe' });
+  pids.push(worker.pid!);
+  await new Promise(r => setTimeout(r, 2000));
+
+  // 3. Start agent (runs onInit which sends HTTP requests)
   let output = '';
   try {
-    output = execSync('node .interactkit/build/src/_all.js', {
-      timeout: 15000, cwd,
-    }).toString();
+    output = execSync('node .interactkit/build/src/_unit-agent.js', { timeout: 15000, cwd }).toString();
   } catch (e: any) {
-    // Process killed by timeout after DONE — expected since HTTP server keeps it alive
     output = e.stdout?.toString() ?? '';
     if (!output.includes('DONE')) throw e;
   }
@@ -36,4 +46,6 @@ try {
 } catch (e: any) {
   console.error('FAIL', e.stdout?.toString(), e.stderr?.toString());
   process.exit(1);
+} finally {
+  cleanup();
 }

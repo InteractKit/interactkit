@@ -37,8 +37,11 @@ export namespace Sms {
   }
 
   class RunnerImpl implements HookRunner<Input> {
-    async start(emit: (data: Input) => void, config: Record<string, unknown>) {
-      // Set up Twilio webhook, call emit() when SMS arrives
+    async init(config: Record<string, unknown>) {
+      // Set up shared resources using config from interactkit.config.ts
+    }
+    register(emit: (data: Input) => void, config: Record<string, unknown>) {
+      // Register per-entity emit callback, call emit() when SMS arrives
     }
     async stop() { /* cleanup */ }
   }
@@ -129,5 +132,5 @@ Multiple `--mcp-header` and `--mcp-env` flags can be passed to set several value
 
 ## What's Next?
 
-- [Infrastructure](./infrastructure.md): database, pub/sub, and logging adapters
+- [Infrastructure](./infrastructure.md): database, pub/sub, and observer adapters
 - [Codegen](./codegen.md): what the build generates from your entities

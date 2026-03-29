@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { PubSubAdapter } from '../pubsub/adapter.js';
-import type { LogAdapter } from '../logger/adapter.js';
+import type { ObserverAdapter } from '../observer/adapter.js';
 import type { EventEnvelope } from './types.js';
 
 const DEFAULT_TIMEOUT_MS = 30_000;
@@ -20,7 +20,7 @@ export class EventBus {
 
   constructor(
     private pubsub: PubSubAdapter,
-    private logger?: LogAdapter,
+    private observer?: ObserverAdapter,
     private timeoutMs = DEFAULT_TIMEOUT_MS,
   ) {}
 
@@ -63,7 +63,7 @@ export class EventBus {
     });
 
     // Send request — envelope is serializable (payload is data, not functions)
-    this.logger?.event(envelope);
+    this.observer?.event(envelope);
     await this.pubsub.enqueue(`entity:${envelope.target}`, envelope);
 
     return promise;
@@ -75,7 +75,7 @@ export class EventBus {
   ): Promise<void> {
     await this.pubsub.consume(`entity:${entityId}`, async (message) => {
       const envelope = message as EventEnvelope;
-      this.logger?.event(envelope);
+      this.observer?.event(envelope);
 
       let payload: unknown;
       let error: { message: string; stack?: string } | undefined;
@@ -85,7 +85,7 @@ export class EventBus {
       } catch (err) {
         const e = err instanceof Error ? err : new Error(String(err));
         error = { message: e.message, stack: e.stack };
-        this.logger?.error(envelope, e);
+        this.observer?.error(envelope, e);
       }
 
       if (envelope.correlationId) {
@@ -101,7 +101,7 @@ export class EventBus {
   }
 
   async publish(envelope: EventEnvelope): Promise<void> {
-    this.logger?.event(envelope);
+    this.observer?.event(envelope);
     await this.pubsub.enqueue(`entity:${envelope.target}`, envelope);
   }
 

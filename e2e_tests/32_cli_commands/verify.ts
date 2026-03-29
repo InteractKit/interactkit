@@ -28,26 +28,24 @@ try {
   assert(agent.includes('export class MyAgent extends BaseEntity'), 'class MyAgent extends BaseEntity');
   assert(agent.includes('@Entity({})'), '@Entity decorator');
   assert(agent.includes('@Hook(Init.Runner())'), 'has Init hook');
-  assert(!agent.includes('RedisPubSubAdapter'), 'no RedisPubSubAdapter (local)');
+  assert(!agent.includes('detached'), 'no detached (local)');
 
-  // ─── Test 2: interactkit add --remote ──────────────────
-  console.log('[32] === Test 2: interactkit add Worker --remote ===');
-  run('interactkit add Worker --remote');
+  // ─── Test 2: interactkit add --detached ────────────────
+  console.log('[32] === Test 2: interactkit add Worker --detached ===');
+  run('interactkit add Worker --detached');
   assert(existsSync(join(entities, 'worker.ts')), 'worker.ts created');
 
   const worker = read('worker.ts');
-  assert(worker.includes('RedisPubSubAdapter'), 'has RedisPubSubAdapter import');
-  assert(worker.includes('pubsub: RedisPubSubAdapter'), 'pubsub in @Entity');
+  assert(worker.includes('detached: true'), 'detached: true in @Entity');
   assert(worker.includes('export class Worker extends BaseEntity'), 'class Worker');
 
-  // ─── Test 3: interactkit add --llm --remote ────────────
-  console.log('[32] === Test 3: interactkit add Brain --llm --remote ===');
-  run('interactkit add Brain --llm --remote');
+  // ─── Test 3: interactkit add --llm --detached ─────────
+  console.log('[32] === Test 3: interactkit add Brain --llm --detached ===');
+  run('interactkit add Brain --llm --detached');
   assert(existsSync(join(entities, 'brain.ts')), 'brain.ts created');
 
   const brain = read('brain.ts');
-  assert(brain.includes('RedisPubSubAdapter'), 'LLM entity has RedisPubSubAdapter');
-  assert(brain.includes('pubsub: RedisPubSubAdapter'), 'pubsub in LLM @Entity');
+  assert(brain.includes('detached: true'), 'detached in LLM @Entity');
   assert(brain.includes('extends LLMEntity'), 'extends LLMEntity');
   assert(brain.includes('@Executor()'), 'has @Executor');
 
@@ -60,7 +58,7 @@ try {
   console.log('[32] === Test 5: interactkit add Helper --llm ===');
   run('interactkit add Helper --llm');
   const helper = read('helper.ts');
-  assert(!helper.includes('RedisPubSubAdapter'), 'local LLM has no RedisPubSubAdapter');
+  assert(!helper.includes('detached'), 'local LLM has no detached');
   assert(helper.includes('extends LLMEntity'), 'extends LLMEntity');
 
   // ─── Test 6: interactkit add Cache ─────────────────────
@@ -69,7 +67,6 @@ try {
   assert(existsSync(join(entities, 'cache.ts')), 'cache.ts created');
 
   // ─── Test 7: interactkit attach (always Remote<T>) ─────
-  // attach always generates Remote<T> regardless of pubsub
   console.log('[32] === Test 7: interactkit attach Helper MyAgent ===');
   run('interactkit attach Helper MyAgent');
 
@@ -98,16 +95,15 @@ try {
   assert(workerAfter9.includes('type Remote'), 'Remote type imported');
   assert(workerAfter9.includes('Ref'), 'Ref in imports');
 
-  // ─── Test 10: interactkit attach component on remote parent ──
-  console.log('[32] === Test 10: interactkit attach component on remote parent ===');
+  // ─── Test 10: interactkit attach component on detached parent ──
+  console.log('[32] === Test 10: interactkit attach component on detached parent ===');
   run('interactkit attach Cache Brain');
 
   const brainAfter10 = read('brain.ts');
-  assert(brainAfter10.includes('@Component() private cache!: Remote<Cache>;'), '@Component with Remote on remote parent');
+  assert(brainAfter10.includes('@Component() private cache!: Remote<Cache>;'), '@Component with Remote on detached parent');
 
   // ─── Test 11: verify the project builds ────────────────
   // Remove LLM entities (need @langchain/openai which isn't installed here)
-  // and Brain (not part of the tree anyway, just tested CLI add/attach)
   rmSync(join(entities, 'helper.ts'));
   rmSync(join(entities, 'brain.ts'));
   // Remove Helper component from MyAgent since we deleted helper.ts

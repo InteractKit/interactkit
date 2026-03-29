@@ -1,4 +1,4 @@
-import type { LogAdapter } from './adapter.js';
+import { BaseObserver } from './base.js';
 import type { EventEnvelope } from '../events/types.js';
 
 // ANSI colors
@@ -7,7 +7,6 @@ const DIM = '\x1b[2m';
 const BOLD = '\x1b[1m';
 const CYAN = '\x1b[36m';
 const GREEN = '\x1b[32m';
-const YELLOW = '\x1b[33m';
 const RED = '\x1b[31m';
 const MAGENTA = '\x1b[35m';
 const BLUE = '\x1b[34m';
@@ -23,10 +22,10 @@ function formatEntityId(id: string): string {
 }
 
 /**
- * Colored dev-mode logger for stdio.
+ * Colored dev-mode observer for stdio.
  * Shows events, tool calls, LLM responses, and errors with colors.
  */
-export class DevLogAdapter implements LogAdapter {
+export class DevObserver extends BaseObserver {
   event(envelope: EventEnvelope): void {
     const source = formatEntityId(envelope.source);
     const target = formatEntityId(envelope.target);
@@ -39,16 +38,18 @@ export class DevLogAdapter implements LogAdapter {
         ? DIM + ' ' + JSON.stringify(envelope.payload) + RESET
         : '';
       console.log(`${timestamp()} ${GREEN}▸${RESET} ${CYAN}${source}${RESET} → ${MAGENTA}${target}${RESET}${BOLD}.${method}${RESET}${args}`);
-      return;
+    } else {
+      // Generic events
+      console.log(`${timestamp()} ${BLUE}▸${RESET} ${DIM}${type}${RESET} ${source} → ${target}`);
     }
 
-    // Generic events
-    console.log(`${timestamp()} ${BLUE}▸${RESET} ${DIM}${type}${RESET} ${source} → ${target}`);
+    this.emit('event', envelope);
   }
 
   error(envelope: EventEnvelope, error: Error): void {
     const target = formatEntityId(envelope.target);
     const type = envelope.type;
     console.error(`${timestamp()} ${RED}✗ ${target}.${type}${RESET} ${RED}${error.message}${RESET}`);
+    this.emit('error', envelope, error);
   }
 }

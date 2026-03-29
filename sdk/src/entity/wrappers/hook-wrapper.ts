@@ -2,7 +2,7 @@ import { BaseWrapper, type EntityTree, type ElementDescriptor } from './base-wra
 import type { BaseEntity } from '../types.js';
 import type { HookRunner } from '../../hooks/runner.js';
 
-interface HookMeta { runnerClass: new () => HookRunner<unknown>; config: Record<string, unknown>; inProcess: boolean }
+interface HookMeta { runnerClass: new () => HookRunner<unknown>; config: Record<string, unknown>; initConfig?: Record<string, unknown>; inProcess: boolean }
 interface HookEntry { element: ElementDescriptor; meta?: HookMeta; runner?: HookRunner<unknown> }
 
 export class HookWrapper extends BaseWrapper {
@@ -16,22 +16,39 @@ export class HookWrapper extends BaseWrapper {
     this.entries.set(id, { element, meta: element.metadata as HookMeta | undefined });
   }
 
-  init(_tree: EntityTree, _instances: Map<string, BaseEntity>): void {
+  async init(_tree: EntityTree, _instances: Map<string, BaseEntity>): Promise<void> {
+    const hooksConfig = BaseWrapper.getHooksConfig();
+
     for (const [id, entry] of this.entries) {
       if (!entry.meta) continue;
       const entity = entry.element.entity as any;
       const methodFn = entity[entry.element.name];
       if (typeof methodFn !== 'function') continue;
 
-      const runner = new entry.meta.runnerClass();
-      entry.runner = runner;
+      const hookKey = `${entry.element.entityType}.${entry.element.name}`;
 
       if (entry.meta.inProcess) {
-        runner.start((data: unknown) => methodFn.call(entity, data), { ...entry.meta.config, entityId: entity.id, firstBoot: true });
+        // ─── Local: init + register + stop all in this process ───
+        const runner = new entry.meta.runnerClass();
+        entry.runner = runner;
+        await runner.init({ ...entry.meta.initConfig, ...hooksConfig });
+        runner.register(
+          (data: unknown) => { Promise.resolve(methodFn.call(entity, data)).catch(() => {}); },
+          { ...entry.meta.config, entityId: entity.id, firstBoot: true },
+        );
       } else {
-        // Runner runs in a separate process — entity just listens via pubsub
-        const channel = `hook:${entry.element.entityType}.${entry.element.name}`;
-        this.listenFromRemote(id, channel, (data: unknown) => methodFn.call(entity, data));
+        // ─── Remote: _hooks.ts owns the runner ───
+        // 1. Listen for data published by the hook process
+        const dataChannel = `hook:${hookKey}:${entity.id}`;
+        await this.listenFromRemote(id, dataChannel, (data: unknown) => methodFn.call(entity, data));
+
+        // 2. Tell the hook process to register this entity (enqueue for reliable delivery)
+        const registerChannel = `hook-register:${hookKey}`;
+        await this.session(id).pubsub.enqueue(registerChannel, {
+          entityId: entity.id,
+          dataChannel,
+          config: { ...entry.meta.config, entityId: entity.id },
+        });
       }
     }
   }

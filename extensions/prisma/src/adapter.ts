@@ -1,14 +1,14 @@
-import type { DatabaseAdapter } from './adapter.js';
-import { resolveDatabaseConfig } from '../config.js';
+import type { DatabaseAdapter } from '@interactkit/sdk';
+
+export interface DatabaseConfig {
+  url: string;
+}
 
 /**
  * Prisma-backed DatabaseAdapter.
  * Uses a generic key-value model — stores entity state as JSON.
  *
- * Config resolution (in order):
- *   1. node-config: interactkit.database.url
- *   2. Env var: DATABASE_URL
- *   3. Default: file:./interactkit.db
+ * Pass connection URL directly: `new PrismaDatabaseAdapter({ url: 'file:./app.db' })`
  *
  * Expects a Prisma client with an `entityState` model:
  *   model EntityState {
@@ -19,18 +19,17 @@ import { resolveDatabaseConfig } from '../config.js';
 export class PrismaDatabaseAdapter implements DatabaseAdapter {
   private prisma: any;
   private initialized = false;
+  private readonly dbConfig: DatabaseConfig;
 
-  constructor() {
-    // Lazy init
+  constructor(config: DatabaseConfig) {
+    this.dbConfig = config;
   }
 
   private async ensureConnected(): Promise<void> {
     if (this.initialized) return;
 
-    const config = resolveDatabaseConfig();
     let PrismaClient: any;
     try {
-      // Resolve from CWD so the user's @prisma/client is found (not the SDK's node_modules)
       const { createRequire } = await import('node:module');
       const require = createRequire(process.cwd() + '/package.json');
       PrismaClient = require('@prisma/client').PrismaClient;
@@ -39,7 +38,7 @@ export class PrismaDatabaseAdapter implements DatabaseAdapter {
     }
 
     this.prisma = new PrismaClient({
-      datasources: { db: { url: config.url } },
+      datasources: { db: { url: this.dbConfig.url } },
     });
 
     this.initialized = true;

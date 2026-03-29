@@ -42,16 +42,15 @@ export async function initCommand(projectName: string) {
   console.log(`\n▸ Creating InteractKit project: ${projectName} (${template.name}, ${database === 'none' ? 'no db' : database})\n`);
 
   mkdirSync(resolve(projectDir, 'src/entities'), { recursive: true });
-  mkdirSync(resolve(projectDir, 'config'), { recursive: true });
 
   // ─── package.json ─────────────────────────────────────────
 
   const deps: Record<string, string> = {
     '@interactkit/sdk': '^0.2.0',
-    'dotenv': '^16.4.0',
     'reflect-metadata': '^0.2.2',
   };
   if (database !== 'none') {
+    deps['@interactkit/prisma'] = '^0.2.0';
     deps['prisma'] = '^6.0.0';
     deps['@prisma/client'] = '^6.0.0';
   }
@@ -112,15 +111,41 @@ node_modules/
 *.db
 `);
 
-  // ─── config ───────────────────────────────────────────────
+  // ─── interactkit.config.ts ────────────────────────────────
 
-  const config: Record<string, any> = { interactkit: {} };
   if (database === 'sqlite') {
-    config.interactkit.database = { url: 'file:./interactkit.db' };
+    writeFileSync(resolve(projectDir, 'interactkit.config.ts'),
+`import { PrismaDatabaseAdapter } from '@interactkit/prisma';
+import { DevObserver } from '@interactkit/sdk';
+import type { InteractKitConfig } from '@interactkit/sdk';
+
+export default {
+  database: new PrismaDatabaseAdapter({ url: 'file:./interactkit.db' }),
+  observer: new DevObserver(),
+} satisfies InteractKitConfig;
+`);
   } else if (database === 'postgres') {
-    config.interactkit.database = { url: 'postgresql://localhost:5432/interactkit' };
+    writeFileSync(resolve(projectDir, 'interactkit.config.ts'),
+`import { PrismaDatabaseAdapter } from '@interactkit/prisma';
+import { DevObserver } from '@interactkit/sdk';
+import type { InteractKitConfig } from '@interactkit/sdk';
+
+export default {
+  database: new PrismaDatabaseAdapter({ url: process.env.DATABASE_URL ?? 'postgresql://localhost:5432/interactkit' }),
+  observer: new DevObserver(),
+} satisfies InteractKitConfig;
+`);
+  } else {
+    writeFileSync(resolve(projectDir, 'interactkit.config.ts'),
+`import { DevObserver } from '@interactkit/sdk';
+import type { InteractKitConfig } from '@interactkit/sdk';
+
+export default {
+  database: undefined!,  // No database — state is in-memory only
+  observer: new DevObserver(),
+} satisfies InteractKitConfig;
+`);
   }
-  writeFileSync(resolve(projectDir, 'config/default.json'), JSON.stringify(config, null, 2) + '\n');
 
   // ─── Prisma ───────────────────────────────────────────────
 
@@ -156,8 +181,7 @@ model EntityState {
   // ─── Entities (compiled from template JSON) ───────────────
 
   for (const entity of template.entities) {
-    const isRoot = entity.file === template.root.file && entity.class === template.root.class;
-    const code = compileEntity(entity, isRoot ? { database: database === 'none' ? 'none' : 'prisma' } : undefined);
+    const code = compileEntity(entity);
     const filePath = resolve(projectDir, `src/entities/${entity.file}.ts`);
     mkdirSync(dirname(filePath), { recursive: true });
     writeFileSync(filePath, code);
@@ -166,6 +190,7 @@ model EntityState {
   // ─── Summary ──────────────────────────────────────────────
 
   console.log('  Created:');
+  console.log('    interactkit.config.ts');
   for (const entity of template.entities) {
     console.log(`    src/entities/${entity.file}.ts  (${entity.class})`);
   }

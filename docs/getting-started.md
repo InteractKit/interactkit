@@ -3,9 +3,8 @@
 ## Create a Project
 
 ```bash
+npm i -g @interactkit/cli
 interactkit init my-agent
-cd my-agent
-pnpm install
 ```
 
 This gives you a working project with three entities:
@@ -13,17 +12,16 @@ This gives you a working project with three entities:
 ```
 my-agent/
   src/entities/
-    agent.ts       ← root entity (has Brain and Memory as components)
-    brain.ts       ← LLM entity (sees Memory via @Ref)
-    memory.ts      ← stores and retrieves information
-  config/
-    default.json   ← Redis and database config
-  .env             ← OPENAI_API_KEY and other secrets
+    agent.ts              ← root entity (has Brain and Memory as components)
+    brain.ts              ← LLM entity (sees Memory via @Ref)
+    memory.ts             ← stores and retrieves information
+  interactkit.config.ts   ← database, pubsub, and observer config
+  .env                    ← OPENAI_API_KEY and other secrets
   package.json
   tsconfig.json
 ```
 
-`dotenv` is included by default -- put your `OPENAI_API_KEY` in `.env` and it's available immediately.
+Put your `OPENAI_API_KEY` in `.env` and it's available immediately.
 
 ## Build and Run
 
@@ -65,7 +63,7 @@ This generates an entity file with the MCP transport pre-configured. Use `--mcp-
 | `interactkit init <name>` | Create a new project |
 | `interactkit add <name>` | Generate an entity file |
 | `interactkit add <name> --llm` | Generate an LLM entity |
-| `interactkit add <name> --remote` | Generate with `RedisPubSubAdapter` (distributed) |
+| `interactkit add <name> --detached` | Generate a detached entity (uses remote pubsub from config) |
 | `interactkit add <name> --mcp-stdio "cmd"` | Generate an MCP entity (stdio transport) |
 | `interactkit add <name> --attach Parent` | Generate and attach as `@Component` to Parent |
 | `interactkit attach <Child> <Parent>` | Attach existing entity as `@Component` (auto-infers `Remote<T>`) |
@@ -200,39 +198,38 @@ The build doesn't care about folder layout. `--root` follows imports wherever th
 
 ## Adding a Database
 
-Want state to survive restarts? Add a database adapter to your root entity:
+Want state to survive restarts? Configure a database adapter in `interactkit.config.ts`:
 
 ```typescript
-import { Entity, BaseEntity, Describe, Component, PrismaDatabaseAdapter, ConsoleLogAdapter } from '@interactkit/sdk';
+// interactkit.config.ts
+import { PrismaDatabaseAdapter } from '@interactkit/prisma';
+import type { InteractKitConfig } from '@interactkit/sdk';
 
-@Entity({
-  database: PrismaDatabaseAdapter,
-  logger: ConsoleLogAdapter,
-})
-class Agent extends BaseEntity {
-  @Describe()
-  describe() {
-    return 'Root agent with persistent storage.';
-  }
-
-  @Component() private brain!: Brain;   // inherits database + logger
-  @Component() private memory!: Memory; // inherits database + logger
-}
+export default {
+  database: new PrismaDatabaseAdapter({ url: 'file:./app.db' }),
+} satisfies InteractKitConfig;
 ```
 
-Children inherit adapters automatically.
+All entities share this database automatically — no per-entity configuration needed.
 
 ## Config
 
-Adapters read from `config/default.json`:
+All infrastructure is configured in `interactkit.config.ts` at the project root. Adapters take connection config via their constructors:
 
-```json
-{
-  "interactkit": {
-    "redis": { "host": "127.0.0.1", "port": 6379 },
-    "database": { "url": "file:./interactkit.db" }
-  }
-}
+```typescript
+// interactkit.config.ts
+import { PrismaDatabaseAdapter } from '@interactkit/prisma';
+import { RedisPubSubAdapter } from '@interactkit/redis';
+import { DevObserver } from '@interactkit/sdk';
+import type { InteractKitConfig } from '@interactkit/sdk';
+
+export default {
+  database: new PrismaDatabaseAdapter({ url: 'file:./app.db' }),
+  pubsub: new RedisPubSubAdapter({ host: 'localhost', port: 6379 }),
+  observer: new DevObserver(),
+  timeout: 15_000,      // event bus request timeout (default: 30000)
+  stateFlushMs: 50,     // state persistence debounce (default: 10)
+} satisfies InteractKitConfig;
 ```
 
 ---

@@ -22,14 +22,11 @@ try {
     [
       `import 'dotenv/config';`,
       `import 'reflect-metadata';`,
-      `import { Runner, InProcessBusAdapter, PrismaDatabaseAdapter } from '@interactkit/sdk';`,
+      `import { Runner } from '@interactkit/sdk';`,
+      `import { PrismaDatabaseAdapter } from '@interactkit/prisma';`,
       `import { entityTree } from './entity-tree.js';`,
       `import { Agent } from './agent.js';`,
-      `const runner = new Runner(entityTree, {`,
-      `  pubsubs: [{ name: 'InProcessBusAdapter', adapter: new InProcessBusAdapter() }],`,
-      `  databases: [{ name: 'PrismaDatabaseAdapter', adapter: new PrismaDatabaseAdapter() }],`,
-      `  loggers: [],`,
-      `});`,
+      `const runner = new Runner(entityTree, { database: new PrismaDatabaseAdapter({ url: process.env.DATABASE_URL ?? 'file:./interactkit.db' }) });`,
       `const { root, shutdown } = await runner.boot(Agent);`,
     ].join('\n')
   );

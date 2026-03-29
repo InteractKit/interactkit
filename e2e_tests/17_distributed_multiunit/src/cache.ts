@@ -1,6 +1,6 @@
-import { Entity, BaseEntity, Describe, State, Tool, RedisPubSubAdapter } from '@interactkit/sdk';
+import { Entity, BaseEntity, Describe, State, Tool } from '@interactkit/sdk';
 
-@Entity({ pubsub: RedisPubSubAdapter })
+@Entity({ detached: true })
 export class Cache extends BaseEntity {
   @Describe() describe() { return `Cache: ${Object.keys(this.store).length} keys`; }
   @State({ description: 'store' }) private store: Record<string, string> = {};

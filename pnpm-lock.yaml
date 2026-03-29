@@ -303,6 +303,9 @@ importers:
 
   e2e_tests/13_distributed_basic:
     dependencies:
+      '@interactkit/redis':
+        specifier: workspace:*
+        version: link:../../extensions/redis
       '@interactkit/sdk':
         specifier: workspace:*
         version: link:../../sdk
@@ -325,6 +328,9 @@ importers:
 
   e2e_tests/14_distributed_stress:
     dependencies:
+      '@interactkit/redis':
+        specifier: workspace:*
+        version: link:../../extensions/redis
       '@interactkit/sdk':
         specifier: workspace:*
         version: link:../../sdk
@@ -347,6 +353,12 @@ importers:
 
   e2e_tests/15_distributed_state_sync:
     dependencies:
+      '@interactkit/prisma':
+        specifier: workspace:*
+        version: link:../../extensions/prisma
+      '@interactkit/redis':
+        specifier: workspace:*
+        version: link:../../extensions/redis
       '@interactkit/sdk':
         specifier: workspace:*
         version: link:../../sdk
@@ -375,6 +387,9 @@ importers:
 
   e2e_tests/16_distributed_bidirectional:
     dependencies:
+      '@interactkit/redis':
+        specifier: workspace:*
+        version: link:../../extensions/redis
       '@interactkit/sdk':
         specifier: workspace:*
         version: link:../../sdk
@@ -397,6 +412,9 @@ importers:
 
   e2e_tests/17_distributed_multiunit:
     dependencies:
+      '@interactkit/redis':
+        specifier: workspace:*
+        version: link:../../extensions/redis
       '@interactkit/sdk':
         specifier: workspace:*
         version: link:../../sdk
@@ -463,6 +481,9 @@ importers:
 
   e2e_tests/20_codegen_verification:
     dependencies:
+      '@interactkit/redis':
+        specifier: workspace:*
+        version: link:../../extensions/redis
       '@interactkit/sdk':
         specifier: workspace:*
         version: link:../../sdk
@@ -485,6 +506,9 @@ importers:
 
   e2e_tests/21_prisma_persistence:
     dependencies:
+      '@interactkit/prisma':
+        specifier: workspace:*
+        version: link:../../extensions/prisma
       '@interactkit/sdk':
         specifier: workspace:*
         version: link:../../sdk
@@ -513,6 +537,9 @@ importers:
 
   e2e_tests/22_scalability_fanout:
     dependencies:
+      '@interactkit/redis':
+        specifier: workspace:*
+        version: link:../../extensions/redis
       '@interactkit/sdk':
         specifier: workspace:*
         version: link:../../sdk
@@ -541,6 +568,9 @@ importers:
 
   e2e_tests/23_deep_distributed_chain:
     dependencies:
+      '@interactkit/redis':
+        specifier: workspace:*
+        version: link:../../extensions/redis
       '@interactkit/sdk':
         specifier: workspace:*
         version: link:../../sdk
@@ -569,6 +599,9 @@ importers:
 
   e2e_tests/24_multi_replica:
     dependencies:
+      '@interactkit/redis':
+        specifier: workspace:*
+        version: link:../../extensions/redis
       '@interactkit/sdk':
         specifier: workspace:*
         version: link:../../sdk
@@ -591,6 +624,9 @@ importers:
 
   e2e_tests/25_replica_state_sync:
     dependencies:
+      '@interactkit/redis':
+        specifier: workspace:*
+        version: link:../../extensions/redis
       '@interactkit/sdk':
         specifier: workspace:*
         version: link:../../sdk
@@ -613,6 +649,9 @@ importers:
 
   e2e_tests/26_mega_integration:
     dependencies:
+      '@interactkit/redis':
+        specifier: workspace:*
+        version: link:../../extensions/redis
       '@interactkit/sdk':
         specifier: workspace:*
         version: link:../../sdk
@@ -635,6 +674,9 @@ importers:
 
   e2e_tests/27_streams_colocation:
     dependencies:
+      '@interactkit/redis':
+        specifier: workspace:*
+        version: link:../../extensions/redis
       '@interactkit/sdk':
         specifier: workspace:*
         version: link:../../sdk
@@ -657,6 +699,9 @@ importers:
 
   e2e_tests/28_streams_distributed:
     dependencies:
+      '@interactkit/redis':
+        specifier: workspace:*
+        version: link:../../extensions/redis
       '@interactkit/sdk':
         specifier: workspace:*
         version: link:../../sdk
@@ -679,6 +724,9 @@ importers:
 
   e2e_tests/29_proxy_functions:
     dependencies:
+      '@interactkit/redis':
+        specifier: workspace:*
+        version: link:../../extensions/redis
       '@interactkit/sdk':
         specifier: workspace:*
         version: link:../../sdk
@@ -704,6 +752,9 @@ importers:
       '@interactkit/http':
         specifier: workspace:*
         version: link:../../extensions/http
+      '@interactkit/redis':
+        specifier: workspace:*
+        version: link:../../extensions/redis
       '@interactkit/sdk':
         specifier: workspace:*
         version: link:../../sdk
@@ -717,17 +768,17 @@ importers:
         specifier: ^0.2.2
         version: 0.2.2
 
-  examples/sample-app:
+  e2e_tests/31_remote_infra_complex:
     dependencies:
+      '@interactkit/redis':
+        specifier: workspace:*
+        version: link:../../extensions/redis
       '@interactkit/sdk':
         specifier: workspace:*
         version: link:../../sdk
-      '@langchain/anthropic':
-        specifier: ^1.3.25
-        version: 1.3.25(@langchain/core@1.1.36(openai@5.23.2(ws@8.20.0)(zod@3.25.76))(ws@8.20.0))
-      '@langchain/core':
-        specifier: ^1.1.36
-        version: 1.1.36(openai@5.23.2(ws@8.20.0)(zod@3.25.76))(ws@8.20.0)
+      dotenv:
+        specifier: ^16.4.0
+        version: 16.6.1
       reflect-metadata:
         specifier: ^0.2.2
         version: 0.2.2
@@ -742,7 +793,117 @@ importers:
         specifier: ^5.5.0
         version: 5.9.3
 
+  e2e_tests/32_cli_commands:
+    dependencies:
+      '@interactkit/sdk':
+        specifier: workspace:*
+        version: link:../../sdk
+      dotenv:
+        specifier: ^16.4.0
+        version: 16.6.1
+      reflect-metadata:
+        specifier: ^0.2.2
+        version: 0.2.2
+    devDependencies:
+      '@interactkit/cli':
+        specifier: workspace:*
+        version: link:../../cli
+      '@types/node':
+        specifier: ^25.5.0
+        version: 25.5.0
+      typescript:
+        specifier: ^5.5.0
+        version: 5.9.3
+
+  examples/sample-app:
+    dependencies:
+      '@interactkit/sdk':
+        specifier: workspace:*
+        version: link:../../sdk
+      '@langchain/anthropic':
+        specifier: ^1.3.25
+        version: 1.3.25(@langchain/core@1.1.36(openai@5.23.2(ws@8.20.0)(zod@3.25.76))(ws@8.20.0))
+      '@langchain/core':
+        specifier: ^1.1.36
+        version: 1.1.36(openai@5.23.2(ws@8.20.0)(zod@3.25.76))(ws@8.20.0)
+      dotenv:
+        specifier: ^17.3.1
+        version: 17.3.1
+      reflect-metadata:
+        specifier: ^0.2.2
+        version: 0.2.2
+    devDependencies:
+      '@interactkit/cli':
+        specifier: workspace:*
+        version: link:../../cli
+      '@types/node':
+        specifier: ^25.5.0
+        version: 25.5.0
+      typescript:
+        specifier: ^5.5.0
+        version: 5.9.3
+
+  extensions/cron:
+    dependencies:
+      node-cron:
+        specifier: ^3.0.3
+        version: 3.0.3
+    devDependencies:
+      '@interactkit/sdk':
+        specifier: workspace:*
+        version: link:../../sdk
+      '@types/node':
+        specifier: ^25.5.0
+        version: 25.5.0
+      '@types/node-cron':
+        specifier: ^3.0.11
+        version: 3.0.11
+      reflect-metadata:
+        specifier: ^0.2.2
+        version: 0.2.2
+      typescript:
+        specifier: ^5.5.0
+        version: 5.9.3
+
   extensions/http:
+    devDependencies:
+      '@interactkit/sdk':
+        specifier: workspace:*
+        version: link:../../sdk
+      '@types/node':
+        specifier: ^25.5.0
+        version: 25.5.0
+      reflect-metadata:
+        specifier: ^0.2.2
+        version: 0.2.2
+      typescript:
+        specifier: ^5.5.0
+        version: 5.9.3
+
+  extensions/prisma:
+    dependencies:
+      '@prisma/client':
+        specifier: ^6.0.0
+        version: 6.19.2(prisma@6.19.2(typescript@5.9.3))(typescript@5.9.3)
+    devDependencies:
+      '@interactkit/sdk':
+        specifier: workspace:*
+        version: link:../../sdk
+      '@types/node':
+        specifier: ^25.5.0
+        version: 25.5.0
+      reflect-metadata:
+        specifier: ^0.2.2
+        version: 0.2.2
+      typescript:
+        specifier: ^5.5.0
+        version: 5.9.3
+
+  extensions/redis:
+    dependencies:
+      ioredis:
+        specifier: ^5.10.1
+        version: 5.10.1
     devDependencies:
       '@interactkit/sdk':
         specifier: workspace:*
@@ -812,28 +973,16 @@ importers:
 
   sdk:
     dependencies:
-      '@kaciras/deasync':
-        specifier: ^1.1.0
-        version: 1.1.0
       '@langchain/core':
         specifier: ^1.1.36
         version: 1.1.36(openai@5.23.2(ws@8.20.0)(zod@3.25.76))(ws@8.20.0)
       '@modelcontextprotocol/sdk':
         specifier: ^1.28.0
         version: 1.28.0(@cfworker/json-schema@4.1.1)(zod@3.25.76)
-      config:
-        specifier: ^4.4.1
-        version: 4.4.1
-      ioredis:
-        specifier: ^5.10.1
-        version: 5.10.1
       zod:
         specifier: ^3.23.0
         version: 3.25.76
     devDependencies:
-      '@types/config':
-        specifier: ^4.4.0
-        version: 4.4.0
       '@types/node':
         specifier: ^25.5.0
         version: 25.5.0
@@ -1036,10 +1185,6 @@ packages:
   '@jridgewell/sourcemap-codec@1.5.5':
     resolution: {integrity: sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og==}
 
-  '@kaciras/deasync@1.1.0':
-    resolution: {integrity: sha512-cuO+rgjwuZxja/F/W+dIqSG8wmci0PM6LLZor/PGhWrRITtIltp0kjiZlaVNSHnbEhPYBG4taOdQBwyKdbA0QQ==}
-    engines: {node: '>=20'}
-
   '@langchain/anthropic@1.3.25':
     resolution: {integrity: sha512-iwhznHMFaU+MZyac4UJjppJmfNSINB1Joruh0obgCLSmJYxicRVWtWnUgnHXGYRstToWDYwfymvfftgo872EzQ==}
     engines: {node: '>=20'}
@@ -1218,15 +1363,14 @@ packages:
   '@types/chai@5.2.3':
     resolution: {integrity: sha512-Mw558oeA9fFbv65/y4mHtXDs9bPnFMZAL/jxdPFUpOHHIXX91mcgEHbS5Lahr+pwZFR8A7GQleRWeI6cGFC2UA==}
 
-  '@types/config@4.4.0':
-    resolution: {integrity: sha512-+82/thz8il6uR6mWFuMTWyC+jSXE4PIZUPmAfKUDOuvNULq3BPLM+tSKsAe3eOIOMKx5azvg3Q3JljWV9yX7aw==}
-    deprecated: This is a stub types definition. config provides its own type definitions, so you do not need this installed.
-
   '@types/deep-eql@4.0.2':
     resolution: {integrity: sha512-c9h9dVVMigMPc4bwTvC5dxqtqJZwQPePsWjPlpSOnojbor6pGqdk541lfA7AqFQr5pB1BRdq0juY9db81BwyFw==}
 
   '@types/estree@1.0.8':
     resolution: {integrity: sha512-dWHzHa2WqEXI/O1E9OjrocMTKJl2mSrEolh1Iomrv6U+JuNwaHXsXx9bLu5gG7BUWFIN0skIQJQ/L1rIex4X6w==}
+
+  '@types/node-cron@3.0.11':
+    resolution: {integrity: sha512-0ikrnug3/IyneSHqCBeslAhlK2aBfYek1fGo4bP4QnZPmiqSGRK+Oy7ZMisLWkesffJvQ1cqAcBnJC+8+nxIAg==}
 
   '@types/node@25.5.0':
     resolution: {integrity: sha512-jp2P3tQMSxWugkCUKLRPVUpGaL5MVFwF8RDuSRztfwgN1wmqJeMSbKlnEtQqU8UrhTmzEmZdu2I6v2dpp7XIxw==}
@@ -1300,57 +1444,8 @@ packages:
     resolution: {integrity: sha512-Izi8RQcffqCeNVgFigKli1ssklIbpHnCYc6AknXGYoB6grJqyeby7jv12JUQgmTAnIDnbck1uxksT4dzN3PWBA==}
     engines: {node: '>=12'}
 
-  b4a@1.8.0:
-    resolution: {integrity: sha512-qRuSmNSkGQaHwNbM7J78Wwy+ghLEYF1zNrSeMxj4Kgw6y33O3mXcQ6Ie9fRvfU/YnxWkOchPXbaLb73TkIsfdg==}
-    peerDependencies:
-      react-native-b4a: '*'
-    peerDependenciesMeta:
-      react-native-b4a:
-        optional: true
-
   balanced-match@1.0.2:
     resolution: {integrity: sha512-3oSeUO0TMV67hN1AmbXsK4yaqU7tjiHlbxRDZOpH0KW9+CeX4bRAaX0Anxt0tx2MrpRpWwQaPwIlISEJhYU5Pw==}
-
-  bare-events@2.8.2:
-    resolution: {integrity: sha512-riJjyv1/mHLIPX4RwiK+oW9/4c3TEUeORHKefKAKnZ5kyslbN+HXowtbaVEqt4IMUB7OXlfixcs6gsFeo/jhiQ==}
-    peerDependencies:
-      bare-abort-controller: '*'
-    peerDependenciesMeta:
-      bare-abort-controller:
-        optional: true
-
-  bare-fs@4.5.6:
-    resolution: {integrity: sha512-1QovqDrR80Pmt5HPAsMsXTCFcDYr+NSUKW6nd6WO5v0JBmnItc/irNRzm2KOQ5oZ69P37y+AMujNyNtG+1Rggw==}
-    engines: {bare: '>=1.16.0'}
-    peerDependencies:
-      bare-buffer: '*'
-    peerDependenciesMeta:
-      bare-buffer:
-        optional: true
-
-  bare-os@3.8.0:
-    resolution: {integrity: sha512-Dc9/SlwfxkXIGYhvMQNUtKaXCaGkZYGcd1vuNUUADVqzu4/vQfvnMkYYOUnt2VwQ2AqKr/8qAVFRtwETljgeFg==}
-    engines: {bare: '>=1.14.0'}
-
-  bare-path@3.0.0:
-    resolution: {integrity: sha512-tyfW2cQcB5NN8Saijrhqn0Zh7AnFNsnczRcuWODH0eYAXBsJ5gVxAUuNr7tsHSC6IZ77cA0SitzT+s47kot8Mw==}
-
-  bare-stream@2.11.0:
-    resolution: {integrity: sha512-Y/+iQ49fL3rIn6w/AVxI/2+BRrpmzJvdWt5Jv8Za6Ngqc6V227c+pYjYYgLdpR3MwQ9ObVXD0ZrqoBztakM0rw==}
-    peerDependencies:
-      bare-abort-controller: '*'
-      bare-buffer: '*'
-      bare-events: '*'
-    peerDependenciesMeta:
-      bare-abort-controller:
-        optional: true
-      bare-buffer:
-        optional: true
-      bare-events:
-        optional: true
-
-  bare-url@2.4.0:
-    resolution: {integrity: sha512-NSTU5WN+fy/L0DDenfE8SXQna4voXuW0FHM7wH8i3/q9khUSchfPbPezO4zSFMnDGIf9YE+mt/RWhZgNRKRIXA==}
 
   base64-js@1.5.1:
     resolution: {integrity: sha512-AKpaYlHn8t4SVbOHCy+b5+KKgvR4vrsD8vbvrbiQJps7fKDTkjkDry6ji0rUJjC0kzbNePLwzxq8iypo41qeWA==}
@@ -1444,10 +1539,6 @@ packages:
   confbox@0.2.4:
     resolution: {integrity: sha512-ysOGlgTFbN2/Y6Cg3Iye8YKulHw+R2fNXHrgSmXISQdMnomY6eNDprVdW9R5xBguEqI954+S6709UyiO7B+6OQ==}
 
-  config@4.4.1:
-    resolution: {integrity: sha512-XfN4Q4+wBKkGtgMyQ+5ayjepdb0MrdiGKfBr0G1PTLx9rnqsX+Xiw03LEUtSALZU0UVfcFp6+xYV0NL8HLF94g==}
-    engines: {node: '>= 20.0.0'}
-
   consola@3.4.2:
     resolution: {integrity: sha512-5IKcdX0nnYavi6G7TtOhwkYzyjfJlatbjMjuLSfE2kYT5pMDOilZ4OvMhi637CcDICTmz3wARPoyhqyX1Y+XvA==}
     engines: {node: ^14.18.0 || >=16.10.0}
@@ -1525,6 +1616,10 @@ packages:
     resolution: {integrity: sha512-uBq4egWHTcTt33a72vpSG0z3HnPuIl6NqYcTrKEg2azoEyl2hpW0zqlxysq2pK9HlDIHyHyakeYaYnSAwd8bow==}
     engines: {node: '>=12'}
 
+  dotenv@17.3.1:
+    resolution: {integrity: sha512-IO8C/dzEb6O3F9/twg6ZLXz164a2fhTnEWb95H23Dm4OuN+92NmEAlTrupP9VW6Jm3sO26tQlqyvyi4CsnY9GA==}
+    engines: {node: '>=12'}
+
   dunder-proto@1.0.1:
     resolution: {integrity: sha512-KIN/nDJBQRcXw0MLVhZE9iQHmG68qAVIBg9CqmUYjmQIhgij9U5MFvrqkUL5FbtyyzZuOeOt0zdeRe4UY7ct+A==}
     engines: {node: '>= 0.4'}
@@ -1542,9 +1637,6 @@ packages:
   encodeurl@2.0.0:
     resolution: {integrity: sha512-Q0n9HRi4m6JuGIV1eFlmvJB7ZEVxu93IrMyiMsGC0lrMJMWzRgx6WGquyfQgZVb31vhGgXnfmPNNXmxnOkRBrg==}
     engines: {node: '>= 0.8'}
-
-  end-of-stream@1.4.5:
-    resolution: {integrity: sha512-ooEGc6HP26xXq/N+GCGOT0JKCLDGrq2bQUZrQ7gyrJiZANJ/8YDTxTpQBXGMn+WbIQXNVpyWymm7KYVICQnyOg==}
 
   es-define-property@1.0.1:
     resolution: {integrity: sha512-e3nRfgfUZ4rNGL232gUgX06QNyyez04KdjFrF+LTRoOXmrOgFKDg4BCdsjW8EnT69eqdYGmRpJwiPVYNrCaW3g==}
@@ -1573,9 +1665,6 @@ packages:
 
   eventemitter3@4.0.7:
     resolution: {integrity: sha512-8guHBZCwKnFhYdHr2ysuRWErTwhoN2X8XELRlrRwpmfeY2jjuUN4taQMsULKUVo1K4DvZl+0pgfyoysHxvmvEw==}
-
-  events-universal@1.0.1:
-    resolution: {integrity: sha512-LUd5euvbMLpwOF8m6ivPCbhQeSiYVNb8Vs0fQ8QjXo0JTkEHpz8pxdQf0gStltaPpw0Cca8b39KxvK9cfKRiAw==}
 
   eventsource-parser@3.0.6:
     resolution: {integrity: sha512-Vo1ab+QXPzZ4tCa8SwIHJFaSzy4R6SHf7BY79rFBDf0idraZWAkYrDjDj8uWaSm3S2TK+hJ7/t1CEmZ7jXw+pg==}
@@ -1608,9 +1697,6 @@ packages:
 
   fast-deep-equal@3.1.3:
     resolution: {integrity: sha512-f3qQ9oQy9j2AhBe/H9VC91wLmKBCCU/gDOnKNAYG5hswO7BLKj09Hc5HYNz9cGI++xlpDCIgDaitVs03ATR84Q==}
-
-  fast-fifo@1.3.2:
-    resolution: {integrity: sha512-/d9sfos4yxzpwkDkuN7k2SqFKtYNmCTzgfEpz82x34IM9/zc8KGxQoXg1liNC/izpRM/MBdt44Nmx41ZWqk+FQ==}
 
   fast-glob@3.3.3:
     resolution: {integrity: sha512-7MptL8U0cqcFdzIzwOTHoilX9x5BrNqye7Z/LuC7kCMRio1EMSyqRK3BEAUD7sXRq4iT4AzTVuZdhgQ2TCvYLg==}
@@ -1647,15 +1733,6 @@ packages:
   finalhandler@2.1.1:
     resolution: {integrity: sha512-S8KoZgRZN+a5rNwqTxlZZePjT/4cnm0ROV70LedRHZ0p8u9fRID0hJUZQpkKLzro8LfmC8sx23bY6tVNxv8pQA==}
     engines: {node: '>= 18.0.0'}
-
-  follow-redirects@1.15.11:
-    resolution: {integrity: sha512-deG2P0JfjrTxl50XGCDyfI97ZGVCxIpfKYmfyrQ54n5FO/0gfIES8C/Psl6kWVDolizcaaxZJnTS0QSMxvnsBQ==}
-    engines: {node: '>=4.0'}
-    peerDependencies:
-      debug: '*'
-    peerDependenciesMeta:
-      debug:
-        optional: true
 
   forwarded@0.2.0:
     resolution: {integrity: sha512-buRG0fpBtRHSTCOASe6hD258tEubFoRLb4ZNA6NxMVHNw2gOcwHo9wyablzMzOA5z9xA9L1KNjk/Nt6MT9aYow==}
@@ -1780,11 +1857,6 @@ packages:
 
   json-schema-typed@8.0.2:
     resolution: {integrity: sha512-fQhoXdcvc3V28x7C7BMs4P5+kNlgUURe2jmUT1T//oBRMDrqy1QPelJimwZGo7Hg9VPV3EQV5Bnq4hbFy2vetA==}
-
-  json5@2.2.3:
-    resolution: {integrity: sha512-XmOWe7eyHYH14cLdVPoyg+GOH3rYX++KpzrylJwSW98t3Nk+U8XOl8FWKOgwtzdb8lXGf6zYwDUzeHMWfxasyg==}
-    engines: {node: '>=6'}
-    hasBin: true
 
   langsmith@0.5.14:
     resolution: {integrity: sha512-4CBoZQrBOO1xXMVmAcinBoqzXXUel+Irr1rMslSMz6zgz8tGXOBWxMJXdhmNK3h2j35cZgJ/q9MbjDQZGsAkMw==}
@@ -1944,6 +2016,10 @@ packages:
     resolution: {integrity: sha512-8Ofs/AUQh8MaEcrlq5xOX0CQ9ypTF5dl78mjlMNfOK08fzpgTHQRQPBxcPlEtIw0yRpws+Zo/3r+5WRby7u3Gg==}
     engines: {node: '>= 0.6'}
 
+  node-cron@3.0.3:
+    resolution: {integrity: sha512-dOal67//nohNgYWb+nWmg5dkFdIwDm8EpeGYMekPMrngV3637lqnX0lbUcCtgibHTz6SEz7DAIjKvKDFYCnO1A==}
+    engines: {node: '>=6.0.0'}
+
   node-fetch-native@1.6.7:
     resolution: {integrity: sha512-g9yhqoedzIUm0nTnTqAQvueMPVOuIY16bqgAJJC8XOOubYFNwz6IER9qs0Gq2Xd0+CecCKFjtdDTMA4u4xG06Q==}
 
@@ -2064,9 +2140,6 @@ packages:
   proxy-addr@2.0.7:
     resolution: {integrity: sha512-llQsMLSUDUPT44jdrU/O37qlnifitDP+ZwrmmZcoSKyLKvtZxpyV0n2/bD/N4tBAAZ/gJEdZU7KMraoK1+XYAg==}
     engines: {node: '>= 0.10'}
-
-  pump@3.0.4:
-    resolution: {integrity: sha512-VS7sjc6KR7e1ukRFhQSY5LM2uBWAUPiOPa/A3mkKmiMwSmRFUITt0xuj+/lesgnCv+dPIEYlkzrcyXgquIHMcA==}
 
   pure-rand@6.1.0:
     resolution: {integrity: sha512-bVWawvoZoBYpp6yIoQtQXHZjmz35RSVHnUOTefl8Vcjr8snTPY1wnpSPMWekcFwbxI6gtmT7rSYPFvz71ldiOA==}
@@ -2209,21 +2282,6 @@ packages:
   std-env@4.0.0:
     resolution: {integrity: sha512-zUMPtQ/HBY3/50VbpkupYHbRroTRZJPRLvreamgErJVys0ceuzMkD44J/QjqhHjOzK42GQ3QZIeFG1OYfOtKqQ==}
 
-  streamx@2.25.0:
-    resolution: {integrity: sha512-0nQuG6jf1w+wddNEEXCF4nTg3LtufWINB5eFEN+5TNZW7KWJp6x87+JFL43vaAUPyCfH1wID+mNVyW6OHtFamg==}
-
-  tar-fs@3.1.2:
-    resolution: {integrity: sha512-QGxxTxxyleAdyM3kpFs14ymbYmNFrfY+pHj7Z8FgtbZ7w2//VAgLMac7sT6nRpIHjppXO2AwwEOg0bPFVRcmXw==}
-
-  tar-stream@3.1.8:
-    resolution: {integrity: sha512-U6QpVRyCGHva435KoNWy9PRoi2IFYCgtEhq9nmrPPpbRacPs9IH4aJ3gbrFC8dPcXvdSZ4XXfXT5Fshbp2MtlQ==}
-
-  teex@1.0.1:
-    resolution: {integrity: sha512-eYE6iEI62Ni1H8oIa7KlDU6uQBtqr4Eajni3wX7rpfXD8ysFx8z0+dri+KWEPWpBsxXfxu58x/0jvTVT1ekOSg==}
-
-  text-decoder@1.2.7:
-    resolution: {integrity: sha512-vlLytXkeP4xvEq2otHeJfSQIRyWxo/oZGEbXrtEEF9Hnmrdly59sUbzZ/QgyWuLYHctCHxFF4tRQZNQ9k60ExQ==}
-
   tinybench@2.9.0:
     resolution: {integrity: sha512-0+DUvqWMValLmha6lr4kD8iAMK1HzV0/aKnCtWb9v9641TnP/MFb7Pc2bxoxQjTXAErryXVgUOfv2YqNllqGeg==}
 
@@ -2283,6 +2341,10 @@ packages:
 
   uuid@11.1.0:
     resolution: {integrity: sha512-0/A9rDy9P7cJ+8w1c9WD9V//9Wj15Ce2MPz8Ri6032usz+NfePxx5AcN3bN+r6ZL6jEo066/yNYB3tn4pQEx+A==}
+    hasBin: true
+
+  uuid@8.3.2:
+    resolution: {integrity: sha512-+NYs2QeMWy+GWFOEm9xnn6HCDp0l7QBD7ml8zLUmJ+93Q5NF0NocErnwkTkXVFNiX3/fpC6afS8Dhb/gz7R7eg==}
     hasBin: true
 
   validator@13.15.26:
@@ -2559,16 +2621,6 @@ snapshots:
 
   '@jridgewell/sourcemap-codec@1.5.5': {}
 
-  '@kaciras/deasync@1.1.0':
-    dependencies:
-      follow-redirects: 1.15.11
-      tar-fs: 3.1.2
-    transitivePeerDependencies:
-      - bare-abort-controller
-      - bare-buffer
-      - debug
-      - react-native-b4a
-
   '@langchain/anthropic@1.3.25(@langchain/core@1.1.36(openai@5.23.2(ws@8.20.0)(zod@3.25.76))(ws@8.20.0))':
     dependencies:
       '@anthropic-ai/sdk': 0.74.0(zod@3.25.76)
@@ -2751,13 +2803,11 @@ snapshots:
       '@types/deep-eql': 4.0.2
       assertion-error: 2.0.1
 
-  '@types/config@4.4.0':
-    dependencies:
-      config: 4.4.1
-
   '@types/deep-eql@4.0.2': {}
 
   '@types/estree@1.0.8': {}
+
+  '@types/node-cron@3.0.11': {}
 
   '@types/node@25.5.0':
     dependencies:
@@ -2839,41 +2889,7 @@ snapshots:
 
   assertion-error@2.0.1: {}
 
-  b4a@1.8.0: {}
-
   balanced-match@1.0.2: {}
-
-  bare-events@2.8.2: {}
-
-  bare-fs@4.5.6:
-    dependencies:
-      bare-events: 2.8.2
-      bare-path: 3.0.0
-      bare-stream: 2.11.0(bare-events@2.8.2)
-      bare-url: 2.4.0
-      fast-fifo: 1.3.2
-    transitivePeerDependencies:
-      - bare-abort-controller
-      - react-native-b4a
-
-  bare-os@3.8.0: {}
-
-  bare-path@3.0.0:
-    dependencies:
-      bare-os: 3.8.0
-
-  bare-stream@2.11.0(bare-events@2.8.2):
-    dependencies:
-      streamx: 2.25.0
-      teex: 1.0.1
-    optionalDependencies:
-      bare-events: 2.8.2
-    transitivePeerDependencies:
-      - react-native-b4a
-
-  bare-url@2.4.0:
-    dependencies:
-      bare-path: 3.0.0
 
   base64-js@1.5.1: {}
 
@@ -2976,10 +2992,6 @@ snapshots:
 
   confbox@0.2.4: {}
 
-  config@4.4.1:
-    dependencies:
-      json5: 2.2.3
-
   consola@3.4.2: {}
 
   console-table-printer@2.15.0:
@@ -3031,6 +3043,8 @@ snapshots:
 
   dotenv@16.6.1: {}
 
+  dotenv@17.3.1: {}
+
   dunder-proto@1.0.1:
     dependencies:
       call-bind-apply-helpers: 1.0.2
@@ -3047,10 +3061,6 @@ snapshots:
   empathic@2.0.0: {}
 
   encodeurl@2.0.0: {}
-
-  end-of-stream@1.4.5:
-    dependencies:
-      once: 1.4.0
 
   es-define-property@1.0.1: {}
 
@@ -3071,12 +3081,6 @@ snapshots:
   etag@1.8.1: {}
 
   eventemitter3@4.0.7: {}
-
-  events-universal@1.0.1:
-    dependencies:
-      bare-events: 2.8.2
-    transitivePeerDependencies:
-      - bare-abort-controller
 
   eventsource-parser@3.0.6: {}
 
@@ -3132,8 +3136,6 @@ snapshots:
 
   fast-deep-equal@3.1.3: {}
 
-  fast-fifo@1.3.2: {}
-
   fast-glob@3.3.3:
     dependencies:
       '@nodelib/fs.stat': 2.0.5
@@ -3176,8 +3178,6 @@ snapshots:
       statuses: 2.0.2
     transitivePeerDependencies:
       - supports-color
-
-  follow-redirects@1.15.11: {}
 
   forwarded@0.2.0: {}
 
@@ -3309,8 +3309,6 @@ snapshots:
 
   json-schema-typed@8.0.2: {}
 
-  json5@2.2.3: {}
-
   langsmith@0.5.14(openai@5.23.2(ws@8.20.0)(zod@3.25.76))(ws@8.20.0):
     dependencies:
       '@types/uuid': 10.0.0
@@ -3417,6 +3415,10 @@ snapshots:
 
   negotiator@1.0.0: {}
 
+  node-cron@3.0.3:
+    dependencies:
+      uuid: 8.3.2
+
   node-fetch-native@1.6.7: {}
 
   normalize-path@3.0.0: {}
@@ -3510,11 +3512,6 @@ snapshots:
     dependencies:
       forwarded: 0.2.0
       ipaddr.js: 1.9.1
-
-  pump@3.0.4:
-    dependencies:
-      end-of-stream: 1.4.5
-      once: 1.4.0
 
   pure-rand@6.1.0: {}
 
@@ -3678,51 +3675,6 @@ snapshots:
 
   std-env@4.0.0: {}
 
-  streamx@2.25.0:
-    dependencies:
-      events-universal: 1.0.1
-      fast-fifo: 1.3.2
-      text-decoder: 1.2.7
-    transitivePeerDependencies:
-      - bare-abort-controller
-      - react-native-b4a
-
-  tar-fs@3.1.2:
-    dependencies:
-      pump: 3.0.4
-      tar-stream: 3.1.8
-    optionalDependencies:
-      bare-fs: 4.5.6
-      bare-path: 3.0.0
-    transitivePeerDependencies:
-      - bare-abort-controller
-      - bare-buffer
-      - react-native-b4a
-
-  tar-stream@3.1.8:
-    dependencies:
-      b4a: 1.8.0
-      bare-fs: 4.5.6
-      fast-fifo: 1.3.2
-      streamx: 2.25.0
-    transitivePeerDependencies:
-      - bare-abort-controller
-      - bare-buffer
-      - react-native-b4a
-
-  teex@1.0.1:
-    dependencies:
-      streamx: 2.25.0
-    transitivePeerDependencies:
-      - bare-abort-controller
-      - react-native-b4a
-
-  text-decoder@1.2.7:
-    dependencies:
-      b4a: 1.8.0
-    transitivePeerDependencies:
-      - react-native-b4a
-
   tinybench@2.9.0: {}
 
   tinyexec@1.0.4: {}
@@ -3775,6 +3727,8 @@ snapshots:
   uuid@10.0.0: {}
 
   uuid@11.1.0: {}
+
+  uuid@8.3.2: {}
 
   validator@13.15.26: {}
 

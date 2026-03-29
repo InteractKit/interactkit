@@ -1,7 +1,7 @@
-import { Entity, BaseEntity, Describe, Ref, State, Tool, RedisPubSubAdapter, type Remote } from '@interactkit/sdk';
+import { Entity, BaseEntity, Describe, Ref, State, Tool, type Remote } from '@interactkit/sdk';
 import { BetaCache } from './beta-cache.js';
 
-@Entity({ pubsub: RedisPubSubAdapter })
+@Entity({ detached: true })
 export class BetaWorker extends BaseEntity {
   @Describe() describe() { return `BetaWorker: ${this.processed}`; }
   @State({ description: 'processed' }) private processed = 0;

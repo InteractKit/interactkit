@@ -9,16 +9,14 @@ import {
   type EntityTree,
   type EntityNode,
   type ElementDescriptor,
-  type WrapperInfra,
 } from '../wrappers/base-wrapper.js';
+import type { InteractKitConfig } from '../../settings.js';
 import { StateWrapper } from '../wrappers/state-wrapper.js';
 import { ComponentWrapper } from '../wrappers/component-wrapper.js';
 import { RefWrapper } from '../wrappers/ref-wrapper.js';
 import { StreamWrapper } from '../wrappers/stream-wrapper.js';
 import { MethodWrapper } from '../wrappers/method-wrapper.js';
 import { HookWrapper } from '../wrappers/hook-wrapper.js';
-import { InProcessBusAdapter } from '../../pubsub/in-process.js';
-
 const KIND_TO_WRAPPER: Record<ElementDescriptor['kind'], () => BaseWrapper> = {
   state: () => StateWrapper.instance(),
   component: () => ComponentWrapper.instance(),
@@ -37,16 +35,11 @@ export class Runner {
   private factory: InstanceFactory;
   private tree: EntityTree;
 
-  constructor(tree: EntityTree, infra?: WrapperInfra) {
+  constructor(tree: EntityTree, config?: InteractKitConfig) {
     this.tree = tree;
     this.factory = new InstanceFactory(tree);
 
-    // Configure shared infra + tree for all wrapper singletons
-    BaseWrapper.configure(infra ?? {
-      pubsubs: [{ name: 'InProcessBusAdapter', adapter: new InProcessBusAdapter() }],
-      databases: [],
-      loggers: [],
-    });
+    BaseWrapper.configure(config);
     BaseWrapper.setTree(tree);
   }
 
@@ -209,7 +202,7 @@ export class Runner {
     const hookMeta = getHookMeta(Cls);
     for (const hook of node.hooks) {
       const entry = hookMeta.find(h => h.method === hook.methodName);
-      reg(hook.id, 'hook', hook.methodName, entry ? { runnerClass: entry.runnerClass, config: entry.config, inProcess: entry.inProcess } : undefined);
+      reg(hook.id, 'hook', hook.methodName, entry ? { runnerClass: entry.runnerClass, config: entry.config, initConfig: entry.initConfig, inProcess: entry.inProcess } : undefined);
     }
   }
 }

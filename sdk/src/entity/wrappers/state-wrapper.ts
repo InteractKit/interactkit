@@ -72,7 +72,7 @@ export class StateWrapper extends BaseWrapper {
 
   private scheduleFlush(id: string) {
     if (this.flushTimers.has(id)) return;
-    this.flushTimers.set(id, setTimeout(() => { this.flushTimers.delete(id); this.flush(id); }, 10));
+    this.flushTimers.set(id, setTimeout(() => { this.flushTimers.delete(id); this.flush(id); }, BaseWrapper.getStateFlushMs()));
   }
 
   private async flush(id: string) {

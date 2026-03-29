@@ -58,15 +58,15 @@ The build analyzes your entity tree and groups entities by their pub/sub adapter
 | `EntityStream` on Redis | Can scale independently | Streams publish via Redis automatically |
 
 ```typescript
-import { Entity, BaseEntity, Component, RedisPubSubAdapter } from '@interactkit/sdk';
+import { Entity, BaseEntity, Component } from '@interactkit/sdk';
 
 @Entity()
 class Agent extends BaseEntity {
   @Component() brain!: Brain;      // InProcess → same unit as Agent
-  @Component() memory!: Memory;    // Redis → separate unit, scalable
+  @Component() memory!: Memory;    // detached → separate unit, scalable
 }
 
-@Entity({ pubsub: RedisPubSubAdapter })
+@Entity({ detached: true })
 class Memory extends BaseEntity { /* ... */ }
 ```
 

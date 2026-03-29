@@ -1,6 +1,6 @@
-import { Entity, BaseEntity, Describe, State, Tool, RedisPubSubAdapter } from '@interactkit/sdk';
+import { Entity, BaseEntity, Describe, State, Tool } from '@interactkit/sdk';
 
-@Entity({ pubsub: RedisPubSubAdapter })
+@Entity({ detached: true })
 export class ResultStore extends BaseEntity {
   @Describe() describe() { return `ResultStore: ${this.results.length} results`; }
   @State({ description: 'results' }) private results: Array<{ taskId: string; result: string; worker: string }> = [];

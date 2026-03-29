@@ -6,6 +6,7 @@
     "@interactkit/http": "workspace:*",
     "@types/node": "^25.5.0",
     "reflect-metadata": "^0.2.2",
-    "dotenv": "^16.4.7"
+    "dotenv": "^16.4.7",
+    "@interactkit/redis": "workspace:*"
   }
 }

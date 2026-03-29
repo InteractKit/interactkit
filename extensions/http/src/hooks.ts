@@ -59,7 +59,8 @@ function releaseHttpServer(port: number, path: string): Promise<void> {
 }
 
 // ─── HttpRequest Hook ────────────────────────────────────
-// Fires on every incoming HTTP request matching the configured path.
+// Init config (from interactkit.config.ts): { http: { port: 3000 } }
+// Run config (from @Hook decorator): { path: '/webhook' }
 
 export namespace HttpRequest {
   export interface Input {
@@ -72,7 +73,7 @@ export namespace HttpRequest {
   }
 
   export interface Config {
-    port: number;
+    port?: number;
     path?: string;
   }
 
@@ -80,8 +81,13 @@ export namespace HttpRequest {
     private port = 0;
     private path = '/';
 
-    async start(emit: (data: Input) => void, config: Record<string, unknown>) {
-      this.port = config.port as number;
+    async init(config: Record<string, unknown>) {
+      const http = config.http as Record<string, unknown> | undefined;
+      this.port = (http?.port as number) ?? 3000;
+    }
+
+    register(emit: (data: Input) => void, config: Record<string, unknown>) {
+      if (config.port) this.port = config.port as number;
       this.path = (config.path as string) ?? '/';
 
       acquireHttpServer(this.port, this.path, async (req, res, url) => {
@@ -128,11 +134,12 @@ export namespace HttpRequest {
     }
   }
 
-  export function Runner(config: Config): HookHandler<Input> {
+  export function Runner(config: Config = {}): HookHandler<Input> {
     return {
       __hookHandler: true as const,
       runnerClass: RunnerImpl,
       config: config as unknown as Record<string, unknown>,
+      initConfig: { http: { port: config.port ?? 3000 } },
     };
   }
 }

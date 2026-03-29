@@ -74,7 +74,7 @@ function emitNode(entity: ParsedEntity, nodeId: string, indent: number): string 
     `${n}id: ${J(nodeId)},`,
     `${n}type: ${J(entity.type)},`,
     `${n}className: ${J(entity.className)},`,
-    `${n}infra: { pubsub: ${U(entity.infra.pubsub)}, database: ${U(entity.infra.database)}, logger: ${U(entity.infra.logger)} },`,
+    `${n}infra: { detached: ${entity.infra.detached ?? false} },`,
     `${n}state: [${entity.state.map(s => `{ name: ${J(s.name)}, id: ${J(childId(s.name))} }`).join(', ')}],`,
     `${n}refs: [${entity.refs.map(r => `{ propertyName: ${J(r.propertyName)}, targetEntityType: ${J(r.targetEntityType)}, id: ${J(childId(r.propertyName))} }`).join(', ')}],`,
     `${n}components: [`,

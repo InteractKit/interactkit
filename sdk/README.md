@@ -3,7 +3,7 @@
 The core framework for InteractKit. Write plain TypeScript classes — the SDK handles state persistence, inter-entity communication, lifecycle hooks, LLM integration, transparent distributed proxying, and horizontal scaling.
 
 ```typescript
-@Entity({ database: PrismaDatabaseAdapter })
+@Entity({ description: 'Root agent' })
 class Agent extends LLMEntity {
   @Component() private brain!: Brain;
   @Component() private phone!: Phone;
@@ -33,7 +33,7 @@ class Agent extends LLMEntity {
 - **Runtime configuration** — `@Configurable` properties with enum, validation, description support
 - **Horizontal scaling** — swap `InProcessBusAdapter` for `RedisPubSubAdapter` per entity
 - **Deployment planning** — CLI generates `deployment.json` showing which entities can scale independently
-- **Auto-configuration** — adapters read from `node-config` or env vars, no manual wiring
+- **Explicit configuration** — adapters take connection config via constructors in `interactkit.config.ts`
 - **Extensible** — external packages provide custom hook types, runners, and entities via standard imports
 
 ## Quick start
@@ -57,31 +57,25 @@ interactkit start                                              # run the built a
 
 ## Configuration
 
-Adapters auto-configure from `node-config` or environment variables. No manual wiring.
+All infrastructure is configured in `interactkit.config.ts` at the project root. Adapters take connection config via their constructors:
 
-**`config/default.json`:**
-```json
-{
-  "interactkit": {
-    "redis": {
-      "host": "127.0.0.1",
-      "port": 6379
-    },
-    "database": {
-      "url": "file:./interactkit.db"
-    }
-  }
-}
+```typescript
+// interactkit.config.ts
+import { PrismaDatabaseAdapter } from '@interactkit/prisma';
+import { RedisPubSubAdapter } from '@interactkit/redis';
+import { DevObserver } from '@interactkit/sdk';
+import type { InteractKitConfig } from '@interactkit/sdk';
+
+export default {
+  database: new PrismaDatabaseAdapter({ url: 'file:./app.db' }),
+  pubsub: new RedisPubSubAdapter({ host: 'localhost', port: 6379 }),
+  observer: new DevObserver(),
+  timeout: 15_000,      // event bus request timeout (default: 30000)
+  stateFlushMs: 50,     // state persistence debounce (default: 10)
+} satisfies InteractKitConfig;
 ```
 
-**Or via environment variables:**
-```bash
-REDIS_HOST=127.0.0.1 REDIS_PORT=6379 DATABASE_URL=file:./interactkit.db
-# or
-REDIS_URL=redis://localhost:6379
-```
-
-No defaults — if you use `RedisPubSubAdapter` or `PrismaDatabaseAdapter`, config must exist or the app throws at startup.
+No defaults -- if you use `RedisPubSubAdapter` or `PrismaDatabaseAdapter`, config must exist or the app throws at startup.
 
 ## Deployment planning
 
@@ -129,7 +123,7 @@ Entities using `InProcessBusAdapter` or `EntityStream` are grouped (must share a
 ### Structural decorators
 
 ```typescript
-@Entity({ type, persona?, database?, pubsub?, logger? })  // class
+@Entity({ type, persona?, detached? })                       // class
 @State({ description })                                     // property — state (must be private)
 @Component()                                                // property — child entity (must be private)
 @Ref()                                                      // property — sibling reference (must be private)
@@ -165,17 +159,15 @@ Used on classes extending `LLMEntity` (which extends `BaseEntity`):
 |-----------|--------------|---------|
 | `Init` | `Init.Runner()` | Once on boot |
 | `Tick` | `Tick.Runner({ intervalMs })` | Fixed interval |
-| `Cron` | `Cron.Runner({ expression })` | Cron schedule |
-| `Event` | `Event.Runner()` | Named events |
 
 ### Adapters
 
-| Adapter | Type | Config |
-|---------|------|--------|
+| Adapter | Type | Constructor config |
+|---------|------|--------------------|
 | `InProcessBusAdapter` | Local (pass by reference) | None needed |
-| `RedisPubSubAdapter` | Remote (auto-proxy for functions/objects) | `interactkit.redis` or `REDIS_HOST`+`REDIS_PORT` |
-| `PrismaDatabaseAdapter` | Database | `interactkit.database` or `DATABASE_URL` |
-| `ConsoleLogAdapter` | Logger | None needed |
+| `RedisPubSubAdapter` | Remote (auto-proxy for functions/objects) | `{ host: string, port: number }` or `{ url: string }` |
+| `PrismaDatabaseAdapter` | Database | `{ url: string }` |
+| `ConsoleObserver` | Observer | None needed |
 
 Local adapters pass values by reference -- functions and class instances work natively. Remote adapters serialize to JSON and automatically proxy non-serializable values across machines.
 

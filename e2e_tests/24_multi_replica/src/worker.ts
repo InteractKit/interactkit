@@ -1,6 +1,6 @@
-import { Entity, BaseEntity, Describe, State, Tool, RedisPubSubAdapter } from '@interactkit/sdk';
+import { Entity, BaseEntity, Describe, State, Tool } from '@interactkit/sdk';
 
-@Entity({ pubsub: RedisPubSubAdapter })
+@Entity({ detached: true })
 export class Worker extends BaseEntity {
   @Describe() describe() { return `Worker: ${this.handled} handled`; }
   @State({ description: 'handled count' }) private handled = 0;

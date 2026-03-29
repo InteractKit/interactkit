@@ -32,9 +32,7 @@ Options you can pass to `@Entity()`:
 | Option | What it does |
 |--------|-------------|
 | `description` | Human-readable description |
-| `database` | Database adapter (children inherit it) |
-| `pubsub` | Pub/sub adapter (children inherit it) |
-| `logger` | Log adapter (children inherit it) |
+| `detached` | `true` to use remote pubsub from config (can run on a separate machine) |
 
 ---
 
@@ -167,7 +165,7 @@ Call child methods like normal functions. InteractKit routes them through an eve
 const results = await this.browser.search({ query: 'restaurants' });
 ```
 
-When an entity uses `RedisPubSubAdapter`, wrap component types with `Remote<T>` for type-safe distributed access. See [Distributed Entities](#distributed-entities) below.
+When an entity is `detached`, wrap component types with `Remote<T>` for type-safe distributed access. See [Distributed Entities](#distributed-entities) below.
 
 ---
 
@@ -195,7 +193,7 @@ class Brain extends BaseEntity {
 }
 ```
 
-The build verifies the ref target exists as a sibling. Like components, use `Remote<T>` when the entity uses a remote pubsub. See [Distributed Entities](#distributed-entities).
+The build verifies the ref target exists as a sibling. Like components, use `Remote<T>` when the entity is detached. See [Distributed Entities](#distributed-entities).
 
 Refs are also how multiple `LLMEntity` instances share a single conversation history via `ConversationContext`. See [Shared Conversation Context](./llm.md#shared-conversation-context).
 
@@ -206,10 +204,10 @@ Refs are also how multiple `LLMEntity` instances share a single conversation his
 Streams let a child push data up to its parent in real time. They work both in-process and across Redis:
 
 ```typescript
-import { Entity, BaseEntity, Component, Stream, Hook, Init, Tick, RedisPubSubAdapter } from '@interactkit/sdk';
+import { Entity, BaseEntity, Component, Stream, Hook, Init, Tick } from '@interactkit/sdk';
 import type { EntityStream } from '@interactkit/sdk';
 
-@Entity({ pubsub: RedisPubSubAdapter })
+@Entity({ detached: true })
 class Sensor extends BaseEntity {
   @Stream() readings!: EntityStream<number>;
 
@@ -233,18 +231,18 @@ class Monitor extends BaseEntity {
 }
 ```
 
-When child and parent share a process, streams are direct in-memory calls. When the child uses `RedisPubSubAdapter`, streams automatically publish to `stream:{entityType}.{streamName}` via Redis, and the parent subscribes to that channel. No code changes needed -- the framework handles it based on the pub/sub adapter.
+When child and parent share a process, streams are direct in-memory calls. When the child is `detached`, streams automatically publish via the remote pubsub from config, and the parent subscribes. No code changes needed.
 
 ---
 
 ## Distributed Entities
 
-Add `pubsub: RedisPubSubAdapter` to an entity and it can run on a different machine. Wrap its type with `Remote<T>` and every method call, property access, and return value becomes type-safe async:
+Add `detached: true` to an entity and it can run on a different machine (using the remote pubsub from `interactkit.config.ts`). Wrap its type with `Remote<T>` and every method call, property access, and return value becomes type-safe async:
 
 ```typescript
-import { Entity, BaseEntity, Component, type Remote, RedisPubSubAdapter } from '@interactkit/sdk';
+import { Entity, BaseEntity, Component, type Remote } from '@interactkit/sdk';
 
-@Entity({ pubsub: RedisPubSubAdapter })
+@Entity({ detached: true })
 class Worker extends BaseEntity {
   @Tool({ description: 'Get a callback function' })
   async getProcessor() {
@@ -273,7 +271,7 @@ Everything works as you'd expect:
 - Return functions: a function returned from a remote call is still callable
 - Return objects: class instances returned from remote calls keep their methods
 
-The build enforces `Remote<T>` -- you can't forget it on a distributed entity. Run 5 replicas, tasks distribute automatically, state syncs via Redis. No code changes.
+The build enforces `Remote<T>` -- you can't forget it on a detached entity. Run 5 replicas, tasks distribute automatically, state syncs via the remote pubsub. No code changes.
 
 ---
 
@@ -318,4 +316,4 @@ If an entity needs an LLM brain, extend `LLMEntity` instead of `BaseEntity`. Thi
 
 - [LLM Entities](./llm.md): give an entity an LLM brain
 - [Hooks](./hooks.md): make entities react to timers, schedules, and events
-- [Infrastructure](./infrastructure.md): database, pub/sub, and logging adapters
+- [Infrastructure](./infrastructure.md): database, pub/sub, and observer adapters

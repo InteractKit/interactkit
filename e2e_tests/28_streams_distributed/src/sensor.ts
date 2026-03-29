@@ -1,7 +1,7 @@
-import { Entity, BaseEntity, Describe, Stream, State, Tool, RedisPubSubAdapter } from '@interactkit/sdk';
+import { Entity, BaseEntity, Describe, Stream, State, Tool } from '@interactkit/sdk';
 import type { EntityStream } from '@interactkit/sdk';
 
-@Entity({ pubsub: RedisPubSubAdapter })
+@Entity({ detached: true })
 export class Sensor extends BaseEntity {
   @Describe() describe() { return `Sensor: ${this.emitted} emitted`; }
   @Stream() readings!: EntityStream<{ value: number; ts: number }>;

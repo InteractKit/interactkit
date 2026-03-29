@@ -1,8 +1,8 @@
-import { Entity, BaseEntity, Describe, Component, Tool, RedisPubSubAdapter, type Remote } from '@interactkit/sdk';
+import { Entity, BaseEntity, Describe, Component, Tool, type Remote } from '@interactkit/sdk';
 import { Worker } from './worker.js';
 import { Cache } from './cache.js';
 
-@Entity({ pubsub: RedisPubSubAdapter })
+@Entity({ detached: true })
 export class Team extends BaseEntity {
   @Describe() describe() { return 'Team'; }
   @Component() private worker!: Remote<Worker>;

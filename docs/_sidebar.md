@@ -1,16 +1,16 @@
 - [Home](/)
-- **Learn**
-  - [Why InteractKit](why.md)
+- **Build**
   - [Getting Started](getting-started.md)
+  - [Use Cases & Recipes](why.md)
 - **Core**
   - [Entities](entities.md)
   - [LLM Entities](llm.md)
   - [Hooks](hooks.md)
-- **Scaling**
+- **Scale**
   - [Infrastructure](infrastructure.md)
   - [Deployment](deployment.md)
   - [Optimisation](optimisation.md)
-- **Build**
+- **Reference**
   - [Codegen & Build](codegen.md)
   - [Testing](testing.md)
   - [Extensions](extensions.md)

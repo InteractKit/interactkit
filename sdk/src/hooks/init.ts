@@ -7,8 +7,9 @@ export namespace Init {
   }
 
   class RunnerImpl implements HookRunner<Input> {
-    async start(emit: (data: Input) => void, config: Record<string, unknown>): Promise<void> {
-      // Fire once immediately during boot
+    async init(_config: Record<string, unknown>): Promise<void> {}
+
+    register(emit: (data: Input) => void, config: Record<string, unknown>): void {
       emit({
         entityId: config.entityId as string,
         firstBoot: config.firstBoot as boolean,

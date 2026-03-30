@@ -1,29 +1,38 @@
 {
   "name": "@interactkit/observer",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Observer dashboard for InteractKit — real-time entity monitoring and control",
   "type": "module",
   "license": "MIT",
-  "keywords": ["interactkit", "extension", "observer", "dashboard", "devtools"],
+  "keywords": [
+    "interactkit",
+    "extension",
+    "observer",
+    "dashboard",
+    "devtools"
+  ],
   "exports": {
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
     }
   },
-  "files": ["dist"],
-  "engines": { "node": ">=18" },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "pnpm build"
   },
   "dependencies": {
-    "ws": "^8.18.0"
-  },
-  "optionalDependencies": {
+    "ws": "^8.18.0",
     "@interactkit/observer-ui": "^0.1.0"
   },
+  "optionalDependencies": {},
   "peerDependencies": {
     "@interactkit/sdk": "^0.2.0",
     "reflect-metadata": "^0.2.0"

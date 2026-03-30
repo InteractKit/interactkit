@@ -1,19 +1,16 @@
 import { resolve, dirname } from 'node:path';
-import { mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
 import { select } from '@inquirer/prompts';
 import { compileEntity, compileReadme } from '@/templates/compiler.js';
 import type { TemplateDefinition } from '@/templates/compiler.js';
+import agentTemplate from '@/templates/agent.json' with { type: 'json' };
+import blankTemplate from '@/templates/blank.json' with { type: 'json' };
+import simulationTemplate from '@/templates/simulation.json' with { type: 'json' };
+import teamTemplate from '@/templates/team.json' with { type: 'json' };
 
 type Database = 'sqlite' | 'postgres' | 'none';
 
-/** Load all template JSON files from the templates directory */
-function loadTemplates(): TemplateDefinition[] {
-  const cliRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../');
-  const templatesDir = resolve(cliRoot, 'templates');
-  const files = readdirSync(templatesDir).filter(f => f.endsWith('.json'));
-  return files.map(f => JSON.parse(readFileSync(resolve(templatesDir, f), 'utf-8')));
-}
+const templates: TemplateDefinition[] = [agentTemplate, blankTemplate, simulationTemplate, teamTemplate] as TemplateDefinition[];
 
 export async function initCommand(projectName: string) {
   const projectDir = resolve(process.cwd(), projectName);
@@ -23,11 +20,9 @@ export async function initCommand(projectName: string) {
     process.exit(1);
   }
 
-  const templates = loadTemplates();
-
   const template = await select<TemplateDefinition>({
     message: 'What are you building?',
-    choices: templates.map(t => ({ value: t, name: t.label })),
+    choices: templates.map((t: TemplateDefinition) => ({ value: t, name: t.label })),
   });
 
   const database = await select<Database>({

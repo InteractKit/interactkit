@@ -42,7 +42,6 @@ export async function initCommand(projectName: string) {
   const deps: Record<string, string> = {
     '@interactkit/sdk': '^0.2.0',
     '@interactkit/observer': '^0.2.0',
-    '@interactkit/redis': '^0.2.0',
     '@interactkit/prisma': '^0.2.0',
     'prisma': '^6.0.0',
     '@prisma/client': '^6.0.0',
@@ -113,7 +112,7 @@ node_modules/
   if (database === 'sqlite') {
     writeFileSync(resolve(projectDir, 'interactkit.config.ts'),
 `import { PrismaDatabaseAdapter } from '@interactkit/prisma';
-import { RedisPubSubAdapter } from '@interactkit/redis';
+import { DevPubSubAdapter } from '@interactkit/sdk';
 import { DashboardObserver } from '@interactkit/observer';
 import type { InteractKitConfig } from '@interactkit/sdk';
 ${rootImport}
@@ -121,14 +120,14 @@ ${rootImport}
 export default {
   root: ${template.root.class},
   database: new PrismaDatabaseAdapter({ url: 'file:./interactkit.db' }),
-  pubsub: new RedisPubSubAdapter({ host: 'localhost', port: 6379 }),
+  pubsub: new DevPubSubAdapter(),
   observers: [new DashboardObserver()],
 } satisfies InteractKitConfig;
 `);
   } else {
     writeFileSync(resolve(projectDir, 'interactkit.config.ts'),
 `import { PrismaDatabaseAdapter } from '@interactkit/prisma';
-import { RedisPubSubAdapter } from '@interactkit/redis';
+import { DevPubSubAdapter } from '@interactkit/sdk';
 import { DashboardObserver } from '@interactkit/observer';
 import type { InteractKitConfig } from '@interactkit/sdk';
 ${rootImport}
@@ -136,7 +135,7 @@ ${rootImport}
 export default {
   root: ${template.root.class},
   database: new PrismaDatabaseAdapter({ url: process.env.DATABASE_URL ?? 'postgresql://localhost:5432/interactkit' }),
-  pubsub: new RedisPubSubAdapter({ host: 'localhost', port: 6379 }),
+  pubsub: new DevPubSubAdapter(),
   observers: [new DashboardObserver()],
 } satisfies InteractKitConfig;
 `);

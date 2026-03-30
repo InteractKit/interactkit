@@ -48,6 +48,8 @@ export type { ObserverAdapter } from './observer/adapter.js';
 
 // Adapter implementations (SDK ships local-only; Redis + Prisma are separate packages)
 export { InProcessBusAdapter } from './pubsub/in-process.js';
+export { InMemoryRemotePubSubAdapter } from './pubsub/in-memory-remote.js';
+export { DevPubSubAdapter } from './pubsub/dev-adapter.js';
 export { BaseObserver } from './observer/base.js';
 export { ConsoleObserver } from './observer/console.js';
 export { DevObserver } from './observer/dev.js';

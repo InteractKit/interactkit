@@ -1,5 +1,8 @@
 import type { DatabaseAdapter } from "./database/adapter.js";
-import type { LocalPubSubAdapter, RemotePubSubAdapter } from "./pubsub/adapter.js";
+import type {
+  LocalPubSubAdapter,
+  RemotePubSubAdapter,
+} from "./pubsub/adapter.js";
 import type { ObserverAdapter } from "./observer/adapter.js";
 import type { BaseEntity } from "./entity/types.js";
 
@@ -27,7 +30,7 @@ export interface InteractKitConfig {
   root?: { prototype: BaseEntity } & Function;
   /** Database adapter instance — required for state persistence. */
   database: DatabaseAdapter;
-  /** Remote pubsub adapter — required for observer, hooks, and detached entities. */
+  /** Remote pubsub adapter — required. Use DevPubSubAdapter for local dev, RedisPubSubAdapter for production. */
   pubsub: RemotePubSubAdapter;
   /** Local bus — defaults to InProcessBusAdapter if not provided. */
   localBus?: LocalPubSubAdapter;

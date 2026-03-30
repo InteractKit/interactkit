@@ -3,6 +3,9 @@ import { existsSync } from 'node:fs';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { watch } from 'node:fs';
 import { buildCommand } from '@/commands/build/index.js';
+import { startPubSubServer } from './pubsub-server.js';
+
+const DEV_PUBSUB_PORT = 6400;
 
 interface Flags {
   project: string;
@@ -12,14 +15,16 @@ interface Flags {
 
 export async function devCommand(flags: Flags) {
   const cwd = process.cwd();
-  // Prefer _all.js (multi-unit) over _entry.js (single unit)
   const allPath = resolve(cwd, '.interactkit/build/src/_all.js');
   const fallbackPath = resolve(cwd, '.interactkit/build/src/_entry.js');
 
-  // Initial build (dev mode enables colored logging)
+  // Start in-memory pub/sub server
+  const pubsubServer = await startPubSubServer(DEV_PUBSUB_PORT);
+  console.log(`▸ pubsub server: localhost:${DEV_PUBSUB_PORT} (in-memory)`);
+
+  // Initial build
   await buildCommand({ ...flags, dev: true });
 
-  // Start the app
   let appProcess: ChildProcess | null = null;
 
   function startApp() {
@@ -61,7 +66,6 @@ export async function devCommand(flags: Flags) {
 
   startApp();
 
-  // Watch src/ for changes and rebuild
   console.log('\n▸ watching for changes...');
   const srcDir = resolve(cwd, 'src');
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -79,15 +83,14 @@ export async function devCommand(flags: Flags) {
     scheduleRestart(filename);
   });
 
-  // Watch .env for changes and restart
   const envPath = resolve(cwd, '.env');
   watch(envPath, () => {
     scheduleRestart('.env');
   });
 
-  // Handle Ctrl+C
   process.on('SIGINT', async () => {
     await stopApp();
+    pubsubServer.close();
     process.exit(0);
   });
 }

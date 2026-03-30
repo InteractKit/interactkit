@@ -9,8 +9,8 @@ import { RemotePubSubAdapter } from './adapter.js';
 export class DevPubSubAdapter extends RemotePubSubAdapter {
   private socket: Socket | null = null;
   private handlers = new Map<string, (data: string) => void>();
-  private connected = false;
   private buffer = '';
+  private ready: Promise<void> | null = null;
   private readonly port: number;
   private readonly host: string;
 
@@ -20,63 +20,66 @@ export class DevPubSubAdapter extends RemotePubSubAdapter {
     this.host = config.host ?? 'localhost';
   }
 
-  private ensureConnected(): Socket {
-    if (this.socket && this.connected) return this.socket;
-    this.socket = connect({ port: this.port, host: this.host });
-    this.connected = true;
+  private ensureConnected(): Promise<void> {
+    if (this.ready) return this.ready;
 
-    this.socket.on('data', (chunk) => {
-      this.buffer += chunk.toString();
-      let idx: number;
-      while ((idx = this.buffer.indexOf('\n')) !== -1) {
-        const line = this.buffer.slice(0, idx);
-        this.buffer = this.buffer.slice(idx + 1);
-        if (!line.trim()) continue;
-        try {
-          const msg = JSON.parse(line) as { op: string; channel: string; data: string };
-          if (msg.op === 'message') {
-            const handler = this.handlers.get(msg.channel);
-            if (handler) handler(msg.data);
-          }
-        } catch { /* ignore */ }
-      }
+    this.ready = new Promise<void>((resolve) => {
+      this.socket = connect({ port: this.port, host: this.host }, () => resolve());
+
+      this.socket.on('data', (chunk) => {
+        this.buffer += chunk.toString();
+        let idx: number;
+        while ((idx = this.buffer.indexOf('\n')) !== -1) {
+          const line = this.buffer.slice(0, idx);
+          this.buffer = this.buffer.slice(idx + 1);
+          if (!line.trim()) continue;
+          try {
+            const msg = JSON.parse(line) as { op: string; channel: string; data: string };
+            if (msg.op === 'message') {
+              const handler = this.handlers.get(msg.channel);
+              if (handler) handler(msg.data);
+            }
+          } catch { /* ignore */ }
+        }
+      });
+
+      this.socket.on('error', () => {});
+      this.socket.on('close', () => { this.ready = null; this.socket = null; });
     });
 
-    this.socket.on('error', () => {});
-    this.socket.on('close', () => { this.connected = false; });
-
-    return this.socket;
+    return this.ready;
   }
 
-  private send(msg: object): void {
-    this.ensureConnected().write(JSON.stringify(msg) + '\n');
+  private async send(msg: object): Promise<void> {
+    await this.ensureConnected();
+    this.socket!.write(JSON.stringify(msg) + '\n');
   }
 
   protected async publishRaw(channel: string, message: string): Promise<void> {
-    this.send({ op: 'publish', channel, data: message });
+    await this.send({ op: 'publish', channel, data: message });
   }
 
   protected async subscribeRaw(channel: string, handler: (message: string) => void): Promise<void> {
     this.handlers.set(channel, handler);
-    this.send({ op: 'subscribe', channel });
+    await this.send({ op: 'subscribe', channel });
   }
 
   protected async unsubscribeRaw(channel: string): Promise<void> {
     this.handlers.delete(channel);
-    this.send({ op: 'unsubscribe', channel });
+    await this.send({ op: 'unsubscribe', channel });
   }
 
   protected async enqueueRaw(channel: string, message: string): Promise<void> {
-    this.send({ op: 'enqueue', channel, data: message });
+    await this.send({ op: 'enqueue', channel, data: message });
   }
 
   protected async consumeRaw(channel: string, handler: (message: string) => void): Promise<void> {
     this.handlers.set(channel, handler);
-    this.send({ op: 'consume', channel });
+    await this.send({ op: 'consume', channel });
   }
 
   protected async stopConsumingRaw(channel: string): Promise<void> {
     this.handlers.delete(channel);
-    this.send({ op: 'stop_consuming', channel });
+    await this.send({ op: 'stop_consuming', channel });
   }
 }

@@ -15,8 +15,7 @@ interface Flags {
 
 export async function devCommand(flags: Flags) {
   const cwd = process.cwd();
-  const allPath = resolve(cwd, '.interactkit/build/src/_all.js');
-  const fallbackPath = resolve(cwd, '.interactkit/build/src/_entry.js');
+  const buildDir = resolve(cwd, '.interactkit/build/src');
 
   // Start in-memory pub/sub server
   const pubsubServer = await startPubSubServer(DEV_PUBSUB_PORT);
@@ -25,46 +24,72 @@ export async function devCommand(flags: Flags) {
   // Initial build
   await buildCommand({ ...flags, dev: true });
 
-  let appProcess: ChildProcess | null = null;
+  // Managed child processes
+  const children: ChildProcess[] = [];
 
-  function startApp() {
-    console.log('\n▸ starting app...');
-    const entryPath = existsSync(allPath) ? allPath : fallbackPath;
-    appProcess = spawn('node', [entryPath], {
-      stdio: 'inherit',
-      cwd,
+  function spawnChild(script: string, label: string): ChildProcess | null {
+    const path = resolve(buildDir, script);
+    if (!existsSync(path)) return null;
+    const child = spawn('node', [path], { stdio: 'inherit', cwd });
+    child.on('exit', (code) => {
+      if (code !== null && code !== 0) console.log(`\n▸ ${label} exited with code ${code}`);
     });
-    appProcess.on('exit', (code) => {
-      if (code !== null && code !== 0) {
-        console.log(`\n▸ app exited with code ${code}`);
-      }
-      appProcess = null;
-    });
+    children.push(child);
+    return child;
   }
 
-  function stopApp(): Promise<void> {
+  function killAll(): Promise<void> {
     return new Promise((resolve) => {
-      if (!appProcess) return resolve();
-      appProcess.on('exit', () => resolve());
-      appProcess.kill('SIGTERM');
+      let alive = children.filter(c => !c.killed && c.exitCode === null).length;
+      if (alive === 0) return resolve();
+
+      for (const child of children) {
+        if (!child.killed && child.exitCode === null) {
+          child.on('exit', () => { if (--alive <= 0) resolve(); });
+          child.kill('SIGTERM');
+        }
+      }
+
       setTimeout(() => {
-        if (appProcess) appProcess.kill('SIGKILL');
+        for (const child of children) {
+          if (!child.killed && child.exitCode === null) child.kill('SIGKILL');
+        }
         resolve();
       }, 3000);
     });
   }
 
+  function startAll() {
+    console.log('\n▸ starting...');
+    children.length = 0;
+
+    // 1. Hooks first (they need to be consuming before entities register)
+    spawnChild('_hooks.js', 'hooks');
+
+    // Small delay to let hooks start consuming before entity boot sends register events
+    setTimeout(() => {
+      // 2. Entity process
+      const entryScript = existsSync(resolve(buildDir, '_all.js')) ? '_all.js' : '_entry.js';
+      spawnChild(entryScript, 'app');
+
+      // 3. Observer (after entity boot, so bridge is listening)
+      setTimeout(() => {
+        spawnChild('_observer.js', 'observer');
+      }, 500);
+    }, 200);
+  }
+
   async function rebuild() {
-    await stopApp();
+    await killAll();
     try {
       await buildCommand({ ...flags, dev: true });
-      startApp();
+      startAll();
     } catch {
       console.log('\n▸ build failed, waiting for changes...');
     }
   }
 
-  startApp();
+  startAll();
 
   console.log('\n▸ watching for changes...');
   const srcDir = resolve(cwd, 'src');
@@ -84,12 +109,12 @@ export async function devCommand(flags: Flags) {
   });
 
   const envPath = resolve(cwd, '.env');
-  watch(envPath, () => {
-    scheduleRestart('.env');
-  });
+  if (existsSync(envPath)) {
+    watch(envPath, () => scheduleRestart('.env'));
+  }
 
   process.on('SIGINT', async () => {
-    await stopApp();
+    await killAll();
     pubsubServer.close();
     process.exit(0);
   });

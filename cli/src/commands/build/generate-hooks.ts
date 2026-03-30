@@ -74,7 +74,7 @@ export function generateHooks(entities: ParsedEntity[], generatedDir: string) {
     lines.push(`  {`);
     lines.push(`    const handler = ${hook.runnerExport};`);
     lines.push(`    const runner = new handler.runnerClass();`);
-    lines.push(`    await runner.init({ ...handler.initConfig, ...hooksConfig });`);
+    lines.push(`    await runner.init({ ...handler.initConfig, ...handler.config, ...hooksConfig });`);
     lines.push(``);
     lines.push(`    // Listen for entity register events (queue-based for reliable delivery)`);
     lines.push(`    await pubsub.consume('${registerChannel}', (msg: unknown) => {`);

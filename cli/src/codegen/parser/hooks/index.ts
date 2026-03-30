@@ -33,26 +33,26 @@ export function parseHook(method: MethodDeclaration): ParsedHook | null {
     const arg = args[0];
     runnerExport = arg.getText();
 
-    // Resolve source package — try type declaration file first, then source imports
-    const argType = arg.getType();
-    const symbol = argType.getSymbol() ?? argType.getAliasSymbol();
-    if (symbol) {
-      const decls = symbol.getDeclarations();
-      if (decls.length > 0) {
-        const declFile = decls[0].getSourceFile().getFilePath();
-        runnerSourcePackage = extractPackageName(declFile) ?? undefined;
+    // Resolve source package from the entity's import declarations first
+    // e.g. import { HttpRequest } from '@interactkit/http' → '@interactkit/http'
+    const ns = runnerExport.split('.')[0];
+    const sourceFile = method.getSourceFile();
+    for (const imp of sourceFile.getImportDeclarations()) {
+      if (imp.getNamedImports().some(n => n.getName() === ns)) {
+        runnerSourcePackage = imp.getModuleSpecifierValue();
+        break;
       }
     }
 
-    // Fallback: find the namespace import in the entity's source file
-    // e.g. import { HttpRequest } from '@interactkit/http' → '@interactkit/http'
+    // Fallback: try type declaration file
     if (!runnerSourcePackage) {
-      const ns = runnerExport.split('.')[0];
-      const sourceFile = method.getSourceFile();
-      for (const imp of sourceFile.getImportDeclarations()) {
-        if (imp.getNamedImports().some(n => n.getName() === ns)) {
-          runnerSourcePackage = imp.getModuleSpecifierValue();
-          break;
+      const argType = arg.getType();
+      const symbol = argType.getSymbol() ?? argType.getAliasSymbol();
+      if (symbol) {
+        const decls = symbol.getDeclarations();
+        if (decls.length > 0) {
+          const declFile = decls[0].getSourceFile().getFilePath();
+          runnerSourcePackage = extractPackageName(declFile) ?? undefined;
         }
       }
     }

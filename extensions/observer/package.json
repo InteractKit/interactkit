@@ -19,8 +19,10 @@
     "prepublishOnly": "pnpm build"
   },
   "dependencies": {
-    "@interactkit/observer-ui": "workspace:*",
     "ws": "^8.18.0"
+  },
+  "optionalDependencies": {
+    "@interactkit/observer-ui": "^0.1.0"
   },
   "peerDependencies": {
     "@interactkit/sdk": "^0.2.0",

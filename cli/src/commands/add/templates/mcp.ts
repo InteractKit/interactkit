@@ -43,7 +43,7 @@ export function mcpTemplate(className: string, transportCode: string, tools: MCP
     ? `{ description: '${className} MCP — ${tools.length} tools', detached: true }`
     : `{ description: '${className} MCP — ${tools.length} tools' }`;
 
-  lines.push(`import { Entity, BaseEntity, Hook, Init, Tool, MCPClientWrapper } from '@interactkit/sdk';`);
+  lines.push(`import { Entity, BaseEntity, Hook, Init, Tool, MCPClientWrapper, type Remote } from '@interactkit/sdk';`);
   lines.push('');
   lines.push(`@Entity(${entityOpts})`);
   lines.push(`export class ${className} extends BaseEntity {`);
@@ -52,7 +52,7 @@ export function mcpTemplate(className: string, transportCode: string, tools: MCP
   lines.push(`  });`);
   lines.push('');
   lines.push(`  @Hook(Init.Runner())`);
-  lines.push(`  async onInit(input: Init.Input) {`);
+  lines.push(`  async onInit(input: Remote<Init.Input>) {`);
   lines.push(`    await this.client.connect();`);
   lines.push(`    console.log(\`[\${this.id}] ${className} connected — ${tools.length} tools\`);`);
   lines.push(`  }`);

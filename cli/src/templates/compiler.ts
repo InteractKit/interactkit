@@ -45,6 +45,7 @@ export function compileEntity(entity: TemplateEntity): string {
   // Components
   if (entity.components?.length) {
     sdkImports.add('Component');
+    sdkImports.add('type Remote');
     for (const c of entity.components) {
       fileImports.push({ name: c.class, path: `./${c.file}.js` });
     }
@@ -53,6 +54,7 @@ export function compileEntity(entity: TemplateEntity): string {
   // Refs
   if (entity.refs?.length) {
     sdkImports.add('Ref');
+    sdkImports.add('type Remote');
     for (const r of entity.refs) {
       fileImports.push({ name: r.class, path: `./${r.file}.js` });
     }
@@ -67,6 +69,7 @@ export function compileEntity(entity: TemplateEntity): string {
   const externalHookImports: Array<{ name: string; from: string }> = [];
   if (entity.hooks?.length) {
     sdkImports.add('Hook');
+    sdkImports.add('type Remote');
     for (const h of entity.hooks) {
       if (h.from) {
         externalHookImports.push({ name: h.type, from: h.from });
@@ -147,7 +150,7 @@ export function compileEntity(entity: TemplateEntity): string {
   // Components
   if (entity.components?.length) {
     for (const c of entity.components) {
-      lines.push(`  @Component() private ${c.name}!: ${c.class};`);
+      lines.push(`  @Component() private ${c.name}!: Remote<${c.class}>;`);
     }
     lines.push('');
   }
@@ -155,7 +158,7 @@ export function compileEntity(entity: TemplateEntity): string {
   // Refs
   if (entity.refs?.length) {
     for (const r of entity.refs) {
-      lines.push(`  @Ref() private ${r.name}!: ${r.class};`);
+      lines.push(`  @Ref() private ${r.name}!: Remote<${r.class}>;`);
     }
     lines.push('');
   }
@@ -164,7 +167,7 @@ export function compileEntity(entity: TemplateEntity): string {
   if (entity.hooks?.length) {
     for (const h of entity.hooks) {
       const runner = h.config ? `${h.type}.Runner(${h.config})` : `${h.type}.Runner()`;
-      const inputType = `${h.type}.Input`;
+      const inputType = `Remote<${h.type}.Input>`;
       lines.push(`  @Hook(${runner})`);
       lines.push(`  async on${h.type}(input: ${inputType}) {`);
       lines.push(`    ${h.body}`);

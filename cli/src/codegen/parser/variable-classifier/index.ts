@@ -6,7 +6,8 @@ export type VariableClassification =
   | { kind: 'ref'; entityType: string; className: string; isRemote: boolean }
   | { kind: 'stream'; payloadType: ParsedType; payloadZod: string }
   | { kind: 'component'; entityType: string; className: string; isRemote: boolean }
-  | { kind: 'state' };
+  | { kind: 'state' }
+  | { kind: 'skip' };
 
 /**
  * Classify a property as ref, stream, component, or state
@@ -45,6 +46,19 @@ export function classifyVariable(
     }
   }
 
+  // @Component() decorator
+  if (prop.getDecorator('Component')) {
+    if (isRemote && classToEntityType.has(innerTypeText)) {
+      return { kind: 'component', entityType: classToEntityType.get(innerTypeText)!, className: innerTypeText, isRemote };
+    }
+    const type = prop.getType();
+    const symbol = type.getSymbol();
+    const className = symbol?.getName();
+    if (className && classToEntityType.has(className)) {
+      return { kind: 'component', entityType: classToEntityType.get(className)!, className, isRemote };
+    }
+  }
+
   // EntityStream<T> — by type annotation or @Stream() decorator
   const streamMatch = innerTypeText.match(/^EntityStream<(.+)>$/);
   if (streamMatch || prop.getDecorator('Stream')) {
@@ -67,5 +81,10 @@ export function classifyVariable(
     return { kind: 'component', entityType: classToEntityType.get(className)!, className, isRemote };
   }
 
-  return { kind: 'state' };
+  // Only treat as state if explicitly decorated with @State, @Secret, @Describe, or @Configurable
+  if (prop.getDecorator('State') || prop.getDecorator('Secret') || prop.getDecorator('Describe') || prop.getDecorator('Configurable')) {
+    return { kind: 'state' };
+  }
+
+  return { kind: 'skip' };
 }

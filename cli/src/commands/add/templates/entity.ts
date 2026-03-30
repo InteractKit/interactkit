@@ -3,12 +3,12 @@ export function entityTemplate(name: string, _type: string, detached?: boolean):
   const entityOpts = detached
     ? `{ detached: true }`
     : `{}`;
-  return `import { Entity, BaseEntity, Hook, Init, State, Tool } from '@interactkit/sdk';
+  return `import { Entity, BaseEntity, Hook, Init, State, Tool, type Remote } from '@interactkit/sdk';
 
 @Entity(${entityOpts})
 export class ${name} extends BaseEntity {
   @Hook(Init.Runner())
-  async onInit(input: Init.Input) {
+  async onInit(input: Remote<Init.Input>) {
     console.log(\`[\${this.id}] ${name} initialized\`);
   }
 }

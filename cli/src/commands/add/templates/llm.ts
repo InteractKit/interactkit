@@ -5,7 +5,7 @@ export function llmTemplate(name: string, _type: string, detached?: boolean): st
     : `{ description: 'TODO: describe this entity' }`;
   return `import {
   Entity, LLMEntity, Hook, Init, State,
-  Executor, Tool,
+  Executor, Tool, type Remote,
 } from '@interactkit/sdk';
 import { ChatOpenAI } from '@langchain/openai';
 
@@ -15,7 +15,7 @@ export class ${name} extends LLMEntity {
   private llm = new ChatOpenAI({ model: 'gpt-4o-mini' });
 
   @Hook(Init.Runner())
-  async onInit(input: Init.Input) {
+  async onInit(input: Remote<Init.Input>) {
     console.log(\`[\${this.id}] ${name} initialized\`);
   }
 

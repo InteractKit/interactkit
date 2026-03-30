@@ -115,6 +115,9 @@ export function extractEntities(project: Project, opts?: { validate?: boolean })
           }
           break;
         }
+
+        case 'skip':
+          break;
       }
     }
 

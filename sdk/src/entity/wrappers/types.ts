@@ -20,11 +20,30 @@ export interface EntityNode {
   refs: Array<{ propertyName: string; targetEntityType: string; id: string }>;
   components: EntityNodeComponent[];
   streams: Array<{ propertyName: string; id: string }>;
-  methods: Array<{ methodName: string; eventName: string; id: string }>;
+  methods: Array<{ methodName: string; eventName: string; id: string; description?: string; inputSchema?: MethodInputSchema; }>;
   hooks: Array<{ methodName: string; hookTypeName: string; runnerExport?: string; inProcess: boolean; id: string }>;
 }
 
 export type EntityTree = EntityNode;
+
+// ─── Method input schema (for observer UI form generation) ──
+
+export type FieldType =
+  | 'string' | 'number' | 'boolean'
+  | { kind: 'array'; element: FieldType }
+  | { kind: 'enum'; values: Array<string | number> }
+  | { kind: 'object'; fields: MethodInputField[] };
+
+export interface MethodInputField {
+  name: string;
+  type: FieldType;
+  optional: boolean;
+}
+
+/** Describes a method's input parameters for UI form generation. */
+export interface MethodInputSchema {
+  fields: MethodInputField[];
+}
 
 // ─── Element descriptor ─────────────────────────────────
 

@@ -1,4 +1,4 @@
-export type { EntityTree, EntityNode, EntityNodeComponent, ElementDescriptor } from './types.js';
+export type { EntityTree, EntityNode, EntityNodeComponent, ElementDescriptor, MethodInputSchema, MethodInputField, FieldType } from './types.js';
 export { EntitySession } from './entity-session.js';
 export { BaseWrapper } from './base-wrapper.js';
 export { StateWrapper } from './state-wrapper.js';

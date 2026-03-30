@@ -3,6 +3,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { runCodegen } from './codegen.js';
 import { generateEntry } from './generate-entry.js';
 import { generateHooks } from './generate-hooks.js';
+import { generateObserver } from './generate-observer.js';
 import { generateUnits } from './generate-units.js';
 import { compile } from './compile.js';
 import { generateDocker } from './generate-docker.js';
@@ -46,6 +47,7 @@ export async function buildCommand(flags: BuildFlags) {
   // Step 2: Generate entrypoints into .interactkit/generated/
   generateEntry(generatedDir, root, dev);
   generateHooks(entities, generatedDir);
+  generateObserver(generatedDir);
   generateUnits(entities, generatedDir, dev, rootEntity);
 
   // Step 3: Run mutator (copy src to staging, inject @__Path + async transforms)

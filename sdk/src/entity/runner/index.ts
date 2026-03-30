@@ -11,6 +11,7 @@ import {
   type ElementDescriptor,
 } from '../wrappers/base-wrapper.js';
 import type { InteractKitConfig } from '../../settings.js';
+import { ObserverBridge } from '../../observer/bridge.js';
 import { StateWrapper } from '../wrappers/state-wrapper.js';
 import { ComponentWrapper } from '../wrappers/component-wrapper.js';
 import { RefWrapper } from '../wrappers/ref-wrapper.js';
@@ -34,12 +35,22 @@ const KIND_TO_WRAPPER: Record<ElementDescriptor['kind'], () => BaseWrapper> = {
 export class Runner {
   private factory: InstanceFactory;
   private tree: EntityTree;
+  private bridge: ObserverBridge | null = null;
+  private config: InteractKitConfig | undefined;
 
   constructor(tree: EntityTree, config?: InteractKitConfig) {
     this.tree = tree;
+    this.config = config;
     this.factory = new InstanceFactory(tree);
 
-    BaseWrapper.configure(config);
+    // Replace observers with a bridge so events flow over pubsub
+    // to the _observer.ts process where the real observers run.
+    if (config?.observers?.length) {
+      this.bridge = new ObserverBridge(config.pubsub);
+      BaseWrapper.configure(config, this.bridge);
+    } else {
+      BaseWrapper.configure(config);
+    }
     BaseWrapper.setTree(tree);
   }
 
@@ -85,6 +96,15 @@ export class Runner {
     const wrappers = this.allWrappers();
     const instances = this.factory.getAll();
     for (const w of wrappers) await w.init(this.tree, instances);
+
+    // Start listening for observer control plane requests over pubsub
+    if (this.bridge) {
+      await this.bridge.listen(
+        this.tree,
+        StateWrapper.instance(),
+        MethodWrapper.instance(),
+      );
+    }
 
     return {
       root,

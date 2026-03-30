@@ -29,6 +29,7 @@ export { BaseWrapper, EntitySession, StateWrapper, ComponentWrapper, RefWrapper,
   MethodWrapper, HookWrapper,
 } from './entity/wrappers/index.js';
 export type { EntityTree, EntityNode, ElementDescriptor,
+  MethodInputSchema, MethodInputField, FieldType,
 } from './entity/wrappers/index.js';
 
 // Infra
@@ -50,6 +51,8 @@ export { InProcessBusAdapter } from './pubsub/in-process.js';
 export { BaseObserver } from './observer/base.js';
 export { ConsoleObserver } from './observer/console.js';
 export { DevObserver } from './observer/dev.js';
+export { ObserverBridge, OBSERVER_CHANNELS } from './observer/bridge.js';
+export { CompositeObserver } from './observer/composite.js';
 // RemotePubSubAdapter base class (for extension authors)
 export { RemotePubSubAdapter } from './pubsub/adapter.js';
 

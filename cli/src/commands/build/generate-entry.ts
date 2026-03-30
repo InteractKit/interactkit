@@ -25,8 +25,11 @@ export function generateEntry(generatedDir: string, root: string | undefined, _d
 
     entryLines.push(
       `import { ${rootExport} } from '${importPath}';`,
+      "import './_hooks.js';",
       '',
       `const { root, shutdown } = await new Runner(entityTree, config).boot(${rootExport} as any);`,
+      '',
+      "await import('./_observer.js');",
       "console.log(`▸ booted entity tree from ${root.id}`);",
       '',
       '// Graceful shutdown',

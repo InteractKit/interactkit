@@ -25,7 +25,7 @@
       "hooks": [
         { "type": "Init", "body": "console.log('[world] simulation started');" },
         { "type": "Tick", "config": "{ intervalMs: 30000 }", "body": "this.tick++;\n    console.log(`[world] tick ${this.tick}`);\n    await this.alice.act();\n    await this.bob.act();\n    await this.carla.act();" },
-        { "type": "HttpRequest", "from": "@interactkit/http", "config": "{ port: 3000, path: '/message' }", "body": "try {\n      const { to, text } = JSON.parse(input.body);\n      const targets: Record<string, any> = { alice: this.alice, bob: this.bob, carla: this.carla };\n      const target = targets[to];\n      if (!target) { input.respond(404, JSON.stringify({ error: `Unknown persona: ${to}` })); return; }\n      const result = await target.hear({ text });\n      input.respond(200, JSON.stringify({ from: to, result }));\n    } catch (err: any) {\n      input.respond(500, JSON.stringify({ error: err.message }));\n    }" }
+        { "type": "HttpRequest", "from": "@interactkit/http", "config": "{ port: 3000, path: '/message' }", "body": "try {\n      const { to, text } = JSON.parse(await input.body);\n      const targets: Record<string, any> = { alice: this.alice, bob: this.bob, carla: this.carla };\n      const target = targets[to];\n      if (!target) { input.respond(404, JSON.stringify({ error: `Unknown persona: ${to}` })); return; }\n      const result = await target.hear({ text });\n      input.respond(200, JSON.stringify({ from: to, result }));\n    } catch (err: any) {\n      input.respond(500, JSON.stringify({ error: err.message }));\n    }" }
       ]
     },
     {

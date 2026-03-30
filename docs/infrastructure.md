@@ -9,6 +9,7 @@ InteractKit uses pluggable adapters for database, pub/sub, and observability. Al
 import { Agent } from './src/entities/agent.js';
 import { PrismaDatabaseAdapter } from '@interactkit/prisma';
 import { RedisPubSubAdapter } from '@interactkit/redis';
+import { DashboardObserver } from '@interactkit/observer';
 import { DevObserver } from '@interactkit/sdk';
 import type { InteractKitConfig } from '@interactkit/sdk';
 
@@ -16,7 +17,7 @@ export default {
   root: Agent,
   database: new PrismaDatabaseAdapter({ url: 'file:./app.db' }),
   pubsub: new RedisPubSubAdapter({ host: 'localhost', port: 6379 }),
-  observer: new DevObserver(),
+  observers: [new DevObserver(), new DashboardObserver()],
   timeout: 15_000,
   stateFlushMs: 50,
 } satisfies InteractKitConfig;
@@ -99,12 +100,15 @@ State persistence is automatic:
 
 ### Observer
 
-| Adapter | Output |
-|---------|--------|
-| `ConsoleObserver` | Plain stdout/stderr |
-| `DevObserver` | Colored, formatted (used in `pnpm dev`) |
+| Adapter | Package | Output |
+|---------|---------|--------|
+| `ConsoleObserver` | `@interactkit/sdk` | Plain stdout/stderr |
+| `DevObserver` | `@interactkit/sdk` | Colored, formatted (used in `pnpm dev`) |
+| `DashboardObserver` | `@interactkit/observer` | WebSocket server + web dashboard UI on `http://localhost:4200` |
 
-Observers see all events flowing through the event bus -- tool calls, hook events, errors. They can also emit events back via `on()`/`off()` for subscribers to react to.
+Multiple observers can run simultaneously via the `observers` array. The `DashboardObserver` serves the `@interactkit/observer-ui` dashboard which provides an interactive entity graph, live event feed, state inspector, and method caller.
+
+Observers see all events flowing through the entity tree -- tool calls, hook events, errors. They can also control the runtime via `setState()`, `getState()`, `callMethod()`, and `getEntityTree()`.
 
 ## Custom Adapters
 
@@ -176,6 +180,7 @@ All infrastructure is configured in `interactkit.config.ts` at the project root.
 import { Agent } from './src/entities/agent.js';
 import { PrismaDatabaseAdapter } from '@interactkit/prisma';
 import { RedisPubSubAdapter } from '@interactkit/redis';
+import { DashboardObserver } from '@interactkit/observer';
 import { DevObserver } from '@interactkit/sdk';
 import type { InteractKitConfig } from '@interactkit/sdk';
 
@@ -183,7 +188,7 @@ export default {
   root: Agent,
   database: new PrismaDatabaseAdapter({ url: 'file:./app.db' }),
   pubsub: new RedisPubSubAdapter({ host: 'localhost', port: 6379 }),
-  observer: new DevObserver(),
+  observers: [new DevObserver(), new DashboardObserver()],
   timeout: 15_000,      // event bus request timeout (default: 30000)
   stateFlushMs: 50,     // state persistence debounce (default: 10)
 } satisfies InteractKitConfig;
@@ -193,6 +198,7 @@ export default {
 |---------|---------|-------------------|
 | `@interactkit/redis` | `RedisPubSubAdapter` | `{ host: string, port: number }` or `{ url: string }` |
 | `@interactkit/prisma` | `PrismaDatabaseAdapter` | `{ url: string }` |
+| `@interactkit/observer` | `DashboardObserver` | `{ port?: number, token?: string }` |
 
 Missing config throws a clear error at startup.
 

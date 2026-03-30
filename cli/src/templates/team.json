@@ -22,7 +22,7 @@
       ],
       "hooks": [
         { "type": "Init", "body": "console.log(`[agent] team booted (${this.id})`);" },
-        { "type": "HttpRequest", "from": "@interactkit/http", "config": "{ port: 3000, path: '/task' }", "body": "try {\n      const { message } = JSON.parse(input.body);\n      const result = await this.coordinator.invoke({ message });\n      input.respond(200, JSON.stringify({ result }));\n    } catch (err: any) {\n      input.respond(500, JSON.stringify({ error: err.message }));\n    }" }
+        { "type": "HttpRequest", "from": "@interactkit/http", "config": "{ port: 3000, path: '/task' }", "body": "try {\n      const { message } = JSON.parse(await input.body);\n      const result = await this.coordinator.invoke({ message });\n      input.respond(200, JSON.stringify({ result }));\n    } catch (err: any) {\n      input.respond(500, JSON.stringify({ error: err.message }));\n    }" }
       ]
     },
     {

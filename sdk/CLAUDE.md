@@ -286,6 +286,7 @@ All infrastructure is configured globally in `interactkit.config.ts` at the proj
 import { Agent } from './src/entities/agent.js';
 import { PrismaDatabaseAdapter } from '@interactkit/prisma';
 import { RedisPubSubAdapter } from '@interactkit/redis';
+import { DashboardObserver } from '@interactkit/observer';
 import { DevObserver } from '@interactkit/sdk';
 import type { InteractKitConfig } from '@interactkit/sdk';
 
@@ -293,7 +294,7 @@ export default {
   root: Agent,
   database: new PrismaDatabaseAdapter({ url: 'file:./app.db' }),
   pubsub: new RedisPubSubAdapter({ host: 'localhost', port: 6379 }),
-  observer: new DevObserver(),
+  observers: [new DevObserver(), new DashboardObserver()],
   timeout: 15_000,       // event bus request timeout (default: 30000)
   stateFlushMs: 50,      // state persistence debounce (default: 10)
 } satisfies InteractKitConfig;
@@ -343,10 +344,14 @@ interface DatabaseAdapter {
 }
 
 interface ObserverAdapter {
-  event(envelope: EventEnvelope): void;   // every serialized event flowing through the bus
+  event(envelope: EventEnvelope): void;   // every event flowing through the entity tree
   error(envelope: EventEnvelope, error: Error): void;  // failed events
   on(event: string, handler: (...args: unknown[]) => void): void;   // subscribe to observer events
   off(event: string, handler: (...args: unknown[]) => void): void;  // unsubscribe
+  setState(entityId: string, field: string, value: unknown): void;  // set entity state remotely
+  getState(entityId: string, field: string): Promise<unknown>;      // read entity state remotely
+  callMethod(entityId: string, method: string, payload?: unknown): Promise<unknown>;  // invoke method remotely
+  getEntityTree(): Promise<EntityTree>;                             // get full entity tree structure
 }
 ```
 
@@ -514,8 +519,10 @@ src/
   database/
     adapter.ts               # DatabaseAdapter interface
   observer/
-    adapter.ts               # ObserverAdapter interface
-    base.ts                  # BaseObserver -- abstract base with event emitter
+    adapter.ts               # ObserverAdapter interface (event, error, setState, getState, callMethod, getEntityTree)
+    base.ts                  # BaseObserver -- abstract base with event emitter + pubsub control plane
+    bridge.ts                # ObserverBridge -- sits in entity process, forwards events over pubsub
+    composite.ts             # CompositeObserver -- combines multiple observers into one
     console.ts               # ConsoleObserver -- default stdout
     dev.ts                   # DevObserver -- colored dev-mode output
 ```

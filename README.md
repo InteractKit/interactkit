@@ -163,6 +163,7 @@ All infrastructure lives in `interactkit.config.ts` at the project root:
 import { Agent } from './src/entities/agent.js';
 import { PrismaDatabaseAdapter } from '@interactkit/prisma';
 import { RedisPubSubAdapter } from '@interactkit/redis';
+import { DashboardObserver } from '@interactkit/observer';
 import { DevObserver } from '@interactkit/sdk';
 import type { InteractKitConfig } from '@interactkit/sdk';
 
@@ -170,7 +171,7 @@ export default {
   root: Agent,
   database: new PrismaDatabaseAdapter({ url: 'file:./app.db' }),
   pubsub: new RedisPubSubAdapter({ host: 'localhost', port: 6379 }),
-  observer: new DevObserver(),
+  observers: [new DevObserver(), new DashboardObserver()],
   timeout: 15_000,
   stateFlushMs: 50,
 } satisfies InteractKitConfig;
@@ -213,6 +214,8 @@ Your agents can now send Slack messages, create GitHub issues, and process Strip
 |---------|-------------|
 | `@interactkit/sdk` | Core: decorators, runtime, LLM, MCP, transparent proxy |
 | `@interactkit/cli` | CLI: init, add, build, dev, start |
+| `@interactkit/observer` | Observer dashboard backend (WebSocket + static UI server) |
+| `@interactkit/observer-ui` | Observer dashboard frontend (Next.js, entity graph, event feed) |
 | `@interactkit/redis` | Redis pub/sub adapter for distributed entities |
 | `@interactkit/prisma` | Prisma database adapter for state persistence |
 | `@interactkit/cron` | Cron scheduling hook (node-cron) |

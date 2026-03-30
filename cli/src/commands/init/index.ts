@@ -8,7 +8,7 @@ import blankTemplate from '@/templates/blank.json' with { type: 'json' };
 import simulationTemplate from '@/templates/simulation.json' with { type: 'json' };
 import teamTemplate from '@/templates/team.json' with { type: 'json' };
 
-type Database = 'sqlite' | 'postgres' | 'none';
+type Database = 'sqlite' | 'postgres';
 
 const templates: TemplateDefinition[] = [agentTemplate, blankTemplate, simulationTemplate, teamTemplate] as TemplateDefinition[];
 
@@ -30,11 +30,10 @@ export async function initCommand(projectName: string) {
     choices: [
       { value: 'sqlite', name: 'SQLite         zero config, file-based (recommended)' },
       { value: 'postgres', name: 'PostgreSQL     production-ready, requires connection string' },
-      { value: 'none', name: 'None           in-memory only (state lost on restart)' },
     ],
   });
 
-  console.log(`\n▸ Creating InteractKit project: ${projectName} (${template.name}, ${database === 'none' ? 'no db' : database})\n`);
+  console.log(`\n▸ Creating InteractKit project: ${projectName} (${template.name}, ${database})\n`);
 
   mkdirSync(resolve(projectDir, 'src/entities'), { recursive: true });
 
@@ -42,13 +41,13 @@ export async function initCommand(projectName: string) {
 
   const deps: Record<string, string> = {
     '@interactkit/sdk': '^0.2.0',
+    '@interactkit/observer': '^0.2.0',
+    '@interactkit/redis': '^0.2.0',
+    '@interactkit/prisma': '^0.2.0',
+    'prisma': '^6.0.0',
+    '@prisma/client': '^6.0.0',
     'reflect-metadata': '^0.2.2',
   };
-  if (database !== 'none') {
-    deps['@interactkit/prisma'] = '^0.2.0';
-    deps['prisma'] = '^6.0.0';
-    deps['@prisma/client'] = '^6.0.0';
-  }
   if (template.entities.some(e => e.extends === 'LLMEntity')) {
     deps['@langchain/openai'] = '^0.5.0';
   }
@@ -65,7 +64,8 @@ export async function initCommand(projectName: string) {
       build: 'interactkit build',
       dev: 'interactkit dev',
       start: 'interactkit start',
-      ...(database !== 'none' ? { 'db:migrate': 'prisma migrate dev', 'db:push': 'prisma db push' } : {}),
+      'db:migrate': 'prisma migrate dev',
+      'db:push': 'prisma db push',
     },
     dependencies: deps,
     devDependencies: {
@@ -113,49 +113,40 @@ node_modules/
   if (database === 'sqlite') {
     writeFileSync(resolve(projectDir, 'interactkit.config.ts'),
 `import { PrismaDatabaseAdapter } from '@interactkit/prisma';
-import { DevObserver } from '@interactkit/sdk';
+import { RedisPubSubAdapter } from '@interactkit/redis';
+import { DashboardObserver } from '@interactkit/observer';
 import type { InteractKitConfig } from '@interactkit/sdk';
 ${rootImport}
 
 export default {
   root: ${template.root.class},
   database: new PrismaDatabaseAdapter({ url: 'file:./interactkit.db' }),
-  observer: new DevObserver(),
+  pubsub: new RedisPubSubAdapter({ host: 'localhost', port: 6379 }),
+  observers: [new DashboardObserver()],
 } satisfies InteractKitConfig;
 `);
-  } else if (database === 'postgres') {
+  } else {
     writeFileSync(resolve(projectDir, 'interactkit.config.ts'),
 `import { PrismaDatabaseAdapter } from '@interactkit/prisma';
-import { DevObserver } from '@interactkit/sdk';
+import { RedisPubSubAdapter } from '@interactkit/redis';
+import { DashboardObserver } from '@interactkit/observer';
 import type { InteractKitConfig } from '@interactkit/sdk';
 ${rootImport}
 
 export default {
   root: ${template.root.class},
   database: new PrismaDatabaseAdapter({ url: process.env.DATABASE_URL ?? 'postgresql://localhost:5432/interactkit' }),
-  observer: new DevObserver(),
-} satisfies InteractKitConfig;
-`);
-  } else {
-    writeFileSync(resolve(projectDir, 'interactkit.config.ts'),
-`import { DevObserver } from '@interactkit/sdk';
-import type { InteractKitConfig } from '@interactkit/sdk';
-${rootImport}
-
-export default {
-  root: ${template.root.class},
-  database: undefined!,  // No database — state is in-memory only
-  observer: new DevObserver(),
+  pubsub: new RedisPubSubAdapter({ host: 'localhost', port: 6379 }),
+  observers: [new DashboardObserver()],
 } satisfies InteractKitConfig;
 `);
   }
 
   // ─── Prisma ───────────────────────────────────────────────
 
-  if (database !== 'none') {
-    mkdirSync(resolve(projectDir, 'prisma'), { recursive: true });
-    const provider = database === 'sqlite' ? 'sqlite' : 'postgresql';
-    writeFileSync(resolve(projectDir, 'prisma/schema.prisma'),
+  mkdirSync(resolve(projectDir, 'prisma'), { recursive: true });
+  const provider = database === 'sqlite' ? 'sqlite' : 'postgresql';
+  writeFileSync(resolve(projectDir, 'prisma/schema.prisma'),
 `datasource db {
   provider = "${provider}"
   url      = env("DATABASE_URL")
@@ -170,16 +161,13 @@ model EntityState {
   state String // JSON blob
 }
 `);
-    const dbUrl = database === 'sqlite' ? 'file:./interactkit.db' : 'postgresql://localhost:5432/interactkit';
-    writeFileSync(resolve(projectDir, '.env'), `DATABASE_URL="${dbUrl}"\n`);
-    writeFileSync(resolve(projectDir, '.env.example'), `DATABASE_URL="${dbUrl}"\n# ANTHROPIC_API_KEY=sk-ant-...\n# OPENAI_API_KEY=sk-...\n`);
-  } else {
-    writeFileSync(resolve(projectDir, '.env.example'), `# ANTHROPIC_API_KEY=sk-ant-...\n# OPENAI_API_KEY=sk-...\n`);
-  }
+  const dbUrl = database === 'sqlite' ? 'file:./interactkit.db' : 'postgresql://localhost:5432/interactkit';
+  writeFileSync(resolve(projectDir, '.env'), `DATABASE_URL="${dbUrl}"\n`);
+  writeFileSync(resolve(projectDir, '.env.example'), `DATABASE_URL="${dbUrl}"\n# ANTHROPIC_API_KEY=sk-ant-...\n# OPENAI_API_KEY=sk-...\n`);
 
   // ─── README ───────────────────────────────────────────────
 
-  writeFileSync(resolve(projectDir, 'README.md'), compileReadme(template, projectName, database !== 'none'));
+  writeFileSync(resolve(projectDir, 'README.md'), compileReadme(template, projectName, true));
 
   // ─── Entities (compiled from template JSON) ───────────────
 
@@ -197,17 +185,15 @@ model EntityState {
   for (const entity of template.entities) {
     console.log(`    src/entities/${entity.file}.ts  (${entity.class})`);
   }
-  if (database !== 'none') {
-    console.log('    prisma/schema.prisma');
-    console.log('    .env');
-  }
+  console.log('    prisma/schema.prisma');
+  console.log('    .env');
   console.log('    .env.example');
   console.log('    README.md');
 
   console.log(`\n▸ Next steps:\n`);
   console.log(`  cd ${projectName}`);
   console.log('  pnpm install');
-  if (database !== 'none') console.log('  pnpm db:push');
+  console.log('  pnpm db:push');
   console.log('  pnpm dev');
   console.log('');
 }

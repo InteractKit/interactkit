@@ -9,6 +9,7 @@ import type { BaseEntity } from "./entity/types.js";
  * ```typescript
  * import { PrismaDatabaseAdapter } from '@interactkit/prisma';
  * import { RedisPubSubAdapter } from '@interactkit/redis';
+ * import { DashboardObserver } from '@interactkit/observer';
  * import { DevObserver } from '@interactkit/sdk';
  * import type { InteractKitConfig } from '@interactkit/sdk';
  * import { Agent } from './src/entities/agent.js';
@@ -17,7 +18,7 @@ import type { BaseEntity } from "./entity/types.js";
  *   root: Agent,
  *   database: new PrismaDatabaseAdapter({ url: 'file:./app.db' }),
  *   pubsub: new RedisPubSubAdapter({ host: 'localhost', port: 6379 }),
- *   observer: new DevObserver(),
+ *   observers: [new DevObserver(), new DashboardObserver()],
  * } satisfies InteractKitConfig;
  * ```
  */
@@ -26,12 +27,12 @@ export interface InteractKitConfig {
   root?: { prototype: BaseEntity } & Function;
   /** Database adapter instance — required for state persistence. */
   database: DatabaseAdapter;
-  /** Remote pubsub adapter — used by entities marked `detached: true`. */
-  pubsub?: RemotePubSubAdapter;
+  /** Remote pubsub adapter — required for observer, hooks, and detached entities. */
+  pubsub: RemotePubSubAdapter;
   /** Local bus — defaults to InProcessBusAdapter if not provided. */
   localBus?: LocalPubSubAdapter;
-  /** Observer — sees all events flowing through the bus, can emit events back. */
-  observer?: ObserverAdapter;
+  /** Observers — see all events flowing through the bus, can emit events back. */
+  observers?: ObserverAdapter[];
   /** Hook init config — passed to HookRunner.init(). Each hook reads the keys it needs. */
   hooks?: Record<string, unknown>;
   /** Event bus request timeout in ms. Default: 30000 */

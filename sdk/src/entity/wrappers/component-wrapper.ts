@@ -38,8 +38,58 @@ export class ComponentWrapper extends BaseWrapper {
       if (!instances.has(id)) {
         entry.remote = true;
         this.onDetachedLeaf(id, entry.element, instances);
+      } else if (entry.childInstance) {
+        // Wrap local child in an observer proxy so events are visible
+        this.wrapLocalChild(id, entry);
       }
     }
+  }
+
+  /** Wrap a local child instance in a proxy that notifies the observer on method calls. */
+  private wrapLocalChild(id: string, entry: ComponentEntry): void {
+    const child = entry.childInstance!;
+    const entity = entry.element.entity as any;
+    const session = this.session(id);
+    const entityType = entry.childEntityType;
+    const sourceId = entity.id;
+    const targetId = entry.childPath ?? id;
+
+    const proxy = new Proxy(child, {
+      get(target, prop, receiver) {
+        const val = Reflect.get(target, prop, receiver);
+        if (typeof prop === 'symbol' || typeof val !== 'function') return val;
+        if (prop === 'constructor') return val;
+
+        return function (this: unknown, ...args: unknown[]) {
+          const observer = session.observer;
+          const envelope = observer ? {
+            id: randomUUID(), source: sourceId, target: targetId,
+            type: `${entityType}.${String(prop)}`, payload: args[0], timestamp: Date.now(),
+          } : null;
+
+          if (envelope) observer!.event(envelope);
+
+          try {
+            const result = val.apply(target, args);
+            if (result && typeof result === 'object' && typeof result.catch === 'function') {
+              return (result as Promise<unknown>).catch((err: unknown) => {
+                const e = err instanceof Error ? err : new Error(String(err));
+                if (envelope) observer!.error(envelope, e);
+                throw err;
+              });
+            }
+            return result;
+          } catch (err) {
+            const e = err instanceof Error ? err : new Error(String(err));
+            if (envelope) observer!.error(envelope, e);
+            throw err;
+          }
+        };
+      },
+    });
+
+    entity[entry.element.name] = proxy;
+    entry.childInstance = proxy;
   }
 
   handle(_tree: EntityTree, _instance: BaseEntity, id: string, method: string, args: unknown[]): unknown {

@@ -33,12 +33,12 @@ export abstract class BaseWrapper {
   private static busCache = new Map<string, EventBus>();
   private static configured = false;
 
-  static configure(config?: InteractKitConfig): void {
+  static configure(config?: InteractKitConfig, observer?: ObserverAdapter): void {
     if (!BaseWrapper.configured) {
       BaseWrapper.localPubsub = config?.localBus ?? new InProcessBusAdapter();
       BaseWrapper.remotePubsub = config?.pubsub;
       BaseWrapper.database = config?.database;
-      BaseWrapper.observer = config?.observer;
+      BaseWrapper.observer = observer;
       BaseWrapper.hooksConfig = (config?.hooks as Record<string, unknown>) ?? {};
       BaseWrapper.timeout = config?.timeout ?? 30_000;
       BaseWrapper.stateFlushMs = config?.stateFlushMs ?? 10;

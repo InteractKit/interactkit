@@ -1,6 +1,6 @@
 {
   "name": "@interactkit/cron",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Cron scheduling extension for InteractKit — trigger hooks on cron schedules using node-cron",
   "type": "module",
   "license": "MIT",

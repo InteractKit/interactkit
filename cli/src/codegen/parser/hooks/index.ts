@@ -91,17 +91,26 @@ export function parseHook(method: MethodDeclaration): ParsedHook | null {
     }
   }
 
-  // Check if this hook's Runner declares inProcess: true
+  // Detect inProcess from the return type of the Runner() call.
+  // InProcessHookHandler has { inProcess: true }, RemoteHookHandler has { inProcess: false }.
+  // The type name in .d.ts reliably distinguishes them.
   let inProcess = false;
   if (args.length > 0) {
-    const arg = args[0];
-    if (Node.isCallExpression(arg)) {
-      const fnSym = arg.getExpression().getType().getSymbol();
-      const decls = fnSym?.getDeclarations() ?? [];
-      for (const decl of decls) {
-        if (decl.getText().includes('inProcess: true')) {
-          inProcess = true;
-          break;
+    const argType = args[0].getType();
+    const typeName = argType.getSymbol()?.getName() ?? argType.getAliasSymbol()?.getName() ?? '';
+    if (typeName === 'InProcessHookHandler') {
+      inProcess = true;
+    } else if (typeName === 'RemoteHookHandler') {
+      inProcess = false;
+    } else {
+      // Fallback: check source text for older hooks or local source files
+      if (Node.isCallExpression(args[0])) {
+        const fnSym = args[0].getExpression().getType().getSymbol();
+        for (const decl of fnSym?.getDeclarations() ?? []) {
+          if (decl.getText().includes('inProcess: true')) {
+            inProcess = true;
+            break;
+          }
         }
       }
     }

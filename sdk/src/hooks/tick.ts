@@ -1,4 +1,4 @@
-import type { HookRunner, HookHandler } from './runner.js';
+import type { InProcessHookRunner, InProcessHookHandler } from './runner.js';
 
 export namespace Tick {
   export interface Input {
@@ -6,7 +6,7 @@ export namespace Tick {
     elapsed: number;
   }
 
-  class RunnerImpl implements HookRunner<Input> {
+  class RunnerImpl implements InProcessHookRunner<Input> {
     private timer?: ReturnType<typeof setInterval>;
     private tickCount = 0;
     private startTime = 0;
@@ -30,7 +30,7 @@ export namespace Tick {
     }
   }
 
-  export function Runner(config: { intervalMs: number } = { intervalMs: 60000 }): HookHandler<Input> {
+  export function Runner(config: { intervalMs: number } = { intervalMs: 60000 }): InProcessHookHandler<Input> {
     return { __hookHandler: true, runnerClass: RunnerImpl, config, inProcess: true };
   }
 }

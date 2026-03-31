@@ -33,7 +33,7 @@ export class HookWrapper extends BaseWrapper {
         entry.runner = runner;
         await runner.init({ ...entry.meta.initConfig, ...entry.meta.config, ...hooksConfig });
         runner.register(
-          (data: unknown) => { Promise.resolve(methodFn.call(entity, data)).catch(() => {}); },
+          (data: unknown) => { Promise.resolve(methodFn.call(entity, data)).catch((err) => { console.error(`[hook] ${hookKey} error:`, err); }); },
           { ...entry.meta.config, entityId: entity.id, firstBoot: true },
         );
       } else {

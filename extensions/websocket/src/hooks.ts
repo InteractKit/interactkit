@@ -1,5 +1,5 @@
 import { WebSocketServer, type WebSocket as WsSocket } from 'ws';
-import type { HookRunner, HookHandler } from '@interactkit/sdk';
+import type { RemoteHookRunner, RemoteHookHandler } from '@interactkit/sdk';
 
 // ─── Centralized WebSocket Server Pool ─────────────────────
 // Shares a single WebSocketServer per port across all WS hook runners.
@@ -89,7 +89,7 @@ export namespace WsMessage {
     port?: number;
   }
 
-  class RunnerImpl implements HookRunner<Input> {
+  class RunnerImpl implements RemoteHookRunner<Input> {
     private port = 0;
     private handler: MessageHandler | null = null;
 
@@ -115,12 +115,13 @@ export namespace WsMessage {
     }
   }
 
-  export function Runner(config: Config = {}): HookHandler<Input> {
+  export function Runner(config: Config = {}): RemoteHookHandler<Input> {
     return {
       __hookHandler: true as const,
       runnerClass: RunnerImpl,
       config: config as unknown as Record<string, unknown>,
       initConfig: { ws: { port: config.port ?? 8080 } },
+      inProcess: false,
     };
   }
 }
@@ -139,7 +140,7 @@ export namespace WsConnection {
     port?: number;
   }
 
-  class RunnerImpl implements HookRunner<Input> {
+  class RunnerImpl implements RemoteHookRunner<Input> {
     private port = 0;
     private handler: ConnectionHandler | null = null;
 
@@ -165,12 +166,13 @@ export namespace WsConnection {
     }
   }
 
-  export function Runner(config: Config = {}): HookHandler<Input> {
+  export function Runner(config: Config = {}): RemoteHookHandler<Input> {
     return {
       __hookHandler: true as const,
       runnerClass: RunnerImpl,
       config: config as unknown as Record<string, unknown>,
       initConfig: { ws: { port: config.port ?? 8080 } },
+      inProcess: false,
     };
   }
 }

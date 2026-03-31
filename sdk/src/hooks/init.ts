@@ -1,4 +1,4 @@
-import type { HookRunner } from './runner.js';
+import type { InProcessHookRunner, InProcessHookHandler } from './runner.js';
 
 export namespace Init {
   export interface Input {
@@ -6,7 +6,7 @@ export namespace Init {
     firstBoot: boolean;
   }
 
-  class RunnerImpl implements HookRunner<Input> {
+  class RunnerImpl implements InProcessHookRunner<Input> {
     async init(_config: Record<string, unknown>): Promise<void> {}
 
     register(emit: (data: Input) => void, config: Record<string, unknown>): void {
@@ -19,7 +19,7 @@ export namespace Init {
     async stop(): Promise<void> {}
   }
 
-  export function Runner() {
-    return { __hookHandler: true as const, runnerClass: RunnerImpl, config: {}, inProcess: true as const };
+  export function Runner(): InProcessHookHandler<Input> {
+    return { __hookHandler: true, runnerClass: RunnerImpl, config: {}, inProcess: true };
   }
 }

@@ -39,7 +39,7 @@ export type { InfraContext } from './entity/infra/index.js';
 // Hook namespaces
 export { Init } from './hooks/init.js';
 export { Tick } from './hooks/tick.js';
-export type { HookRunner, HookHandler } from './hooks/runner.js';
+export type { HookRunner, InProcessHookRunner, RemoteHookRunner, HookHandler, InProcessHookHandler, RemoteHookHandler } from './hooks/runner.js';
 
 // Adapter interfaces
 export type { PubSubAdapter, LocalPubSubAdapter } from './pubsub/adapter.js';
@@ -74,6 +74,9 @@ export type { LLMEntityOptions, ToolOptions, LLMMessage, LLMContextOptions, LLME
 // MCP
 export { MCP, getMCPMeta, MCPClientWrapper } from './mcp/index.js';
 export type { MCPOptions, MCPTransportConfig, MCPStdioTransport, MCPHttpTransport, MCPSseTransport, MCPToolInfo } from './mcp/index.js';
+
+// Registry
+export { setRegistry, getRegistry } from './registry.js';
 
 // Settings
 export type { InteractKitConfig } from './settings.js';

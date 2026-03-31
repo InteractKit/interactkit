@@ -1,7 +1,8 @@
 import 'reflect-metadata';
 import { z } from 'zod';
 import { BaseEntity } from '../entity/types.js';
-import { getDescribeMethod } from '../entity/decorators/index.js';
+import { getDescribeMethod, getEntityMeta } from '../entity/decorators/index.js';
+import { getRegistry } from '../registry.js';
 import { LLMContext } from './context.js';
 import { EntityStreamImpl } from '../entity/stream/index.js';
 import type { EntityStream } from '../entity/stream/index.js';
@@ -13,6 +14,16 @@ import { HumanMessage, AIMessage, SystemMessage, ToolMessage } from '@langchain/
 
 const LLM_EXECUTOR_KEY = Symbol.for('llm:executor');
 const LLM_TOOL_KEY = Symbol.for('llm:tools');
+
+/** Look up the Zod input schema for a method from the codegen registry. */
+function getMethodSchema(entityType: string, methodName: string): any {
+  const registry = getRegistry();
+  if (!registry?.entities) return null;
+  const entity = registry.entities[entityType];
+  if (!entity?.methods) return null;
+  const method = entity.methods[`${entityType}.${methodName}`];
+  return method?.input ?? null;
+}
 
 /** Payload emitted on the toolCall stream */
 export interface ToolCallEvent {
@@ -30,7 +41,29 @@ export abstract class LLMEntity extends BaseEntity {
   readonly response: EntityStream<string> = new EntityStreamImpl<string>();
   readonly toolCall: EntityStream<ToolCallEvent> = new EntityStreamImpl<ToolCallEvent>();
 
+  /** Prevents overlapping tick/external triggers from calling invoke() while one is already running. */
+  private _invokeRunning = false;
+  private _pendingMessages: string[] = [];
+
   async invoke(params: LLMExecutionTriggerParams): Promise<string> {
+    if (this._invokeRunning) {
+      // Re-entrant call (e.g. hear() triggered by a tool call inside an active invoke).
+      // Don't run an LLM loop — that would corrupt the shared context by inserting
+      // messages before the outer invoke finishes adding tool results.
+      // Buffer the message so the next invoke sees it.
+      this._pendingMessages.push(params.message);
+      return '';
+    }
+
+    this._invokeRunning = true;
+    try {
+      return await this._invokeInner(params);
+    } finally {
+      this._invokeRunning = false;
+    }
+  }
+
+  private async _invokeInner(params: LLMExecutionTriggerParams): Promise<string> {
     const entityCtor = this.constructor;
     const executorProp: string | undefined = Reflect.getOwnMetadata(LLM_EXECUTOR_KEY, entityCtor);
     const toolMeta: Map<string, ToolOptions> = Reflect.getOwnMetadata(LLM_TOOL_KEY, entityCtor) ?? new Map();
@@ -42,17 +75,20 @@ export abstract class LLMEntity extends BaseEntity {
     const entity = this as any;
     const tools: Array<{ name: string; description: string; schema: any; invoke: (a: any) => Promise<string> }> = [];
 
+    const entityType = getEntityMeta(entityCtor as any)?.type;
+
     // Own @Tool methods
     for (const [methodName, opts] of toolMeta.entries()) {
+      const schema = (entityType && getMethodSchema(entityType, methodName)) ?? z.object({});
       tools.push({
         name: opts.name ?? methodName,
         description: opts.description,
-        schema: z.object({}),
+        schema,
         async invoke(toolArgs: any) {
           const fn = entity[methodName];
           if (typeof fn !== 'function') throw new Error(`Tool "${methodName}" not found`);
           const result = await fn.call(entity, toolArgs);
-          const resultStr = typeof result === 'string' ? result : JSON.stringify(result);
+          const resultStr = result == null ? '' : typeof result === 'string' ? result : JSON.stringify(result);
           entity.toolCall.emit({ tool: opts.name ?? methodName, args: toolArgs, result: resultStr });
           return resultStr;
         },
@@ -68,17 +104,20 @@ export abstract class LLMEntity extends BaseEntity {
       const childCtor = child.constructor;
       const childTools: Map<string, ToolOptions> = Reflect.getOwnMetadata(LLM_TOOL_KEY, childCtor) ?? new Map();
 
+      const childEntityType = getEntityMeta(childCtor)?.type;
+
       for (const [childMethod, childOpts] of childTools.entries()) {
         const fullToolName = `${propName}_${childOpts.name ?? childMethod}`;
+        const childSchema = (childEntityType && getMethodSchema(childEntityType, childMethod)) ?? z.object({});
         tools.push({
           name: fullToolName,
           description: childOpts.description,
-          schema: z.object({}),
+          schema: childSchema,
           async invoke(toolArgs: any) {
             const fn = child[childMethod];
             if (typeof fn !== 'function') throw new Error(`Tool "${propName}.${childMethod}" not found`);
             const result = await fn.call(child, toolArgs);
-            const resultStr = typeof result === 'string' ? result : JSON.stringify(result);
+            const resultStr = result == null ? '' : typeof result === 'string' ? result : JSON.stringify(result);
             entity.toolCall.emit({ tool: fullToolName, args: toolArgs, result: resultStr });
             return resultStr;
           },
@@ -104,9 +143,13 @@ export abstract class LLMEntity extends BaseEntity {
     }
     if (promptParts.length > 0) context.setSystemPrompt(promptParts.join('\n\n'));
 
-    // Bind tools + add user message
+    // Bind tools + add user message (drain any buffered messages from re-entrant calls first)
     const llmWithTools = typeof model.bindTools === 'function' && tools.length > 0
       ? model.bindTools(tools) : model;
+    for (const pending of this._pendingMessages) {
+      context.addUser(pending);
+    }
+    this._pendingMessages = [];
     context.addUser(params.message);
 
     function toMessages(ctx: LLMContext): BaseMessage[] {

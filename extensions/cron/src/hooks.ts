@@ -1,5 +1,5 @@
 import cron from 'node-cron';
-import type { HookRunner, HookHandler } from '@interactkit/sdk';
+import type { RemoteHookRunner, RemoteHookHandler } from '@interactkit/sdk';
 
 // ─── Cron Hook ──────────────────────────────────────────
 // Fires on a cron schedule using node-cron.
@@ -17,7 +17,7 @@ export namespace Cron {
     expression: string;
   }
 
-  class RunnerImpl implements HookRunner<Input> {
+  class RunnerImpl implements RemoteHookRunner<Input> {
     private timezone?: string;
     private tasks: cron.ScheduledTask[] = [];
 
@@ -53,12 +53,13 @@ export namespace Cron {
     }
   }
 
-  export function Runner(config: Config): HookHandler<Input> {
+  export function Runner(config: Config): RemoteHookHandler<Input> {
     return {
       __hookHandler: true,
       runnerClass: RunnerImpl,
       config: config as unknown as Record<string, unknown>,
       initConfig: {},
+      inProcess: false,
     };
   }
 }

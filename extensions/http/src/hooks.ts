@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse, type Server } from 'node:http';
-import type { HookRunner, HookHandler } from '@interactkit/sdk';
+import type { RemoteHookRunner, RemoteHookHandler } from '@interactkit/sdk';
 
 // ─── Centralized HTTP Server Pool ──────────────────────────
 // Shares a single http.Server per port across all HttpRequest hook runners.
@@ -78,7 +78,7 @@ export namespace HttpRequest {
     path?: string;
   }
 
-  class RunnerImpl implements HookRunner<Input> {
+  class RunnerImpl implements RemoteHookRunner<Input> {
     private port = 0;
     private path = '/';
 
@@ -135,12 +135,13 @@ export namespace HttpRequest {
     }
   }
 
-  export function Runner(config: Config = {}): HookHandler<Input> {
+  export function Runner(config: Config = {}): RemoteHookHandler<Input> {
     return {
       __hookHandler: true as const,
       runnerClass: RunnerImpl,
       config: config as unknown as Record<string, unknown>,
       initConfig: { http: { port: config.port ?? 3000 } },
+      inProcess: false,
     };
   }
 }

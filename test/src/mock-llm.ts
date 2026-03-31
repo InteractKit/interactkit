@@ -61,7 +61,7 @@ export function mockLLM(script: MockLLMStep[]) {
 
       return {
         content: step.response ?? '',
-        tool_calls: toolCalls.length > 0 ? toolCalls : undefined,
+        tool_calls: toolCalls,
         additional_kwargs: {},
       };
     },

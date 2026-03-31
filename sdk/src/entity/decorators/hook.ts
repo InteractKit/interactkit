@@ -17,7 +17,7 @@ export function Hook(handler: HookHandler): MethodDecorator {
       runnerClass: handler.runnerClass,
       config: handler.config,
       initConfig: handler.initConfig,
-      inProcess: handler.inProcess ?? false,
+      inProcess: handler.inProcess,
     });
 }
 

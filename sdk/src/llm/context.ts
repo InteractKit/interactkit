@@ -40,7 +40,20 @@ export class LLMContext {
     this.messages.push(message);
     // Trim to maxHistory (keep system prompt separate)
     if (this.messages.length > this.maxHistory) {
-      this.messages = this.messages.slice(-this.maxHistory);
+      let start = this.messages.length - this.maxHistory;
+      // Don't split assistant+tool message pairs — if we'd start on a tool message,
+      // skip forward past all tool messages to the next non-tool message
+      while (start < this.messages.length && this.messages[start].role === 'tool') {
+        start++;
+      }
+      // If we'd start on an assistant with tool_calls, skip it too (its tool results were trimmed)
+      if (start < this.messages.length && this.messages[start].role === 'assistant' && this.messages[start].toolCalls?.length) {
+        start++;
+        while (start < this.messages.length && this.messages[start].role === 'tool') {
+          start++;
+        }
+      }
+      this.messages = this.messages.slice(start);
     }
   }
 

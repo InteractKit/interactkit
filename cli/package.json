@@ -1,6 +1,6 @@
 {
   "name": "@interactkit/cli",
-  "version": "0.2.13",
+  "version": "0.2.14",
   "description": "CLI for InteractKit — codegen, scaffolding, build, and dev server",
   "type": "module",
   "license": "MIT",

@@ -31,7 +31,7 @@ export class HookWrapper extends BaseWrapper {
         // ─── Local: init + register + stop all in this process ───
         const runner = new entry.meta.runnerClass();
         entry.runner = runner;
-        await runner.init({ ...entry.meta.initConfig, ...hooksConfig });
+        await runner.init({ ...entry.meta.initConfig, ...entry.meta.config, ...hooksConfig });
         runner.register(
           (data: unknown) => { Promise.resolve(methodFn.call(entity, data)).catch(() => {}); },
           { ...entry.meta.config, entityId: entity.id, firstBoot: true },

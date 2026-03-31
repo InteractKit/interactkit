@@ -56,7 +56,7 @@ for dir in "${PACKAGES[@]}"; do
   echo "── $name@$version ──────────────────────────────────"
 
   # Hash source files to detect changes (stored in .autodeploy after publish)
-  content_hash=$(find "$dir" -not -path '*/node_modules/*' -not -path '*/dist/*' -not -name '.autodeploy' -not -name 'package.json' -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1)
+  content_hash=$(find "$dir" -not -path '*/node_modules/*' -not -path '*/dist/*' -not -path '*/.git/*' -not -path '*/.next/*' -not -name '.autodeploy' -not -name 'package.json' -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1)
   prev_hash=$(cat "$dir/.autodeploy" 2>/dev/null || echo "")
 
   if [[ "$content_hash" == "$prev_hash" ]]; then

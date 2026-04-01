@@ -38,13 +38,18 @@ export class HookWrapper extends BaseWrapper {
         );
       } else {
         // ─── Remote: _hooks.ts owns the runner ───
+        // Remote hooks always communicate via the remote pubsub (DevPubSubAdapter/Redis),
+        // even if the entity itself is not detached, because _hooks.ts is a separate process.
+        const remotePubsub = this.session(id).remotePubsubAdapter;
+        if (!remotePubsub) throw new Error(`Remote hook "${hookKey}" requires a pubsub adapter in config`);
+
         // 1. Listen for data published by the hook process
         const dataChannel = `hook:${hookKey}:${entity.id}`;
-        await this.listenFromRemote(id, dataChannel, (data: unknown) => methodFn.call(entity, data));
+        await remotePubsub.subscribe(dataChannel, (msg: unknown) => methodFn.call(entity, msg));
 
         // 2. Tell the hook process to register this entity (enqueue for reliable delivery)
         const registerChannel = `hook-register:${hookKey}`;
-        await this.session(id).pubsub.enqueue(registerChannel, {
+        await remotePubsub.enqueue(registerChannel, {
           entityId: entity.id,
           dataChannel,
           config: { ...entry.meta.config, entityId: entity.id },

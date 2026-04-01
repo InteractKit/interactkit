@@ -119,6 +119,15 @@ async send(input: { to: string; body: string }): Promise<string> {
 
 The description tells other entities (and LLMs) what the tool does. If you forget `@Tool` on a public method, the build fails.
 
+On an `LLMEntity`, own `@Tool` methods are external-facing by default -- other entities can call them, but the LLM cannot see them during its thinking loop. To make a tool visible to the LLM, add `llmCallable: true`:
+
+```typescript
+@Tool({ description: 'Move in a direction', llmCallable: true })
+async move(input: { direction: string }): Promise<string> { /* ... */ }
+```
+
+Tools on `@Ref` and `@Component` children are always visible to the LLM -- no `llmCallable` needed.
+
 ---
 
 ## Components (`@Component`): Children
@@ -282,7 +291,15 @@ When you omit `type` from `@Entity()` (recommended), it's auto-derived from the 
 
 ## LLM Entities
 
-If an entity needs an LLM brain, extend `LLMEntity` instead of `BaseEntity`. This gives you a built-in `invoke()` method, conversation context, and automatic visibility of all refs and tools to the LLM. When multiple brains need to share conversation history (e.g. a research brain and a writing brain), use `ConversationContext` -- see [Shared Conversation Context](./llm.md#shared-conversation-context). Full details in [LLM Entities](./llm.md).
+If an entity needs an LLM brain, extend `LLMEntity` instead of `BaseEntity`. Every `LLMEntity` runs a **thinking loop** -- a continuous inner monologue where the LLM thinks, uses tools, and responds to tasks. `invoke()` pushes tasks to the loop; the LLM uses `respond()` to return results. Between tasks, the LLM can think autonomously, manage memory, or sleep.
+
+Key points:
+- Own `@Tool` methods are external-only by default. Use `llmCallable: true` to expose to the LLM.
+- `@Ref` and `@Component` tools are always LLM-visible -- so capabilities (memory, browser) should be components.
+- Use `@ThinkingLoop(options)` to configure interval, timeouts, and get a runtime handle.
+- Set `alwaysThink: true` for autonomous agents that think even without tasks.
+
+Full details in [LLM Entities](./llm.md).
 
 ---
 

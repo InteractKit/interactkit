@@ -75,9 +75,10 @@ This generates an entity file with the MCP transport pre-configured. See [Extens
 ## How It Works
 
 1. You write entity classes with `@Describe()` and `@Tool` methods
-2. You write one `LLMEntity` -- all its refs and components are visible to the LLM by default
+2. You write one `LLMEntity` -- all its refs' and components' tools are visible to the LLM by default
 3. InteractKit auto-generates tool schemas from your TypeScript types
-4. When you call `brain.invoke({ message: "..." })`, the LLM sees all available tools, calls them as needed, and returns a final answer
+4. Every LLMEntity runs a **thinking loop** -- a continuous inner monologue. `brain.invoke({ message: "..." })` pushes a task to the loop. The LLM thinks, uses tools, and calls `respond()` to return the answer
+5. Between tasks the LLM can think autonomously, manage its own memory, and sleep to save tokens
 
 ---
 

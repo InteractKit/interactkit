@@ -1,0 +1,28 @@
+{
+  "name": "@interactkit/example-werewolf",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "interactkit build",
+    "dev": "interactkit dev",
+    "start": "interactkit start",
+    "db:migrate": "prisma migrate dev",
+    "db:push": "prisma db push"
+  },
+  "dependencies": {
+    "@interactkit/http": "workspace:*",
+    "@interactkit/prisma": "workspace:*",
+    "@interactkit/websocket": "workspace:*",
+    "@interactkit/sdk": "workspace:*",
+    "@langchain/openai": "^1.4.1",
+    "@prisma/client": "^6.0.0",
+    "prisma": "^6.0.0",
+    "reflect-metadata": "^0.2.2"
+  },
+  "devDependencies": {
+    "@interactkit/cli": "workspace:*",
+    "@types/node": "^25.5.0",
+    "typescript": "^5.5.0"
+  }
+}

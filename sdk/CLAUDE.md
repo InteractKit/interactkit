@@ -43,7 +43,10 @@ The SDK has three layers: **Authoring** (what devs write), **Codegen** (pre-buil
 |-----------|--------|---------|
 | `@SystemPrompt()` | property/getter | Marks a string property or getter as the system prompt. Evaluated before each LLM invocation. |
 | `@Executor()` | property | Marks the LLM executor instance (e.g. `new ChatAnthropic(...)`) |
-| `@Tool({ description })` | method | Exposes a method as an LLM-callable tool (same decorator as structural) |
+| `@Tool({ description, llmCallable? })` | method | Exposes a method as a tool. On LLMEntity, own `@Tool` methods are external-only by default. Set `llmCallable: true` to also expose them to the LLM during the thinking loop. Ref/component tools are always LLM-visible. |
+| `@ThinkingLoop(options?)` | property | Configures the LLM thinking loop. Property type is `LLMThinkingLoop` -- hydrated at runtime for real-time control. Optional: all LLMEntities get a thinking loop with defaults even without this decorator. |
+| `@MaxIterations(n)` | property | Max LLM tool-use iterations per thinking tick or forced invoke (default: 20). |
+| `@Describe()` | method | Returns a string describing current state. Re-evaluated each thinking tick as the system prompt. |
 
 **Validation** -- inline Zod via the `validate` option on `@State()`, plus SDK's `@Secret()`:
 
@@ -59,36 +62,79 @@ All entities extend `BaseEntity`. The SDK hydrates state, wires components, and 
 
 ### LLMEntity (extends BaseEntity)
 
-LLM-powered entities extend `LLMEntity` (from `sdk/src/llm/base.ts`) instead of `BaseEntity`. `LLMEntity` provides:
+LLM-powered entities extend `LLMEntity` (from `sdk/src/llm/base.ts`) instead of `BaseEntity`. Every LLMEntity runs a **thinking loop** -- a continuous inner monologue where the LLM thinks, acts, and responds to tasks.
 
-- **Built-in `invoke()` method** -- runs the LLM execution loop (prompt -> tool calls -> response). No need to declare it yourself.
-- **Built-in `protected context = new LLMContext()`** -- manages conversation history. Override for custom config.
-- **Built-in streams** -- `response: EntityStream<string>` and `toolCall: EntityStream<ToolCallEvent>` are pre-wired.
-- **All refs/state visible to LLM by default** -- no opt-in decorator needed. Everything on the entity is visible to the LLM.
-- **`@SystemPrompt()`** -- decorate a string property or getter to provide the system prompt, evaluated before each invocation.
-- **`@Executor()`** -- marks the LLM executor instance.
+**Core concepts:**
+
+- **Thinking loop** -- ticks on an interval (default 5s). Each tick, the LLM sees pending tasks, its tools, and its context. It can use tools, respond to tasks, or just think. Skips automatically when idle (zero token cost).
+- **`invoke()` pushes tasks** -- callers get back a promise that resolves when the LLM calls `respond(taskId, result)` from within the thinking loop. Soft timeout (30s) adds an urgency reminder. Hard timeout (60s) forces a direct LLM call as fallback.
+- **Inner monologue** -- the LLM's text responses between tool calls are the monologue. Stored in context, emitted as `thought` events on the observer.
+- **Tool visibility** -- own `@Tool` methods need `llmCallable: true` to be visible during the loop. Ref/component tools are always visible. Built-in tools (`respond`, `idle`, `sleep`, `set_interval`, `defer`) are always available.
+
+**Built-in thinking loop tools:**
+
+| Tool | Purpose |
+|------|---------|
+| `respond({ taskId, result })` | Return a result for a pending task. Resolves the `invoke()` promise. |
+| `idle()` | Do nothing this tick. |
+| `sleep({ ticks })` | Skip N ticks. Wakes early if a new task arrives. Max configurable. |
+| `set_interval({ ms })` | Change thinking speed. Clamped to configurable bounds. |
+| `defer({ taskId })` | Push a task back. Resets timeout. Max defers per task configurable. |
+
+**`@ThinkingLoop` decorator** (optional -- configures the loop and exposes runtime handle):
 
 ```typescript
-@Entity({ description: 'LLM-powered decision making' })
-class Brain extends LLMEntity {
-  @State({ description: 'Personality' })
-  private personality = 'curious';
-
-  @SystemPrompt()
-  private get systemPrompt() {
-    return `You are a ${this.personality} assistant.`;
-  }
-
+@Entity({ description: 'Autonomous NPC' })
+class Npc extends LLMEntity {
   @Executor()
-  private llm = new ChatAnthropic({ model: 'claude-sonnet-4-20250514' });
+  private llm = new ChatOpenAI({ model: 'gpt-4o-mini' });
 
-  @Ref() private mouth!: Remote<Mouth>;
-  @Ref() private memory!: Remote<Memory>;
+  @ThinkingLoop({
+    intervalMs: 5000,        // think every 5s
+    softTimeoutMs: 30000,    // remind after 30s
+    hardTimeoutMs: 60000,    // force-invoke after 60s
+    contextWindow: 50,       // keep last 50 messages
+    innerMonologue: true,    // default: on
+    maxSleepTicks: 12,       // max sleep duration
+    minIntervalMs: 1000,     // fastest thinking speed
+    maxIntervalMs: 60000,    // slowest thinking speed
+    maxDefers: 2,            // max defers per task
+  })
+  private thinkingLoop!: LLMThinkingLoop;
 
-  @Tool({ description: 'Think deeply' })
-  async think(input: { query: string }): Promise<string> { ... }
+  @Describe()
+  describe() { return `I am an NPC...`; }
+
+  // LLM can use this during thinking
+  @Tool({ description: 'Move somewhere', llmCallable: true })
+  async move(input: { direction: string }) { ... }
+
+  // External callers use this -- pushes task to thinking loop
+  @Tool({ description: 'Someone talks to this NPC' })
+  async talk(input: { from: string; message: string }) {
+    return this.invoke({ message: `${input.from} says: "${input.message}"` });
+  }
 }
 ```
+
+**Runtime control** via the `LLMThinkingLoop` object:
+
+```typescript
+this.thinkingLoop.pause();              // pause the loop
+this.thinkingLoop.resume();             // resume
+this.thinkingLoop.tick();               // force immediate tick
+this.thinkingLoop.intervalMs = 2000;    // think faster
+this.thinkingLoop.innerMonologue = false; // switch to classic invoke
+this.thinkingLoop.pending;              // number of pending tasks
+this.thinkingLoop.isThinking;           // is LLM running right now
+
+// Subscribe to events
+this.thinkingLoop.on((event) => {
+  // event.type: 'tick' | 'respond' | 'timeout' | 'idle' | 'error' | 'task_pushed' | 'thought'
+});
+```
+
+**Without `@ThinkingLoop`:** the entity still gets a thinking loop with defaults. You just don't get the runtime handle to control it. `invoke()` still pushes tasks to the loop.
 
 ### ConversationContext (shared LLM context)
 
@@ -501,9 +547,10 @@ src/
     infra/                   # Infrastructure resolution (adapter inheritance)
     stream/                  # EntityStream<T> implementation (in-process + Redis)
   llm/
-    base.ts                  # LLMEntity class (extends BaseEntity) -- invoke(), built-in context/streams
+    base.ts                  # LLMEntity class -- thinking loop, invoke(), context/streams
+    thinking-loop.ts         # LLMThinkingLoop runtime class -- tick, sleep, defer, events
     conversation.ts          # ConversationContext entity -- shared context between LLM entities
-    decorators.ts            # @SystemPrompt(), @Executor()
+    decorators.ts            # @SystemPrompt(), @Executor(), @ThinkingLoop(), @MaxIterations()
   hooks/
     init.ts                  # Init namespace (Input + Runner)
     tick.ts                  # Tick namespace (Input + Runner)

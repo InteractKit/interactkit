@@ -10,4 +10,7 @@ export interface LLMExecutionTriggerParams {
 
   /** Optional metadata the caller can attach */
   metadata?: Record<string, unknown>;
+
+  /** Queue this invocation sequentially instead of running in parallel. Default: false (parallel). */
+  sequential?: boolean;
 }

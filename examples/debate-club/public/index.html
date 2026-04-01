@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Debate Club</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0a0a0f;
+      color: #e0e0e0;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem;
+    }
+
+    h1 {
+      font-size: 1.8rem;
+      font-weight: 700;
+      margin-bottom: 0.25rem;
+      text-align: center;
+      background: linear-gradient(135deg, #4a9eff, #ff4a6e);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .subtitle {
+      text-align: center;
+      color: #666;
+      font-size: 0.85rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .status-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #555;
+      margin-left: 0.5rem;
+      vertical-align: middle;
+    }
+
+    .status-dot.connected { background: #4caf50; }
+
+    /* Controls */
+    .controls {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 2rem;
+      align-items: flex-end;
+    }
+
+    .controls .topic-input {
+      flex: 1;
+    }
+
+    .controls label {
+      display: block;
+      font-size: 0.75rem;
+      color: #888;
+      margin-bottom: 0.3rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .controls input[type="text"] {
+      width: 100%;
+      background: #12121a;
+      border: 1px solid #2a2a3a;
+      border-radius: 8px;
+      color: #e0e0e0;
+      padding: 0.7rem 0.85rem;
+      font-size: 0.95rem;
+      font-family: inherit;
+    }
+
+    .controls input[type="text"]:focus {
+      outline: none;
+      border-color: #4a9eff;
+    }
+
+    .controls select {
+      background: #12121a;
+      border: 1px solid #2a2a3a;
+      border-radius: 8px;
+      color: #e0e0e0;
+      padding: 0.7rem 0.5rem;
+      font-size: 0.95rem;
+      font-family: inherit;
+      cursor: pointer;
+    }
+
+    .controls select:focus { outline: none; border-color: #4a9eff; }
+
+    .controls button {
+      background: linear-gradient(135deg, #4a9eff, #6c5aff);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 0.7rem 1.5rem;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: opacity 0.15s;
+    }
+
+    .controls button:hover { opacity: 0.9; }
+    .controls button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* Debate area */
+    .debate-area {
+      display: none;
+    }
+
+    .debate-area.active { display: block; }
+
+    .debate-topic {
+      text-align: center;
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #fff;
+      margin-bottom: 1.25rem;
+      padding: 0.75rem;
+      background: #12121a;
+      border-radius: 8px;
+      border: 1px solid #2a2a3a;
+    }
+
+    .debate-topic span { color: #888; font-weight: 400; font-size: 0.85rem; }
+
+    .debaters-header {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .debater-label {
+      text-align: center;
+      padding: 0.5rem;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .debater-label.for-side {
+      background: rgba(74, 158, 255, 0.1);
+      color: #4a9eff;
+      border: 1px solid rgba(74, 158, 255, 0.2);
+    }
+
+    .debater-label.against-side {
+      background: rgba(255, 74, 110, 0.1);
+      color: #ff4a6e;
+      border: 1px solid rgba(255, 74, 110, 0.2);
+    }
+
+    /* Rounds */
+    .rounds { }
+
+    .round-block {
+      margin-bottom: 1.25rem;
+      animation: fadeIn 0.3s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .round-label {
+      text-align: center;
+      font-size: 0.75rem;
+      color: #555;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 0.5rem;
+    }
+
+    .arguments {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .argument {
+      background: #12121a;
+      border-radius: 8px;
+      padding: 1rem;
+      font-size: 0.9rem;
+      line-height: 1.6;
+      border: 1px solid #2a2a3a;
+      position: relative;
+    }
+
+    .argument.for-side {
+      border-left: 3px solid #4a9eff;
+    }
+
+    .argument.against-side {
+      border-left: 3px solid #ff4a6e;
+    }
+
+    .argument.thinking {
+      color: #555;
+      font-style: italic;
+    }
+
+    .argument.thinking::after {
+      content: '';
+      display: inline-block;
+      width: 4px;
+      height: 14px;
+      background: #555;
+      margin-left: 4px;
+      animation: blink 1s infinite;
+      vertical-align: text-bottom;
+    }
+
+    @keyframes blink {
+      0%, 50% { opacity: 1; }
+      51%, 100% { opacity: 0; }
+    }
+
+    /* Score card */
+    .score-card {
+      background: #12121a;
+      border: 1px solid #2a2a3a;
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      margin-bottom: 0.5rem;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .score-numbers {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 1.5rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .score-value {
+      font-size: 1.5rem;
+      font-weight: 700;
+    }
+
+    .score-value.for-side { color: #4a9eff; }
+    .score-value.against-side { color: #ff4a6e; }
+
+    .score-vs {
+      font-size: 0.75rem;
+      color: #555;
+      text-transform: uppercase;
+    }
+
+    .score-commentary {
+      text-align: center;
+      font-size: 0.8rem;
+      color: #999;
+      font-style: italic;
+    }
+
+    /* Verdict */
+    .verdict-banner {
+      margin-top: 1.5rem;
+      padding: 1.5rem;
+      background: linear-gradient(135deg, rgba(74, 158, 255, 0.08), rgba(255, 74, 110, 0.08));
+      border: 1px solid rgba(108, 90, 255, 0.3);
+      border-radius: 12px;
+      text-align: center;
+      animation: fadeIn 0.5s ease;
+    }
+
+    .verdict-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 0.5rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    .verdict-scores {
+      display: flex;
+      justify-content: center;
+      gap: 2rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .verdict-side {
+      text-align: center;
+    }
+
+    .verdict-side-label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.2rem;
+    }
+
+    .verdict-side-label.for-side { color: #4a9eff; }
+    .verdict-side-label.against-side { color: #ff4a6e; }
+
+    .verdict-total {
+      font-size: 1.8rem;
+      font-weight: 700;
+    }
+
+    .verdict-total.for-side { color: #4a9eff; }
+    .verdict-total.against-side { color: #ff4a6e; }
+
+    .verdict-text {
+      font-size: 0.95rem;
+      line-height: 1.6;
+      color: #ccc;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    /* Past debates */
+    .past-debates {
+      margin-top: 2.5rem;
+      border-top: 1px solid #1a1a2a;
+      padding-top: 1.5rem;
+    }
+
+    .past-debates h2 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #888;
+      margin-bottom: 1rem;
+    }
+
+    .past-debate {
+      background: #12121a;
+      border: 1px solid #2a2a3a;
+      border-radius: 8px;
+      padding: 0.85rem 1rem;
+      margin-bottom: 0.5rem;
+      cursor: pointer;
+      transition: border-color 0.15s;
+    }
+
+    .past-debate:hover { border-color: #3a3a4a; }
+
+    .past-debate-topic {
+      font-weight: 600;
+      font-size: 0.9rem;
+      margin-bottom: 0.3rem;
+    }
+
+    .past-debate-meta {
+      font-size: 0.75rem;
+      color: #666;
+    }
+
+    .past-debate-score {
+      display: inline-block;
+      margin-left: 0.5rem;
+    }
+
+    .past-debate-score .for-side { color: #4a9eff; }
+    .past-debate-score .against-side { color: #ff4a6e; }
+
+    .empty-state {
+      text-align: center;
+      color: #444;
+      padding: 3rem 0;
+      font-size: 0.9rem;
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255,255,255,0.2);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      vertical-align: middle;
+      margin-right: 0.4rem;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    @media (max-width: 640px) {
+      .arguments { grid-template-columns: 1fr; }
+      .debaters-header { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Debate Club <span class="status-dot" id="status"></span></h1>
+    <p class="subtitle">Aristotle vs Socrates -- powered by LLMs</p>
+
+    <div class="controls">
+      <div class="topic-input">
+        <label for="topicInput">Topic</label>
+        <input type="text" id="topicInput" placeholder="e.g. Pineapple belongs on pizza">
+      </div>
+      <div>
+        <label for="roundsSelect">Rounds</label>
+        <select id="roundsSelect">
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="3" selected>3</option>
+          <option value="4">4</option>
+          <option value="5">5</option>
+        </select>
+      </div>
+      <div>
+        <label>&nbsp;</label>
+        <button id="startBtn" disabled>Start Debate</button>
+      </div>
+    </div>
+
+    <div class="debate-area" id="debateArea">
+      <div class="debate-topic" id="debateTopic"></div>
+
+      <div class="debaters-header">
+        <div class="debater-label for-side">Aristotle (For)</div>
+        <div class="debater-label against-side">Socrates (Against)</div>
+      </div>
+
+      <div class="rounds" id="rounds"></div>
+      <div id="verdictContainer"></div>
+    </div>
+
+    <div class="past-debates" id="pastDebates">
+      <h2>Past Debates</h2>
+      <div id="pastList">
+        <div class="empty-state">No debates yet. Pick a topic and start one!</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const statusEl = document.getElementById('status');
+    const topicInput = document.getElementById('topicInput');
+    const roundsSelect = document.getElementById('roundsSelect');
+    const startBtn = document.getElementById('startBtn');
+    const debateArea = document.getElementById('debateArea');
+    const debateTopic = document.getElementById('debateTopic');
+    const roundsEl = document.getElementById('rounds');
+    const verdictContainer = document.getElementById('verdictContainer');
+    const pastList = document.getElementById('pastList');
+
+    let ws;
+    let debating = false;
+    let currentDebateId = null;
+    let currentRoundEl = null;
+    let pastDebates = [];
+
+    function connect() {
+      ws = new WebSocket('ws://localhost:3001');
+
+      ws.onopen = () => {
+        statusEl.classList.add('connected');
+        startBtn.disabled = false;
+        ws.send(JSON.stringify({ type: 'list' }));
+      };
+
+      ws.onclose = () => {
+        statusEl.classList.remove('connected');
+        startBtn.disabled = true;
+        debating = false;
+        setTimeout(connect, 2000);
+      };
+
+      ws.onmessage = (e) => {
+        const msg = JSON.parse(e.data);
+        handleMessage(msg);
+      };
+    }
+
+    function handleMessage(msg) {
+      switch (msg.type) {
+        case 'started':
+          onDebateStarted(msg);
+          break;
+        case 'argument':
+          onArgument(msg);
+          break;
+        case 'score':
+          onScore(msg);
+          break;
+        case 'verdict':
+          onVerdict(msg);
+          break;
+        case 'list':
+          pastDebates = msg.debates || [];
+          renderPastDebates();
+          break;
+        case 'error':
+          alert('Error: ' + msg.message);
+          debating = false;
+          startBtn.disabled = false;
+          startBtn.textContent = 'Start Debate';
+          break;
+      }
+    }
+
+    function onDebateStarted(msg) {
+      currentDebateId = msg.debateId;
+      debateArea.classList.add('active');
+      debateTopic.innerHTML = `<span>Resolved: </span>${escHtml(msg.topic)}`;
+      roundsEl.innerHTML = '';
+      verdictContainer.innerHTML = '';
+
+      // Pre-create round 1 with thinking state
+      createRoundBlock(1, msg.totalRounds);
+    }
+
+    function createRoundBlock(round, totalRounds) {
+      const block = document.createElement('div');
+      block.className = 'round-block';
+      block.id = `round-${round}`;
+      block.innerHTML = `
+        <div class="round-label">Round ${round} of ${totalRounds}</div>
+        <div class="arguments">
+          <div class="argument for-side thinking" id="for-${round}">Thinking...</div>
+          <div class="argument against-side thinking" id="against-${round}">Waiting...</div>
+        </div>
+      `;
+      roundsEl.appendChild(block);
+      currentRoundEl = block;
+      block.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
+
+    function onArgument(msg) {
+      const el = document.getElementById(`${msg.side}-${msg.round}`);
+      if (!el) {
+        // Round block doesn't exist yet, create it
+        const totalRounds = parseInt(roundsSelect.value);
+        createRoundBlock(msg.round, totalRounds);
+        const newEl = document.getElementById(`${msg.side}-${msg.round}`);
+        if (newEl) {
+          newEl.classList.remove('thinking');
+          newEl.textContent = msg.argument;
+        }
+      } else {
+        el.classList.remove('thinking');
+        el.textContent = msg.argument;
+      }
+
+      // If FOR just arrived, set AGAINST to thinking
+      if (msg.side === 'for') {
+        const againstEl = document.getElementById(`against-${msg.round}`);
+        if (againstEl && againstEl.classList.contains('thinking')) {
+          againstEl.textContent = 'Thinking...';
+        }
+      }
+
+      el?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
+
+    function onScore(msg) {
+      const roundBlock = document.getElementById(`round-${msg.round}`);
+      if (!roundBlock) return;
+
+      const card = document.createElement('div');
+      card.className = 'score-card';
+      card.innerHTML = `
+        <div class="score-numbers">
+          <span class="score-value for-side">${msg.forScore}</span>
+          <span class="score-vs">vs</span>
+          <span class="score-value against-side">${msg.againstScore}</span>
+        </div>
+        <div class="score-commentary">${escHtml(msg.commentary)}</div>
+      `;
+      roundBlock.appendChild(card);
+
+      // Create next round block if there are more rounds
+      const totalRounds = parseInt(roundsSelect.value);
+      if (msg.round < totalRounds) {
+        createRoundBlock(msg.round + 1, totalRounds);
+      }
+
+      card.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
+
+    function onVerdict(msg) {
+      debating = false;
+      startBtn.disabled = false;
+      startBtn.textContent = 'Start Debate';
+
+      verdictContainer.innerHTML = `
+        <div class="verdict-banner">
+          <div class="verdict-title">Final Verdict</div>
+          <div class="verdict-scores">
+            <div class="verdict-side">
+              <div class="verdict-side-label for-side">Aristotle (For)</div>
+              <div class="verdict-total for-side">${msg.totalForScore}</div>
+            </div>
+            <div class="verdict-side">
+              <div class="verdict-side-label against-side">Socrates (Against)</div>
+              <div class="verdict-total against-side">${msg.totalAgainstScore}</div>
+            </div>
+          </div>
+          <div class="verdict-text">${escHtml(msg.verdict)}</div>
+        </div>
+      `;
+
+      verdictContainer.scrollIntoView({ behavior: 'smooth', block: 'end' });
+
+      // Refresh past debates
+      ws.send(JSON.stringify({ type: 'list' }));
+    }
+
+    function renderPastDebates() {
+      const done = pastDebates.filter(d => d.status === 'done');
+      if (done.length === 0) {
+        pastList.innerHTML = '<div class="empty-state">No debates yet. Pick a topic and start one!</div>';
+        return;
+      }
+
+      pastList.innerHTML = done.map(d => {
+        const totalFor = d.rounds.reduce((s, r) => s + r.forScore, 0);
+        const totalAgainst = d.rounds.reduce((s, r) => s + r.againstScore, 0);
+        return `
+          <div class="past-debate" data-id="${d.id}">
+            <div class="past-debate-topic">${escHtml(d.topic)}</div>
+            <div class="past-debate-meta">
+              ${d.rounds.length} round${d.rounds.length !== 1 ? 's' : ''}
+              <span class="past-debate-score">
+                <span class="for-side">${totalFor}</span> - <span class="against-side">${totalAgainst}</span>
+              </span>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function escHtml(s) {
+      const d = document.createElement('div');
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    startBtn.addEventListener('click', () => {
+      const topic = topicInput.value.trim();
+      if (!topic || debating) return;
+
+      debating = true;
+      startBtn.disabled = true;
+      startBtn.textContent = 'Debating...';
+
+      ws.send(JSON.stringify({
+        type: 'debate',
+        topic,
+        rounds: parseInt(roundsSelect.value),
+      }));
+
+      topicInput.value = '';
+    });
+
+    topicInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        startBtn.click();
+      }
+    });
+
+    connect();
+  </script>
+</body>
+</html>

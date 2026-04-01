@@ -85,7 +85,7 @@ test('LLM calls multiple tools in sequence', async () => {
 });
 ```
 
-Each `invoke()` call steps through the script. If the loop calls `invoke()` more times than there are steps, it throws — so you know your test script is incomplete.
+Each `invoke()` call pushes a task to the thinking loop, which steps through the mock script. If the loop calls the LLM more times than there are steps, it throws — so you know your test script is incomplete.
 
 ## `mockEntity` — unit test with mocked dependencies
 

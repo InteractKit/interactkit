@@ -6,27 +6,33 @@ import { RemotePubSubAdapter } from './adapter.js';
  * No external dependencies — everything stays in-process.
  */
 export class InMemoryRemotePubSubAdapter extends RemotePubSubAdapter {
-  private handlers = new Map<string, (message: string) => void>();
+  private subscribers = new Map<string, Set<(message: string) => void>>();
   private queues = new Map<string, string[]>();
-  private consumers = new Map<string, (message: string) => void>();
+  private consumers = new Map<string, Set<(message: string) => void>>();
+  private roundRobin = new Map<string, number>();
 
   protected async publishRaw(channel: string, message: string): Promise<void> {
-    const handler = this.handlers.get(channel);
-    if (handler) handler(message);
+    const handlers = this.subscribers.get(channel);
+    if (handlers) for (const h of handlers) h(message);
   }
 
   protected async subscribeRaw(channel: string, handler: (message: string) => void): Promise<void> {
-    this.handlers.set(channel, handler);
+    const set = this.subscribers.get(channel) ?? new Set();
+    set.add(handler);
+    this.subscribers.set(channel, set);
   }
 
   protected async unsubscribeRaw(channel: string): Promise<void> {
-    this.handlers.delete(channel);
+    this.subscribers.delete(channel);
   }
 
   protected async enqueueRaw(channel: string, message: string): Promise<void> {
-    const consumer = this.consumers.get(channel);
-    if (consumer) {
-      consumer(message);
+    const cons = this.consumers.get(channel);
+    if (cons && cons.size > 0) {
+      const arr = [...cons];
+      const idx = (this.roundRobin.get(channel) ?? 0) % arr.length;
+      this.roundRobin.set(channel, idx + 1);
+      arr[idx](message);
       return;
     }
     const queue = this.queues.get(channel) ?? [];
@@ -35,7 +41,9 @@ export class InMemoryRemotePubSubAdapter extends RemotePubSubAdapter {
   }
 
   protected async consumeRaw(channel: string, handler: (message: string) => void): Promise<void> {
-    this.consumers.set(channel, handler);
+    const set = this.consumers.get(channel) ?? new Set();
+    set.add(handler);
+    this.consumers.set(channel, set);
     // Drain any queued messages
     const queue = this.queues.get(channel);
     if (queue) {

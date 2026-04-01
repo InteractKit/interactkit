@@ -56,21 +56,27 @@ class Brain extends LLMEntity {
 
 The LLM now has access to: `browser.search()`, `browser.read()`, `memory.store()`, `memory.search()`, and `summarize()`. No glue code needed. All refs and components are visible to the LLM by default.
 
-## What Happens When You Call `invoke()`
+## The Thinking Loop
+
+Every LLMEntity runs a continuous **thinking loop** -- an inner monologue that ticks on an interval. The LLM thinks, uses tools, and responds to tasks.
 
 ```
-You: brain.invoke({ message: "Find info about TypeScript and save it" })
-
-1. Message added to conversation context
-2. LLM sees all available tools (own @Tool methods + ref/component tools)
-3. LLM calls browser.search({ query: "TypeScript" })
-4. Result goes back to LLM
-5. LLM calls memory.store({ text: "TypeScript is..." })
-6. Result goes back to LLM
-7. LLM returns: "I found info about TypeScript and saved it to memory."
+invoke("Find info about TypeScript")
+  │
+  └──→ pushed as a task to the thinking loop
+         │
+         ├── Tick 1: LLM sees the task, calls browser.search()
+         ├── Tick 1: LLM calls memory.store()
+         ├── Tick 1: LLM calls respond(taskId, "Found and saved it")
+         │            └── invoke() promise resolves
+         │
+         ├── Tick 2: No tasks. LLM reflects: "I should check if the
+         │           search results were comprehensive enough..."
+         │
+         └── Tick 3: No tasks, nothing changed → idle (no LLM call, free)
 ```
 
-This tool-call loop runs automatically until the LLM gives a final text answer.
+`invoke()` doesn't call the LLM directly. It pushes a task. The thinking loop picks it up, and the LLM uses a built-in `respond()` tool to return the result. Between tasks, the LLM can think, act, or sleep.
 
 ---
 
@@ -82,10 +88,12 @@ What you get out of the box:
 
 | Built-in | Description |
 |----------|-------------|
-| `invoke(params)` | Send a message to the LLM and get a response. Runs the full tool-call loop. |
-| `context` | `protected context = new LLMContext()` -- conversation history, automatically managed. |
-| `response` stream | `EntityStream<string>` -- emits each final LLM response. |
+| `invoke(params)` | Push a task to the thinking loop. Returns a promise resolved when the LLM calls `respond()`. |
+| Thinking loop | Continuous tick loop with inner monologue. All LLMEntities get one by default. |
+| `context` | `protected context = new LLMContext()` -- conversation history with sliding window. |
+| `response` stream | `EntityStream<string>` -- emits each LLM response (including inner monologue). |
 | `toolCall` stream | `EntityStream<ToolCallEvent>` -- emits each tool call with `{ tool, args, result }`. |
+| `isIdle()` | Returns true if no tasks pending and LLM is not thinking. |
 
 ### Built-in Streams
 
@@ -152,22 +160,30 @@ import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
 @Executor() private llm = new ChatGoogleGenerativeAI({ model: 'gemini-pro' });
 ```
 
-### `@Tool({ description })`
+### `@Tool({ description, llmCallable? })`
 
-Makes a method callable by the LLM:
+Makes a method callable. On an `LLMEntity`, there are two kinds of tools:
+
+- **External tools** (default) -- called by other entities, NOT visible to the LLM during its thinking loop. These are your API.
+- **LLM-callable tools** (`llmCallable: true`) -- visible to the LLM during the thinking loop. These are the LLM's hands.
 
 ```typescript
-@Tool({ description: 'Send an email' })
-async sendEmail(input: { to: string; subject: string; body: string }): Promise<string> {
-  return 'Sent!';
+// The LLM can use this during its thinking loop
+@Tool({ description: 'Move in a direction', llmCallable: true })
+async move(input: { direction: string }): Promise<string> { /* ... */ }
+
+// Only callable by other entities (e.g. GameMaster calls this)
+@Tool({ description: 'Someone talks to this NPC' })
+async talk(input: { from: string; message: string }): Promise<string> {
+  return this.invoke({ message: `${input.from} says: "${input.message}"` });
 }
 ```
 
-The description is what the LLM reads to decide whether to use this tool. Make it clear.
+This separation prevents recursion (the LLM calling its own external methods) and keeps the tool set clean.
 
 ### `@Ref()` and `@Component()`
 
-On an `LLMEntity`, all refs and components are automatically visible to the LLM. Their `@Tool` methods become available tools:
+On an `LLMEntity`, all refs and components are automatically visible to the LLM. Their `@Tool` methods become available tools (no `llmCallable` needed -- ref/component tools are always LLM-visible):
 
 ```typescript
 @Ref() private browser!: Browser;
@@ -177,7 +193,57 @@ On an `LLMEntity`, all refs and components are automatically visible to the LLM.
 // LLM can call memory.store(), memory.search()
 ```
 
-No extra annotation needed. Just declare the ref or component and its tools are there.
+### `@ThinkingLoop(options?)`
+
+Optional decorator that configures the thinking loop and exposes a runtime handle. Without it, you still get a thinking loop with defaults -- this is for customization and runtime control.
+
+```typescript
+@ThinkingLoop({
+  intervalMs: 5000,        // think every 5s (default: 5000)
+  softTimeoutMs: 30000,    // remind LLM about old tasks (default: 30000)
+  hardTimeoutMs: 60000,    // force direct invoke (default: 60000)
+  contextWindow: 50,       // sliding window size (default: 50)
+  innerMonologue: true,    // thinking loop on (default: true)
+  maxSleepTicks: 12,       // max sleep duration (default: 12)
+  minIntervalMs: 1000,     // fastest thinking (default: 1000)
+  maxIntervalMs: 60000,    // slowest thinking (default: 60000)
+  maxDefers: 2,            // max defers per task (default: 2)
+})
+private thinkingLoop!: LLMThinkingLoop;
+```
+
+Runtime control:
+
+```typescript
+this.thinkingLoop.pause();              // pause thinking
+this.thinkingLoop.resume();             // resume
+this.thinkingLoop.tick();               // force immediate tick
+this.thinkingLoop.intervalMs = 2000;    // speed up
+this.thinkingLoop.innerMonologue = false; // switch to classic direct invoke
+```
+
+---
+
+## Built-in Thinking Loop Tools
+
+The LLM always has access to these during its thinking loop:
+
+| Tool | Purpose |
+|------|---------|
+| `respond({ taskId, result })` | Answer a pending task. Resolves the caller's `invoke()` promise. |
+| `idle()` | Do nothing this tick. |
+| `sleep({ ticks })` | Skip N ticks to save tokens. Wakes early if new tasks arrive. |
+| `set_interval({ ms })` | Change thinking speed. Clamped to configured bounds. |
+| `defer({ taskId })` | Push a task back to handle later. Max defers per task is configurable. |
+
+These are always available alongside the entity's own `llmCallable` tools and ref/component tools.
+
+### Timeouts
+
+- **Soft timeout** (default 30s) -- the task prompt shows `[URGENT -- waiting Xs]`. The LLM gets a nudge.
+- **Hard timeout** (default 60s) -- task is removed from the loop and executed directly via a classic `_invokeInner()` call, guaranteeing a result.
+
+This means `invoke()` never hangs. Worst case, it falls back to direct execution after the hard timeout.
 
 ---
 
@@ -264,15 +330,18 @@ interactkit add <Name> [options]
 ## Full Example
 
 ```typescript
-import { Entity, BaseEntity, LLMEntity, Component, Ref, Tool, Describe, Executor, State } from '@interactkit/sdk';
+import {
+  Entity, BaseEntity, LLMEntity, Component, Ref, Tool,
+  Describe, Executor, State, ThinkingLoop, LLMThinkingLoop, type Remote,
+} from '@interactkit/sdk';
 import { ChatOpenAI } from '@langchain/openai';
 
+// ── Root orchestrator ──
 @Entity()
 class Agent extends BaseEntity {
-  @Component() private brain!: Brain;
-  @Component() private browser!: Browser;
-  @Component() private memory!: Memory;
-  @Component() private slack!: Slack;
+  @Component() private brain!: Remote<Brain>;
+  @Component() private browser!: Remote<Browser>;
+  @Component() private memory!: Remote<Memory>;
 
   @Tool({ description: 'Chat with the agent' })
   async chat(input: { message: string }): Promise<string> {
@@ -280,30 +349,39 @@ class Agent extends BaseEntity {
   }
 }
 
+// ── LLM brain with thinking loop ──
 @Entity({ description: 'LLM-powered decision making' })
 class Brain extends LLMEntity {
+  @Executor()
+  private llm = new ChatOpenAI({ model: 'gpt-4o-mini' });
+
+  @ThinkingLoop({ intervalMs: 5000 })
+  private thinkingLoop!: LLMThinkingLoop;
+
   @Describe()
   describe() {
     return `You are a ${this.personality} assistant.`;
   }
 
-  @Executor()
-  private llm = new ChatOpenAI({ model: 'gpt-4o-mini' });
-
-  @Ref() private browser!: Browser;
-  @Ref() private memory!: Memory;
-  @Ref() private slack!: Slack;
-
   @State({ description: 'Personality' })
   private personality = 'curious and helpful';
+
+  // Ref tools are auto-visible to the LLM
+  @Ref() private browser!: Remote<Browser>;
+  @Ref() private memory!: Remote<Memory>;
+
+  // Own llmCallable tool — LLM can use during thinking
+  @Tool({ description: 'Summarize text', llmCallable: true })
+  async summarize(input: { text: string }): Promise<string> {
+    return `Summary: ${input.text.slice(0, 100)}...`;
+  }
 }
 
+// ── Capability entities (tools for the LLM) ──
 @Entity()
 class Browser extends BaseEntity {
   @Describe()
-  describe() {
-    return `Headless browser. Cache has ${this.cacheSize} pages.`;
-  }
+  describe() { return `Headless browser.`; }
 
   @Tool({ description: 'Search the web' })
   async search(input: { query: string }): Promise<string[]> { /* ... */ }
@@ -315,9 +393,10 @@ class Browser extends BaseEntity {
 @Entity()
 class Memory extends BaseEntity {
   @Describe()
-  describe() {
-    return `Long-term memory store. ${this.entryCount} entries indexed.`;
-  }
+  describe() { return `Long-term memory. ${this.memories.length} entries.`; }
+
+  @State({ description: 'Stored memories' })
+  private memories: string[] = [];
 
   @Tool({ description: 'Store information' })
   async store(input: { text: string }): Promise<void> { /* ... */ }
@@ -325,20 +404,18 @@ class Memory extends BaseEntity {
   @Tool({ description: 'Search stored information' })
   async search(input: { query: string }): Promise<string[]> { /* ... */ }
 }
-
-// Generated by: interactkit add Slack --mcp-stdio "npx -y @slack/mcp-server"
-@Entity()
-class Slack extends BaseEntity {
-  private client = new MCPClientWrapper('npx -y @slack/mcp-server');
-
-  @Tool({ description: 'Send a message to a Slack channel' })
-  async sendMessage(input: { channel: string; text: string }): Promise<string> {
-    return this.client.call('sendMessage', input);
-  }
-}
 ```
 
-Now `agent.chat({ message: "Research TypeScript, save the best findings, and post a summary to #engineering" })` and the LLM handles the rest.
+When you call `agent.chat({ message: "Research TypeScript and save the findings" })`:
+
+1. Task pushed to Brain's thinking loop
+2. LLM thinks: "I need to search for TypeScript info"
+3. LLM calls `browser_search({ query: "TypeScript" })`
+4. LLM calls `memory_store({ text: "TypeScript is..." })`
+5. LLM calls `respond(taskId, "I found info about TypeScript and saved it.")`
+6. `chat()` promise resolves with the response
+
+Between tasks, the brain's thinking loop continues -- it may reflect, organize memories, or sleep to save tokens.
 
 ---
 
@@ -349,84 +426,64 @@ The build catches mistakes early:
 - `LLMEntity` subclass without `@Executor`
 - `@Describe` method that does not return a string
 - `@Tool` missing a description
+- `@ThinkingLoop` on a non-`LLMEntity` class
+- `@State` properties that aren't `private`
 
 ---
 
 ## Shared Conversation Context
 
-By default, each `LLMEntity` gets its own private `LLMContext`. When you want multiple brains to share the same conversation history, use `ConversationContext` -- an entity that wraps `LLMContext` and can be referenced by any number of `LLMEntity` siblings.
-
-The parent owns the shared context as a `@Component`. Each brain overrides its built-in `context` with a `@Ref` to the shared one:
+By default, each `LLMEntity` gets its own private `LLMContext` (and its own thinking loop). When you want multiple brains to share conversation history, use `ConversationContext`:
 
 ```typescript
-import { Entity, BaseEntity, LLMEntity, Component, Ref, Tool, Describe, Executor, State, ConversationContext } from '@interactkit/sdk';
-import { ChatOpenAI } from '@langchain/openai';
-
 @Entity()
 class Agent extends BaseEntity {
-  @Component() private context!: ConversationContext;
-  @Component() private researchBrain!: ResearchBrain;
-  @Component() private writingBrain!: WritingBrain;
+  @Component() private context!: Remote<ConversationContext>;
+  @Component() private researchBrain!: Remote<ResearchBrain>;
+  @Component() private writingBrain!: Remote<WritingBrain>;
 
   @State({ description: 'Current mode' })
   private mode: 'research' | 'writing' = 'research';
 
-  @Tool({ description: 'Chat with the agent' })
+  @Tool({ description: 'Chat' })
   async chat(input: { message: string }): Promise<string> {
     if (this.mode === 'research') return this.researchBrain.invoke(input);
     return this.writingBrain.invoke(input);
   }
 }
 
-@Entity({ description: 'Research assistant brain' })
+@Entity({ description: 'Research brain' })
 class ResearchBrain extends LLMEntity {
-  @Ref() protected override context!: ConversationContext;
+  @Ref() protected override context!: Remote<ConversationContext>;
   @Executor() private llm = new ChatOpenAI({ model: 'gpt-4o-mini' });
-  @Ref() private browser!: Browser;
-  @Ref() private memory!: Memory;
+  @Ref() private browser!: Remote<Browser>;
 
   @Describe()
-  describe() {
-    return `You are a research assistant. Search the web and save findings.`;
-  }
-}
-
-@Entity({ description: 'Writing assistant brain' })
-class WritingBrain extends LLMEntity {
-  @Ref() protected override context!: ConversationContext;
-  @Executor() private llm = new ChatOpenAI({ model: 'gpt-4o-mini' });
-  @Ref() private memory!: Memory;
-
-  @Describe()
-  describe() {
-    return `You are a writer. Use memories to draft content.`;
-  }
+  describe() { return `You are a research assistant.`; }
 }
 ```
 
-Switching modes preserves the full conversation. Both brains read from and write to the same history, so the writing brain knows what the research brain found and vice versa. The user gets a seamless experience -- they do not need to repeat themselves when the mode changes.
+Both brains share the same history. The writing brain knows what the research brain found. Each still has its own thinking loop -- shared context is about conversation history, not the thinking loop itself.
 
 ---
 
 ## Router Pattern (Multiple Brains)
 
-Instead of one brain with phases or flags controlling which tools are visible, use separate brain entities for separate concerns. The parent entity routes messages based on state. The entity tree IS the state machine:
+Use separate brain entities for separate concerns. The parent routes based on state. Each brain has its own thinking loop with its own tools -- the entity tree IS the state machine:
 
 ```typescript
-import { Entity, BaseEntity, LLMEntity, Component, Ref, Tool, Describe, Executor, State } from '@interactkit/sdk';
-import { ChatOpenAI } from '@langchain/openai';
-
 @Entity()
 class SupportAgent extends BaseEntity {
-  @Component() private triage!: TriageBrain;
-  @Component() private billing!: BillingBrain;
-  @Component() private technical!: TechnicalBrain;
+  @Component() private triage!: Remote<TriageBrain>;
+  @Component() private billing!: Remote<BillingBrain>;
+  @Component() private technical!: Remote<TechnicalBrain>;
 
-  @State({ description: 'Current department handling the conversation' })
+  @State({ description: 'Current department' })
   private department: 'triage' | 'billing' | 'technical' = 'triage';
 
-  @Tool({ description: 'Send a message to the support agent' })
+  @Tool({ description: 'Send a message' })
   async chat(input: { message: string }): Promise<string> {
+    // invoke() pushes a task to the active brain's thinking loop
     switch (this.department) {
       case 'triage':    return this.triage.invoke(input);
       case 'billing':   return this.billing.invoke(input);
@@ -434,136 +491,112 @@ class SupportAgent extends BaseEntity {
     }
   }
 
-  @Tool({ description: 'Route to a different department' })
+  @Tool({ description: 'Route to a department' })
   async route(input: { department: 'triage' | 'billing' | 'technical' }): Promise<void> {
     this.department = input.department;
   }
 }
 
-@Entity({ description: 'Triage brain -- classifies issues and routes' })
+@Entity({ description: 'Classifies issues and routes' })
 class TriageBrain extends LLMEntity {
   @Executor() private llm = new ChatOpenAI({ model: 'gpt-4o-mini' });
-  @Ref() private agent!: SupportAgent;
+  @Ref() private agent!: Remote<SupportAgent>;  // LLM can call agent.route()
 
   @Describe()
-  describe() {
-    return `You classify support requests. Route to billing or technical.`;
-  }
-}
-
-@Entity({ description: 'Billing brain -- handles payment and account issues' })
-class BillingBrain extends LLMEntity {
-  @Executor() private llm = new ChatOpenAI({ model: 'gpt-4o-mini' });
-  @Ref() private payments!: PaymentSystem;
-
-  @Describe()
-  describe() {
-    return `You handle billing issues. Use tools to look up invoices and process refunds.`;
-  }
-}
-
-@Entity({ description: 'Technical brain -- handles product and engineering issues' })
-class TechnicalBrain extends LLMEntity {
-  @Executor() private llm = new ChatOpenAI({ model: 'gpt-4o-mini' });
-  @Ref() private docs!: DocSearch;
-  @Ref() private tickets!: TicketSystem;
-
-  @Describe()
-  describe() {
-    return `You handle technical issues. Search docs and create tickets when needed.`;
-  }
+  describe() { return `You classify support requests. Route to billing or technical.`; }
 }
 ```
 
-Each brain has exactly the tools it needs -- no if/else gating, no tool visibility flags. The triage brain can call `agent.route()` to hand off, and the parent starts sending messages to the new brain. Adding a new department is just adding a new brain entity and a new case in the switch.
+Each brain has its own thinking loop, context, and tools. The triage brain can call `agent_route()` to hand off. Adding a department = adding a brain entity + a switch case.
 
 ---
 
-## Custom Context
+## Context and Memory
 
-Every `LLMEntity` has a built-in `protected context = new LLMContext()`. Override it to configure history limits:
+The thinking loop uses a sliding context window (default 50 messages). Old messages fall off automatically. For long-term memory, use a **separate memory entity as a `@Component`**. This is important: the LLM's own `@Tool` methods are hidden by default (`llmCallable: false`), but tools on `@Component` and `@Ref` children are always visible to the LLM. So memory lives in a component:
 
 ```typescript
-import { Entity, LLMEntity, LLMContext, Describe, Executor } from '@interactkit/sdk';
-import { ChatOpenAI } from '@langchain/openai';
-
-@Entity({ description: 'Brain with custom context settings' })
-class Brain extends LLMEntity {
-  protected context = new LLMContext({ maxHistory: 200 });
-
-  @Executor() private llm = new ChatOpenAI({ model: 'gpt-4o-mini' });
+@Entity({ description: 'Long-term memory' })
+class Memory extends BaseEntity {
+  @State({ description: 'Stored memories' })
+  private memories: string[] = [];
 
   @Describe()
-  describe() {
-    return `You are a helpful assistant with a long memory.`;
+  describe() { return `${this.memories.length} memories stored.`; }
+
+  @Tool({ description: 'Remember something important' })
+  async remember(input: { text: string }): Promise<void> {
+    this.memories.unshift(input.text);
+    if (this.memories.length > 20) this.memories.pop();
   }
+
+  @Tool({ description: 'Recall memories matching a query' })
+  async recall(input: { query: string }): Promise<string[]> { /* ... */ }
+}
+
+@Entity({ description: 'An NPC' })
+class Npc extends LLMEntity {
+  @Executor() private llm = new ChatOpenAI({ model: 'gpt-4o-mini' });
+  @Component() private memory!: Remote<Memory>;  // LLM sees memory.remember(), memory.recall()
+
+  // ...
 }
 ```
 
-The default `maxHistory` is 50 messages. Increase it for long-running conversations, or decrease it to save tokens on context-sensitive tasks.
+The LLM sees `memory_remember` and `memory_recall` as tools automatically. It decides what's worth remembering. No auto-summarization -- the memory's `@Describe()` provides a summary each tick, and `recall()` retrieves specifics.
 
-You can also combine this with `ConversationContext` for shared history with custom limits:
+**Why a component, not own methods?** Own `@Tool` methods on an `LLMEntity` are external-facing by default (other entities call them). To make them LLM-visible you'd need `llmCallable: true`. A separate component avoids this and keeps the pattern clean: tools = capabilities, components = the LLM's toolkit.
+
+To customize the context window, use `@ThinkingLoop({ contextWindow: 100 })` or override the context directly:
 
 ```typescript
-import { Entity, BaseEntity, Component, Hook, Init, ConversationContext } from '@interactkit/sdk';
-
-@Entity()
-class Agent extends BaseEntity {
-  @Component() private context!: ConversationContext;
-  @Component() private brain!: Brain;
-
-  @Hook(Init.Runner())
-  async onInit(input: Init.Input) {
-    this.context.configure({ maxHistory: 200 });
-  }
-}
+protected context = new LLMContext({ maxHistory: 200 });
 ```
 
 ---
 
-## Observability with Streams
+## Observability
 
-Every `LLMEntity` exposes `response` and `toolCall` streams. Parents can subscribe to these for logging, cost tracking, debugging, or driving a UI:
+### Streams
+
+Every `LLMEntity` exposes `response` and `toolCall` streams that parents can subscribe to:
 
 ```typescript
-import { Entity, BaseEntity, Component, State, Hook, Init, Tool } from '@interactkit/sdk';
-import type { ToolCallEvent } from '@interactkit/sdk';
-
-@Entity()
-class Dashboard extends BaseEntity {
-  @Component() private brain!: Brain;
-
-  @State({ description: 'Total tool calls executed' })
-  private toolCallCount = 0;
-
-  @Hook(Init.Runner())
-  async onInit(input: Init.Input) {
-    // Log every tool call with timestamp
-    this.brain.toolCall.on('data', (event: ToolCallEvent) => {
-      this.toolCallCount++;
-      console.log(`[${new Date().toISOString()}] tool #${this.toolCallCount}: ${event.tool} → ${event.result.slice(0, 50)}...`);
-    });
-
-    // Log every final LLM response
-    this.brain.response.on('data', (text: string) => {
-      console.log(`[${new Date().toISOString()}] response: ${text.slice(0, 100)}...`);
-    });
-  }
-
-  @Tool({ description: 'Get total tool calls executed' })
-  async getToolCallCount(): Promise<number> {
-    return this.toolCallCount;
-  }
-}
+this.brain.response.on('data', (text: string) => { /* LLM spoke */ });
+this.brain.toolCall.on('data', (event: ToolCallEvent) => { /* tool used */ });
 ```
 
-This works because streams are always public -- the parent accesses `this.brain.toolCall` and `this.brain.response` directly through the component proxy. The brain itself does not need any extra code; the streams are built into `LLMEntity`.
+### Thinking Loop Events
 
-Use cases:
-- **Logging**: write structured tool call logs to a file or external service.
-- **Cost tracking**: count tokens or tool invocations per conversation.
-- **UI updates**: push real-time status to a frontend (e.g., "Searching the web..." when a tool call starts).
-- **Debugging**: trace exactly what the LLM decided to do and what results it got back.
+If you have a `@ThinkingLoop` handle, subscribe to events directly:
+
+```typescript
+this.thinkingLoop.on((event) => {
+  switch (event.type) {
+    case 'tick':        // { tickNumber, pending, durationMs }
+    case 'respond':     // { taskId, message, result, latencyMs }
+    case 'thought':     // { content } -- inner monologue text
+    case 'timeout':     // { taskId, kind: 'soft'|'hard', elapsedMs }
+    case 'task_pushed': // { taskId, message, pending }
+    case 'idle':        // { tickNumber }
+    case 'error':       // { error }
+  }
+});
+```
+
+### Observer Integration
+
+All thinking loop events flow through the observer pipeline automatically. The `DevObserver` renders them in the terminal:
+
+```
+21:50:03 ◆ npc tick #12 (2 pending, 1.8s)
+21:50:05 ◆ npc respond [abc123] (3200ms)
+21:50:05 ◆ npc inner thought: "I should head to the entrance..."
+21:50:08 ◆ npc task pushed [def456] (1 pending)
+21:50:38 ◆ npc soft timeout [def456] (30012ms)
+```
+
+Event types are prefixed with `thinkingLoop.` (e.g. `thinkingLoop.tick`, `thinkingLoop.respond`).
 
 ---
 

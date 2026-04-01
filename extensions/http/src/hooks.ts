@@ -119,14 +119,14 @@ export namespace HttpRequest {
           },
         });
 
-        // Default response if hook didn't respond
+        // Default response if hook didn't respond (120s to allow slow LLM calls)
         setTimeout(() => {
           if (!responded) {
             responded = true;
-            res.writeHead(200);
-            res.end('ok');
+            res.writeHead(504);
+            res.end(JSON.stringify({ error: 'Hook handler timed out' }));
           }
-        }, 5000);
+        }, 120_000);
       });
     }
 

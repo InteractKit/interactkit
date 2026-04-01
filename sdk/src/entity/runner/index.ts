@@ -18,6 +18,7 @@ import { RefWrapper } from '../wrappers/ref-wrapper.js';
 import { StreamWrapper } from '../wrappers/stream-wrapper.js';
 import { MethodWrapper } from '../wrappers/method-wrapper.js';
 import { HookWrapper } from '../wrappers/hook-wrapper.js';
+import { LLMEntity } from '../../llm/base.js';
 const KIND_TO_WRAPPER: Record<ElementDescriptor['kind'], () => BaseWrapper> = {
   state: () => StateWrapper.instance(),
   component: () => ComponentWrapper.instance(),
@@ -92,6 +93,16 @@ export class Runner {
     const root = this.instantiateTree(Cls, node);
     this.wireRefs(root, node); // Second pass — all instances exist now
     this.registerTree(root, node);
+
+    // Boot thinking loops for all LLMEntity instances
+    const observerEmit = this.bridge
+      ? (envelope: import('../../events/types.js').EventEnvelope) => this.bridge!.event(envelope)
+      : undefined;
+    for (const instance of this.factory.getAll().values()) {
+      if (instance instanceof LLMEntity) {
+        instance.__bootThinkingLoop(observerEmit);
+      }
+    }
 
     const wrappers = this.allWrappers();
     const instances = this.factory.getAll();

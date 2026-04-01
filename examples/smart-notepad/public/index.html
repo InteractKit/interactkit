@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Notepad</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0f0f0f;
+      color: #e0e0e0;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem;
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin-bottom: 1.5rem;
+      color: #fff;
+    }
+
+    h1 span { color: #6c8aff; }
+
+    .status {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #555;
+      margin-left: 0.5rem;
+      vertical-align: middle;
+    }
+
+    .status.connected { background: #4caf50; }
+
+    /* Input area */
+    .add-area {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .add-area textarea {
+      flex: 1;
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 8px;
+      color: #e0e0e0;
+      padding: 0.75rem;
+      font-size: 0.9rem;
+      font-family: inherit;
+      resize: vertical;
+      min-height: 60px;
+    }
+
+    .add-area textarea:focus { outline: none; border-color: #6c8aff; }
+
+    .add-area button {
+      background: #6c8aff;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 0 1.25rem;
+      font-size: 0.9rem;
+      cursor: pointer;
+      white-space: nowrap;
+      align-self: flex-end;
+      height: 40px;
+    }
+
+    .add-area button:hover { background: #5a7ae6; }
+    .add-area button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* Search */
+    .search-bar {
+      margin-bottom: 1.25rem;
+    }
+
+    .search-bar input {
+      width: 100%;
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 8px;
+      color: #e0e0e0;
+      padding: 0.6rem 0.75rem;
+      font-size: 0.9rem;
+      font-family: inherit;
+    }
+
+    .search-bar input:focus { outline: none; border-color: #6c8aff; }
+
+    /* Notes list */
+    .notes { list-style: none; }
+
+    .note {
+      background: #1a1a1a;
+      border: 1px solid #262626;
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 0.75rem;
+      cursor: pointer;
+      transition: border-color 0.15s;
+    }
+
+    .note:hover { border-color: #444; }
+    .note.active { border-color: #6c8aff; }
+
+    .note-text {
+      font-size: 0.95rem;
+      line-height: 1.5;
+      margin-bottom: 0.5rem;
+    }
+
+    .note-summary {
+      font-size: 0.8rem;
+      color: #888;
+      margin-bottom: 0.5rem;
+      font-style: italic;
+    }
+
+    .note-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+    }
+
+    .tag {
+      display: inline-block;
+      font-size: 0.7rem;
+      padding: 0.15rem 0.5rem;
+      border-radius: 10px;
+      font-weight: 500;
+    }
+
+    .note-meta {
+      font-size: 0.7rem;
+      color: #555;
+      margin-top: 0.5rem;
+    }
+
+    .related-section {
+      margin-top: 0.5rem;
+      padding-top: 0.5rem;
+      border-top: 1px solid #262626;
+      font-size: 0.8rem;
+      color: #888;
+    }
+
+    .empty {
+      text-align: center;
+      color: #555;
+      padding: 3rem 0;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1><span>Smart</span> Notepad <span class="status" id="status"></span></h1>
+
+    <div class="add-area">
+      <textarea id="noteInput" placeholder="Write a note..." rows="2"></textarea>
+      <button id="addBtn" disabled>Add</button>
+    </div>
+
+    <div class="search-bar">
+      <input type="text" id="searchInput" placeholder="Search notes...">
+    </div>
+
+    <ul class="notes" id="notesList">
+      <li class="empty">No notes yet. Write something above.</li>
+    </ul>
+  </div>
+
+  <script>
+    const TAG_COLORS = [
+      '#6c8aff', '#ff6c8a', '#8aff6c', '#ff8a6c', '#8a6cff',
+      '#6cffda', '#ffd76c', '#ff6cd7', '#6cfff0', '#d76cff',
+    ];
+
+    function tagColor(tag) {
+      let hash = 0;
+      for (let i = 0; i < tag.length; i++) hash = tag.charCodeAt(i) + ((hash << 5) - hash);
+      return TAG_COLORS[Math.abs(hash) % TAG_COLORS.length];
+    }
+
+    const statusEl = document.getElementById('status');
+    const noteInput = document.getElementById('noteInput');
+    const addBtn = document.getElementById('addBtn');
+    const searchInput = document.getElementById('searchInput');
+    const notesList = document.getElementById('notesList');
+
+    let notes = [];
+    let activeNoteId = null;
+    let ws;
+
+    function connect() {
+      ws = new WebSocket('ws://localhost:3001');
+
+      ws.onopen = () => {
+        statusEl.classList.add('connected');
+        addBtn.disabled = false;
+        ws.send(JSON.stringify({ type: 'list' }));
+      };
+
+      ws.onclose = () => {
+        statusEl.classList.remove('connected');
+        addBtn.disabled = true;
+        setTimeout(connect, 2000);
+      };
+
+      ws.onmessage = (e) => {
+        const msg = JSON.parse(e.data);
+
+        switch (msg.type) {
+          case 'list':
+          case 'search':
+            notes = msg.notes;
+            render();
+            break;
+
+          case 'added':
+            notes.unshift(msg.note);
+            render();
+            break;
+
+          case 'related':
+            renderRelated(msg.id, msg.relatedIds);
+            break;
+        }
+      };
+    }
+
+    function render() {
+      if (notes.length === 0) {
+        notesList.innerHTML = '<li class="empty">No notes found.</li>';
+        return;
+      }
+
+      notesList.innerHTML = notes.map(n => `
+        <li class="note ${n.id === activeNoteId ? 'active' : ''}" data-id="${n.id}">
+          <div class="note-text">${escHtml(n.text)}</div>
+          ${n.summary ? `<div class="note-summary">${escHtml(n.summary)}</div>` : ''}
+          <div class="note-tags">
+            ${n.tags.map(t => `<span class="tag" style="background:${tagColor(t)}22;color:${tagColor(t)}">${escHtml(t)}</span>`).join('')}
+          </div>
+          <div class="note-meta">${new Date(n.createdAt).toLocaleString()}</div>
+          <div class="related-section" id="related-${n.id}"></div>
+        </li>
+      `).join('');
+
+      notesList.querySelectorAll('.note').forEach(el => {
+        el.addEventListener('click', () => {
+          const id = el.dataset.id;
+          activeNoteId = id === activeNoteId ? null : id;
+          render();
+          if (activeNoteId) {
+            ws.send(JSON.stringify({ type: 'related', id: activeNoteId }));
+          }
+        });
+      });
+    }
+
+    function renderRelated(id, relatedIds) {
+      const el = document.getElementById('related-' + id);
+      if (!el) return;
+      if (relatedIds.length === 0) {
+        el.textContent = 'No related notes.';
+        return;
+      }
+      const related = relatedIds
+        .map(rid => notes.find(n => n.id === rid))
+        .filter(Boolean)
+        .map(n => n.text.slice(0, 50));
+      el.textContent = 'Related: ' + related.join(' | ');
+    }
+
+    function escHtml(s) {
+      const d = document.createElement('div');
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    addBtn.addEventListener('click', () => {
+      const text = noteInput.value.trim();
+      if (!text) return;
+      addBtn.disabled = true;
+      ws.send(JSON.stringify({ type: 'add', text }));
+      noteInput.value = '';
+      setTimeout(() => { addBtn.disabled = false; }, 500);
+    });
+
+    noteInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        addBtn.click();
+      }
+    });
+
+    let searchTimeout;
+    searchInput.addEventListener('input', () => {
+      clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(() => {
+        const q = searchInput.value.trim();
+        if (q) {
+          ws.send(JSON.stringify({ type: 'search', query: q }));
+        } else {
+          ws.send(JSON.stringify({ type: 'list' }));
+        }
+      }, 300);
+    });
+
+    connect();
+  </script>
+</body>
+</html>

@@ -52,6 +52,8 @@ export interface ToolOptions {
   description: string;
   /** Override the tool name (defaults to method name) */
   name?: string;
+  /** If true, this tool is available to the LLM during invoke(). Own @Tool methods are external-only by default. */
+  llmCallable?: boolean;
 }
 
 /**
@@ -81,6 +83,90 @@ export function LLMExecutionTrigger(): MethodDecorator {
     triggers.add(String(propertyKey));
     Reflect.defineMetadata(LLM_TRIGGER_KEY, triggers, ctor);
   };
+}
+
+// ─── @MaxIterations ──────────────────────────────────────
+
+const LLM_MAX_ITERATIONS_KEY = Symbol.for('llm:maxIterations');
+
+/**
+ * Sets the maximum number of LLM tool-use iterations per invocation.
+ * Defaults to 2 if not specified.
+ *
+ * @example
+ * ```ts
+ * @Entity({ description: 'Agent' })
+ * class Agent extends LLMEntity {
+ *   @MaxIterations(5)
+ *   private maxIterations!: number;
+ * }
+ * ```
+ */
+export function MaxIterations(value: number): PropertyDecorator {
+  return function (target: object, _propertyKey: string | symbol) {
+    Reflect.defineMetadata(LLM_MAX_ITERATIONS_KEY, value, target.constructor);
+  };
+}
+
+export function getMaxIterations(target: Function): number | undefined {
+  return Reflect.getOwnMetadata(LLM_MAX_ITERATIONS_KEY, target);
+}
+
+// ─── @ThinkingLoop ───────────────────────────────────────
+
+const LLM_THINKING_LOOP_KEY = Symbol.for('llm:thinkingLoop');
+
+export interface ThinkingLoopOptions {
+  /** Interval between thinking ticks in ms (default: 5000) */
+  intervalMs?: number;
+  /** After this many ms, inject a reminder about pending tasks (default: 30000) */
+  softTimeoutMs?: number;
+  /** After this many ms, remove task from loop and force-invoke directly (default: 60000) */
+  hardTimeoutMs?: number;
+  /** Max messages to keep in context sliding window (default: 50) */
+  contextWindow?: number;
+  /** Enable inner monologue — LLM thinks continuously. When false, invoke() uses classic direct execution. (default: true) */
+  innerMonologue?: boolean;
+
+  // ── Built-in tool config ──
+
+  /** Max ticks the LLM can sleep for via sleep() tool (default: 12, i.e. 60s at 5s interval) */
+  maxSleepTicks?: number;
+  /** Min intervalMs the LLM can set via set_interval() (default: 1000) */
+  minIntervalMs?: number;
+  /** Max intervalMs the LLM can set via set_interval() (default: 60000) */
+  maxIntervalMs?: number;
+  /** Max times a single task can be deferred (default: 2) */
+  maxDefers?: number;
+  /** If true, the LLM thinks every tick even with no pending tasks. Use for autonomous agents. (default: false) */
+  alwaysThink?: boolean;
+}
+
+/**
+ * Enables the thinking loop on an LLMEntity. The property is hydrated
+ * at runtime with an LLMThinkingLoop instance that can be controlled
+ * in real time (pause/resume, change intervals, toggle monologue).
+ *
+ * @example
+ * ```ts
+ * @Entity({ description: 'NPC' })
+ * class Npc extends LLMEntity {
+ *   @ThinkingLoop({ intervalMs: 5000, softTimeoutMs: 30000, hardTimeoutMs: 60000 })
+ *   private thinkingLoop!: LLMThinkingLoop;
+ * }
+ * ```
+ */
+export function ThinkingLoop(options: ThinkingLoopOptions = {}): PropertyDecorator {
+  return function (target: object, propertyKey: string | symbol) {
+    Reflect.defineMetadata(LLM_THINKING_LOOP_KEY, {
+      propertyKey: String(propertyKey),
+      ...options,
+    }, target.constructor);
+  };
+}
+
+export function getThinkingLoopMeta(target: Function): (ThinkingLoopOptions & { propertyKey: string }) | undefined {
+  return Reflect.getOwnMetadata(LLM_THINKING_LOOP_KEY, target);
 }
 
 // ─── Reflection helpers ───────────────────────────────────

@@ -159,7 +159,7 @@ class Agent extends BaseEntity {
 }
 ```
 
-The Brain automatically sees Memory's tools. Call `brain.invoke({ message: "remember that I like coffee" })` and the LLM decides to call `memory.store()`. You didn't write the glue.
+The Brain automatically sees Memory's tools. Every LLM entity runs a **thinking loop** -- a continuous inner monologue. `brain.invoke({ message: "remember that I like coffee" })` pushes a task to the loop. The LLM thinks, calls `memory_store()`, and responds. Between tasks it can think autonomously, manage its own memory, or sleep to save tokens. You didn't write the glue.
 
 ---
 

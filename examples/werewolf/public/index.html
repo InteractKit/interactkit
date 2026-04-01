@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Werewolf - InteractKit</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0a0a0f; color: #c8c8d0; font-family: 'Georgia', serif; min-height: 100vh; }
+    .container { max-width: 900px; margin: 0 auto; padding: 20px; }
+
+    header { text-align: center; padding: 30px 0 20px; border-bottom: 1px solid #1a1a2e; margin-bottom: 24px; }
+    header h1 { font-size: 2.2em; color: #e8e8f0; letter-spacing: 2px; text-transform: uppercase; }
+    header h1 span { color: #c0392b; }
+    .subtitle { color: #666; font-style: italic; margin-top: 6px; }
+
+    .phase-banner { text-align: center; padding: 14px; border-radius: 8px; margin-bottom: 20px; font-size: 1.15em; font-weight: bold; letter-spacing: 1px; transition: all 0.5s; }
+    .phase-waiting { background: #1a1a2e; color: #666; }
+    .phase-night { background: #0d1b3e; color: #5b8def; border: 1px solid #1a3a6e; }
+    .phase-day { background: #2e2a10; color: #d4a017; border: 1px solid #5e4a10; }
+    .phase-ended { background: #1e0a0a; color: #c0392b; border: 1px solid #5e1a1a; }
+    .phase-setup { background: #1a1a2e; color: #888; }
+
+    .players-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 24px; }
+    .player-card { background: #12121e; border: 1px solid #2a2a3e; border-radius: 8px; padding: 14px; text-align: center; transition: all 0.3s; }
+    .player-card.dead { opacity: 0.4; }
+    .player-card.human { border-color: #d4a017; background: #1a1810; }
+    .player-card .name { font-size: 1.1em; font-weight: bold; color: #e0e0e8; }
+    .player-card.dead .name { text-decoration: line-through; color: #666; }
+    .player-card .role { font-size: 0.85em; font-style: italic; margin-top: 4px; }
+    .role-werewolf { color: #c0392b; font-weight: bold; }
+    .role-seer { color: #3498db; font-weight: bold; }
+    .role-villager { color: #7f8c8d; }
+    .role-unknown { color: #555; }
+    .human-tag { font-size: 0.7em; color: #d4a017; text-transform: uppercase; letter-spacing: 1px; margin-top: 2px; }
+    .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; background: #27ae60; }
+    .dot.dead { background: #555; }
+
+    .start-section { text-align: center; margin-bottom: 24px; }
+    .start-section input { padding: 10px 14px; background: #12121e; border: 1px solid #2a2a3e; color: #c8c8d0; font-family: inherit; font-size: 1em; border-radius: 6px; margin-right: 8px; width: 200px; text-align: center; }
+    .start-section input:focus { outline: none; border-color: #d4a017; }
+    .btn { border: none; padding: 12px 30px; font-size: 1em; font-family: inherit; border-radius: 6px; cursor: pointer; letter-spacing: 1px; text-transform: uppercase; transition: all 0.2s; }
+    .btn-start { background: #c0392b; color: #fff; }
+    .btn-start:hover { background: #e74c3c; }
+    .btn-watch { background: #2a2a3e; color: #c8c8d0; margin-left: 8px; }
+    .btn-watch:hover { background: #3a3a4e; }
+
+    .input-prompt { background: #1a1810; border: 2px solid #d4a017; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+    .input-prompt h3 { color: #d4a017; margin-bottom: 8px; }
+    .input-prompt p { color: #999; margin-bottom: 12px; font-size: 0.9em; }
+    .input-prompt textarea { width: 100%; padding: 10px; background: #12121e; border: 1px solid #2a2a3e; color: #c8c8d0; font-family: inherit; font-size: 0.95em; border-radius: 4px; resize: vertical; min-height: 60px; }
+    .input-prompt textarea:focus { outline: none; border-color: #d4a017; }
+    .target-btn { padding: 10px 20px; background: #1a1a2e; border: 1px solid #3a3a5e; color: #c8c8d0; font-family: inherit; font-size: 0.95em; border-radius: 6px; cursor: pointer; transition: all 0.2s; margin: 4px; }
+    .target-btn:hover { background: #2a2a4e; border-color: #5b8def; color: #fff; }
+    .submit-btn { margin-top: 8px; padding: 8px 24px; background: #d4a017; color: #0a0a0f; border: none; font-family: inherit; font-size: 0.9em; border-radius: 4px; cursor: pointer; font-weight: bold; }
+    .submit-btn:hover { background: #e8b832; }
+
+    .your-role { background: #14141e; border: 1px solid #2a2a3e; border-radius: 8px; padding: 12px; margin-bottom: 16px; text-align: center; }
+    .your-role .label { font-size: 0.8em; color: #666; text-transform: uppercase; letter-spacing: 1px; }
+    .your-role .value { font-size: 1.3em; font-weight: bold; margin-top: 4px; }
+
+    .game-log { background: #0e0e18; border: 1px solid #1a1a2e; border-radius: 8px; padding: 16px; max-height: 600px; overflow-y: auto; }
+    .game-log h2 { font-size: 1em; color: #555; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; border-bottom: 1px solid #1a1a2e; padding-bottom: 8px; }
+    .log-entry { margin-bottom: 10px; padding: 8px 12px; border-radius: 6px; }
+    .log-narration { background: #14141e; color: #8888a0; font-style: italic; border-left: 3px solid #333; }
+    .log-speech { background: #16162a; border-left: 3px solid #4a4a7a; }
+    .log-speech.human { border-left-color: #d4a017; background: #1a1810; }
+    .log-speech .speaker { font-weight: bold; color: #a0a0d0; margin-bottom: 2px; }
+    .log-speech.human .speaker { color: #d4a017; }
+    .log-vote { background: #1a1a14; border-left: 3px solid #8a7a2a; font-size: 0.95em; }
+    .log-elimination { background: #1e1010; border-left: 3px solid #c0392b; font-weight: bold; color: #c0392b; }
+    .log-elimination.vote { color: #e67e22; border-left-color: #e67e22; }
+    .log-investigation { background: #101a2e; border-left: 3px solid #3498db; color: #5dade2; font-style: italic; }
+    .log-result { background: #1a1010; border: 2px solid #c0392b; color: #e8e8f0; font-size: 1.1em; text-align: center; padding: 16px; }
+    .log-result.village { border-color: #27ae60; background: #0a1a10; }
+    .log-roles { background: #14141e; border: 1px solid #2a2a3e; padding: 12px; display: flex; flex-wrap: wrap; gap: 6px; }
+    .role-badge { padding: 4px 10px; border-radius: 4px; font-size: 0.9em; }
+    .role-badge.werewolf { background: #2a0e0e; color: #c0392b; }
+    .role-badge.seer { background: #0e1a2e; color: #3498db; }
+    .role-badge.villager { background: #1a1a1a; color: #7f8c8d; }
+
+    .conn { position: fixed; top: 10px; right: 10px; padding: 4px 10px; border-radius: 12px; font-size: 0.75em; font-family: monospace; }
+    .conn.on { background: #0a2a0a; color: #27ae60; }
+    .conn.off { background: #2a0a0a; color: #c0392b; }
+
+    .game-log::-webkit-scrollbar { width: 6px; }
+    .game-log::-webkit-scrollbar-track { background: #0a0a14; }
+    .game-log::-webkit-scrollbar-thumb { background: #2a2a3e; border-radius: 3px; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect, useRef, useCallback } = React;
+
+    function useWebSocket(url) {
+      const [connected, setConnected] = useState(false);
+      const wsRef = useRef(null);
+      const handlersRef = useRef(null);
+
+      const send = useCallback((data) => {
+        if (wsRef.current?.readyState === WebSocket.OPEN) {
+          wsRef.current.send(JSON.stringify(data));
+        }
+      }, []);
+
+      useEffect(() => {
+        let ws;
+        function connect() {
+          ws = new WebSocket(url);
+          wsRef.current = ws;
+          ws.onopen = () => { setConnected(true); send({ type: 'status' }); };
+          ws.onclose = () => { setConnected(false); setTimeout(connect, 2000); };
+          ws.onerror = () => ws.close();
+          ws.onmessage = (e) => {
+            const msg = JSON.parse(e.data);
+            handlersRef.current?.(msg);
+          };
+        }
+        connect();
+        return () => { ws?.close(); };
+      }, [url]);
+
+      return { connected, send, onMessage: (fn) => { handlersRef.current = fn; } };
+    }
+
+    function PlayerCard({ name, alive, role, isHuman, revealedRole }) {
+      const shownRole = revealedRole || (isHuman ? role : null);
+      const roleClass = shownRole ? `role-${shownRole}` : 'role-unknown';
+      return (
+        <div className={`player-card ${!alive ? 'dead' : ''} ${isHuman ? 'human' : ''}`}>
+          <div className="name"><span className={`dot ${!alive ? 'dead' : ''}`} />{name}</div>
+          <div className={`role ${roleClass}`}>
+            {shownRole ? `${shownRole}${isHuman && !revealedRole ? ' (secret)' : ''}` : '???'}
+          </div>
+          {isHuman && <div className="human-tag">You</div>}
+        </div>
+      );
+    }
+
+    function InputPrompt({ prompt, onSubmit }) {
+      const [text, setText] = useState('');
+      const inputRef = useRef(null);
+
+      useEffect(() => { inputRef.current?.focus(); }, [prompt]);
+
+      if (!prompt) return null;
+
+      if (prompt.action === 'discuss') {
+        return (
+          <div className="input-prompt">
+            <h3>Your Turn to Speak</h3>
+            <p>{prompt.message}</p>
+            <textarea
+              ref={inputRef}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder="What do you say?"
+              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onSubmit({ type: 'input', text }); setText(''); } }}
+            />
+            <button className="submit-btn" onClick={() => { onSubmit({ type: 'input', text }); setText(''); }}>Speak</button>
+          </div>
+        );
+      }
+
+      if (prompt.action === 'vote') {
+        return (
+          <div className="input-prompt">
+            <h3>Cast Your Vote</h3>
+            <p>{prompt.message}</p>
+            <div>{prompt.targets.map((t) => (
+              <button key={t} className="target-btn" onClick={() => onSubmit({ type: 'input', target: t, reason: 'My choice.' })}>{t}</button>
+            ))}</div>
+          </div>
+        );
+      }
+
+      if (prompt.action === 'nightAction') {
+        const title = prompt.role === 'werewolf' ? 'Choose Your Victim' : 'Investigate a Player';
+        return (
+          <div className="input-prompt">
+            <h3>{title}</h3>
+            <p>{prompt.message}</p>
+            <div>{prompt.targets.map((t) => (
+              <button key={t} className="target-btn" onClick={() => onSubmit({ type: 'input', target: t })}>{t}</button>
+            ))}</div>
+          </div>
+        );
+      }
+
+      return null;
+    }
+
+    function LogEntry({ entry }) {
+      const { type, data } = entry;
+
+      switch (type) {
+        case 'narration':
+          return <div className="log-entry log-narration">{data.text}</div>;
+        case 'speech':
+          return (
+            <div className={`log-entry log-speech ${data.isHuman ? 'human' : ''}`}>
+              <div className="speaker">{data.player}{data.isHuman ? ' (you)' : ''}</div>
+              <div>"{data.text}"</div>
+            </div>
+          );
+        case 'vote':
+          return (
+            <div className="log-entry log-vote">
+              <strong style={{color:'#d4a017'}}>{data.player}</strong> votes for <strong>{data.target}</strong> — <em>{data.reason}</em>
+            </div>
+          );
+        case 'elimination':
+          return (
+            <div className={`log-entry log-elimination ${data.method === 'vote' ? 'vote' : ''}`}>
+              {data.player} was {data.method === 'werewolf' ? 'killed by werewolves' : 'eliminated by vote'}. They were a {data.role}.
+            </div>
+          );
+        case 'investigation':
+          return <div className="log-entry log-investigation">{data.text}</div>;
+        case 'result':
+          return <div className={`log-entry log-result ${data.winner === 'village' ? 'village' : ''}`}>{data.message}</div>;
+        case 'roles':
+          return (
+            <div className="log-entry log-roles">
+              {data.players.map((p) => (
+                <span key={p.name} className={`role-badge ${p.role}`}>
+                  {p.name}: {p.role}{!p.alive ? ' (dead)' : ''}{p.isHuman ? ' [you]' : ''}
+                </span>
+              ))}
+            </div>
+          );
+        default:
+          return null;
+      }
+    }
+
+    function App() {
+      const [phase, setPhase] = useState('waiting');
+      const [round, setRound] = useState(0);
+      const [players, setPlayers] = useState([
+        { name: 'Elena', alive: true }, { name: 'Marcus', alive: true }, { name: 'Sofia', alive: true },
+        { name: 'Dmitri', alive: true }, { name: 'Aria', alive: true }, { name: 'Jasper', alive: true },
+      ]);
+      const [humanPlayer, setHumanPlayer] = useState('');
+      const [myRole, setMyRole] = useState('');
+      const [myPersonality, setMyPersonality] = useState('');
+      const [revealedRoles, setRevealedRoles] = useState({});
+      const [log, setLog] = useState([]);
+      const [prompt, setPrompt] = useState(null);
+      const [nameInput, setNameInput] = useState('');
+      const logRef = useRef(null);
+
+      const { connected, send, onMessage } = useWebSocket(`ws://${location.hostname}:3001`);
+
+      const addLog = useCallback((type, data) => {
+        setLog((prev) => [...prev, { type, data, id: Date.now() + Math.random() }]);
+      }, []);
+
+      useEffect(() => {
+        onMessage((msg) => {
+          switch (msg.type) {
+            case 'phase':
+              setPhase(msg.phase);
+              setRound(msg.round);
+              if (msg.phase === 'ended') setPrompt(null);
+              break;
+            case 'your_role':
+              setHumanPlayer(msg.name);
+              setMyRole(msg.role);
+              setMyPersonality(msg.personality);
+              break;
+            case 'narration':
+              addLog('narration', msg);
+              break;
+            case 'speech':
+              addLog('speech', msg);
+              break;
+            case 'vote':
+              addLog('vote', msg);
+              break;
+            case 'elimination':
+              setRevealedRoles((prev) => ({ ...prev, [msg.player]: msg.role }));
+              setPlayers((prev) => prev.map((p) => p.name === msg.player ? { ...p, alive: false } : p));
+              addLog('elimination', msg);
+              break;
+            case 'investigation':
+              addLog('investigation', { text: `The Seer (${msg.player}) investigated ${msg.target}: ${msg.result}` });
+              break;
+            case 'result':
+              addLog('result', msg);
+              break;
+            case 'roles':
+              setRevealedRoles((prev) => {
+                const next = { ...prev };
+                msg.players.forEach((p) => { next[p.name] = p.role; });
+                return next;
+              });
+              addLog('roles', msg);
+              break;
+            case 'awaiting_input':
+              setPrompt(msg);
+              break;
+            case 'status':
+              setPhase(msg.phase);
+              setRound(msg.round);
+              setHumanPlayer(msg.humanPlayer || '');
+              if (msg.players) setPlayers(msg.players);
+              break;
+          }
+        });
+      }, [addLog]);
+
+      useEffect(() => {
+        if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
+      }, [log]);
+
+      function startGame(join) {
+        const name = join ? (nameInput.trim() || 'You') : '';
+        setLog([]);
+        setRevealedRoles({});
+        setMyRole('');
+        setHumanPlayer('');
+        setPrompt(null);
+        send({ type: 'start', playerName: name });
+      }
+
+      function handleInput(data) {
+        send(data);
+        setPrompt(null);
+      }
+
+      const phaseClass = `phase-banner phase-${phase}`;
+      const phaseText = phase === 'waiting' ? 'Waiting to begin...'
+        : phase === 'night' ? `Night ${round}`
+        : phase === 'day' ? `Day ${round}`
+        : phase === 'ended' ? 'Game Over'
+        : 'Setting up...';
+
+      const showStart = phase === 'waiting' || phase === 'ended';
+
+      return (
+        <div className="container">
+          <header>
+            <h1>The <span>Werewolves</span> of Ravenhollow</h1>
+            <div className="subtitle">A social deduction game — play with or watch AI players</div>
+          </header>
+
+          <div className={`conn ${connected ? 'on' : 'off'}`}>{connected ? 'connected' : 'disconnected'}</div>
+
+          <div className={phaseClass}>{phaseText}</div>
+
+          {myRole && (
+            <div className="your-role">
+              <div className="label">Your secret role</div>
+              <div className={`value role-${myRole}`}>{myRole.toUpperCase()}</div>
+              {myPersonality && <div style={{color:'#666',fontSize:'0.8em',marginTop:4}}>Personality: {myPersonality}</div>}
+            </div>
+          )}
+
+          <div className="players-grid">
+            {players.map((p) => (
+              <PlayerCard
+                key={p.name}
+                name={p.name}
+                alive={p.alive}
+                isHuman={p.name === humanPlayer || p.isHuman}
+                role={p.name === humanPlayer ? myRole : null}
+                revealedRole={revealedRoles[p.name]}
+              />
+            ))}
+          </div>
+
+          {prompt && <InputPrompt prompt={prompt} onSubmit={handleInput} />}
+
+          {showStart && (
+            <div className="start-section">
+              <input
+                value={nameInput}
+                onChange={(e) => setNameInput(e.target.value)}
+                placeholder="Your name (optional)"
+                onKeyDown={(e) => { if (e.key === 'Enter') startGame(true); }}
+              />
+              <button className="btn btn-start" onClick={() => startGame(true)}>Join & Play</button>
+              <button className="btn btn-watch" onClick={() => startGame(false)}>Watch AI Play</button>
+            </div>
+          )}
+
+          <div className="game-log" ref={logRef}>
+            <h2>Game Log</h2>
+            {log.map((entry) => <LogEntry key={entry.id} entry={entry} />)}
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

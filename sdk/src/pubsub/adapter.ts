@@ -165,7 +165,7 @@ export abstract class RemotePubSubAdapter extends PubSubAdapter {
     const timer = setTimeout(() => {
       this.unsubscribeRaw(replyChannel);
       reject(new Error(`Proxy timeout: ${op} ${prop ?? ''} on ${objectId}`));
-    }, 30_000);
+    }, 120_000);
 
     await this.subscribeRaw(replyChannel, (raw) => {
       clearTimeout(timer);

@@ -8,7 +8,7 @@ import { RemotePubSubAdapter } from './adapter.js';
  */
 export class DevPubSubAdapter extends RemotePubSubAdapter {
   private socket: Socket | null = null;
-  private handlers = new Map<string, (data: string) => void>();
+  private handlers = new Map<string, Set<(data: string) => void>>();
   private buffer = '';
   private ready: Promise<void> | null = null;
   private readonly port: number;
@@ -36,8 +36,8 @@ export class DevPubSubAdapter extends RemotePubSubAdapter {
           try {
             const msg = JSON.parse(line) as { op: string; channel: string; data: string };
             if (msg.op === 'message') {
-              const handler = this.handlers.get(msg.channel);
-              if (handler) handler(msg.data);
+              const handlers = this.handlers.get(msg.channel);
+              if (handlers) for (const h of handlers) h(msg.data);
             }
           } catch { /* ignore */ }
         }
@@ -60,8 +60,11 @@ export class DevPubSubAdapter extends RemotePubSubAdapter {
   }
 
   protected async subscribeRaw(channel: string, handler: (message: string) => void): Promise<void> {
-    this.handlers.set(channel, handler);
-    await this.send({ op: 'subscribe', channel });
+    const set = this.handlers.get(channel) ?? new Set();
+    const wasEmpty = set.size === 0;
+    set.add(handler);
+    this.handlers.set(channel, set);
+    if (wasEmpty) await this.send({ op: 'subscribe', channel });
   }
 
   protected async unsubscribeRaw(channel: string): Promise<void> {
@@ -74,8 +77,11 @@ export class DevPubSubAdapter extends RemotePubSubAdapter {
   }
 
   protected async consumeRaw(channel: string, handler: (message: string) => void): Promise<void> {
-    this.handlers.set(channel, handler);
-    await this.send({ op: 'consume', channel });
+    const set = this.handlers.get(channel) ?? new Set();
+    const wasEmpty = set.size === 0;
+    set.add(handler);
+    this.handlers.set(channel, set);
+    if (wasEmpty) await this.send({ op: 'consume', channel });
   }
 
   protected async stopConsumingRaw(channel: string): Promise<void> {

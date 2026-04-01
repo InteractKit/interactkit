@@ -149,6 +149,11 @@ export class EntitySession {
     return this.localPubsub;
   }
 
+  /** Remote pubsub adapter (from config). Used by remote hooks regardless of detach status. */
+  get remotePubsubAdapter(): PubSubAdapter | undefined {
+    return this.remotePubsub;
+  }
+
   /** Global database adapter (configured in interactkit.config.ts). */
   get database(): DatabaseAdapter | undefined {
     return this.db;

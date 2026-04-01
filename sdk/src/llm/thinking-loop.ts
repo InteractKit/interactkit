@@ -2,6 +2,15 @@ import { randomUUID } from "node:crypto";
 import type { ThinkingLoopOptions } from "./decorators.js";
 import type { EventEnvelope } from "../events/types.js";
 
+/** A scheduled item — fires as a notification at the scheduled time, optionally recurring. */
+export interface ScheduledItem {
+  id: string;
+  message: string;
+  nextFireAt: number;
+  intervalMs: number | null;
+  createdAt: number;
+}
+
 /** A pending task waiting for the LLM to respond via the thinking loop. */
 export interface PendingTask {
   id: string;
@@ -81,6 +90,19 @@ export interface ThinkingLoopDeferEvent {
   maxDefers: number;
 }
 
+export interface ThinkingLoopScheduleEvent {
+  type: "schedule";
+  id: string;
+  message: string;
+  delayMs: number;
+  intervalMs: number | null;
+}
+
+export interface ThinkingLoopUnscheduleEvent {
+  type: "unschedule";
+  id: string;
+}
+
 export type ThinkingLoopEvent =
   | ThinkingLoopTickEvent
   | ThinkingLoopRespondEvent
@@ -91,7 +113,9 @@ export type ThinkingLoopEvent =
   | ThinkingLoopThoughtEvent
   | ThinkingLoopSleepEvent
   | ThinkingLoopIntervalEvent
-  | ThinkingLoopDeferEvent;
+  | ThinkingLoopDeferEvent
+  | ThinkingLoopScheduleEvent
+  | ThinkingLoopUnscheduleEvent;
 
 type EventHandler = (event: ThinkingLoopEvent) => void;
 
@@ -129,8 +153,15 @@ export class LLMThinkingLoop {
   private _sleepTicksRemaining = 0;
   private _timer: ReturnType<typeof setInterval> | null = null;
   private _tasks: PendingTask[] = [];
+  private _notifications: Array<{
+    id: string;
+    message: string;
+    createdAt: number;
+  }> = [];
+  private _schedules: ScheduledItem[] = [];
   private _onTick: (() => Promise<void>) | null = null;
-  private _onForceInvoke: ((task: PendingTask) => Promise<string>) | null = null;
+  private _onForceInvoke: ((task: PendingTask) => Promise<string>) | null =
+    null;
   private _lastActivity = 0;
   private _tickCount = 0;
   private _handlers: EventHandler[] = [];
@@ -143,11 +174,11 @@ export class LLMThinkingLoop {
     this.hardTimeoutMs = options.hardTimeoutMs ?? 60000;
     this.contextWindow = options.contextWindow ?? 50;
     this.innerMonologue = options.innerMonologue ?? true;
-    this.maxSleepTicks = options.maxSleepTicks ?? 12;
-    this.minIntervalMs = options.minIntervalMs ?? 1000;
+    this.maxSleepTicks = options.maxSleepTicks ?? 200;
+    this.minIntervalMs = options.minIntervalMs ?? 2000;
     this.maxIntervalMs = options.maxIntervalMs ?? 60000;
     this.maxDefers = options.maxDefers ?? 2;
-    this.alwaysThink = options.alwaysThink ?? false;
+    this.alwaysThink = options.alwaysThink ?? true;
   }
 
   // ── Readonly state ──
@@ -195,7 +226,9 @@ export class LLMThinkingLoop {
   /** @internal Emit a thinking loop event. Public for LLMEntity access. */
   _emit(event: ThinkingLoopEvent): void {
     for (const h of this._handlers) {
-      try { h(event); } catch {}
+      try {
+        h(event);
+      } catch {}
     }
     // Also push through observer pipeline (#3)
     this._emitObserver(event);
@@ -331,10 +364,21 @@ export class LLMThinkingLoop {
     this._onForceInvoke = onForceInvoke;
 
     this._timer = setInterval(async () => {
+      // Check scheduled items before anything else
+      this._checkSchedules();
+
+      // Always check timeouts — even while thinking, so a hung LLM call
+      // doesn't prevent hard-timeout force-invokes from firing.
+      await this._checkTimeouts();
+
       if (this._paused || this._thinking) return;
 
       // Sleeping — decrement and skip. Wake early if tasks arrive.
-      if (this._sleepTicksRemaining > 0 && this._tasks.length === 0) {
+      if (
+        this._sleepTicksRemaining > 0 &&
+        this._tasks.length === 0 &&
+        this._notifications.length === 0
+      ) {
         this._sleepTicksRemaining--;
         this._tickCount++;
         this._emit({ type: "idle", tickNumber: this._tickCount });
@@ -342,12 +386,10 @@ export class LLMThinkingLoop {
       }
       this._sleepTicksRemaining = 0; // wake on tasks
 
-      // Check hard timeouts first
-      await this._checkTimeouts();
-
-      // Skip tick if no tasks and no recent activity (save tokens) — unless alwaysThink
-      const hasWork = this._tasks.length > 0;
-      const recentActivity = Date.now() - this._lastActivity < this.intervalMs * 2;
+      // Skip tick if no tasks/notifications and no recent activity (save tokens) — unless alwaysThink
+      const hasWork = this._tasks.length > 0 || this._notifications.length > 0;
+      const recentActivity =
+        Date.now() - this._lastActivity < this.intervalMs * 2;
       if (!this.alwaysThink && !hasWork && !recentActivity) {
         this._tickCount++;
         this._emit({ type: "idle", tickNumber: this._tickCount });
@@ -376,6 +418,8 @@ export class LLMThinkingLoop {
       task.reject(new Error("Thinking loop stopped"));
     }
     this._tasks = [];
+    this._schedules = [];
+    this._notifications = [];
   }
 
   // ── Internal ──
@@ -452,11 +496,123 @@ export class LLMThinkingLoop {
 
     const lines = this._tasks.map((t) => {
       const age = Math.round((Date.now() - t.createdAt) / 1000);
-      const urgent = t.softReminded ? " [URGENT — waiting " + age + "s]" : ` [${age}s ago]`;
+      const urgent = t.softReminded
+        ? " [URGENT — waiting " + age + "s]"
+        : ` [${age}s ago]`;
       return `  [${t.id}] ${t.message}${urgent}`;
     });
 
     return `\nPending tasks (use respond tool to answer):\n${lines.join("\n")}`;
+  }
+
+  /**
+   * Push a notification — informational message that doesn't need a response.
+   * The LLM sees it on the next tick but doesn't need to call respond().
+   */
+  pushNotification(message: string): void {
+    this._notifications.push({
+      id: randomUUID().slice(0, 8),
+      message,
+      createdAt: Date.now(),
+    });
+    this._lastActivity = Date.now();
+
+    // Wake from sleep
+    if (!this._thinking && !this._paused) {
+      this._runTick();
+    }
+  }
+
+  /**
+   * Build the notifications section for the tick prompt.
+   * Notifications are consumed after being shown once.
+   */
+  buildNotificationsPrompt(): string {
+    if (this._notifications.length === 0) return "";
+    const lines = this._notifications.map((n) => `  - ${n.message}`);
+    this._notifications = [];
+    return `\nNotifications (FYI — no response needed):\n${lines.join("\n")}`;
+  }
+
+  // ── Scheduling ──
+
+  /**
+   * Schedule a future notification. Fires once after delayMs, or recurring if intervalMs is set.
+   */
+  schedule(message: string, delayMs: number, intervalMs?: number): string {
+    const id = randomUUID().slice(0, 8);
+    this._schedules.push({
+      id,
+      message,
+      nextFireAt: Date.now() + delayMs,
+      intervalMs: intervalMs ?? null,
+      createdAt: Date.now(),
+    });
+    this._emit({
+      type: "schedule",
+      id,
+      message,
+      delayMs,
+      intervalMs: intervalMs ?? null,
+    });
+    return id;
+  }
+
+  /**
+   * Remove a scheduled item by ID.
+   */
+  unschedule(id: string): boolean {
+    const idx = this._schedules.findIndex((s) => s.id === id);
+    if (idx === -1) return false;
+    this._schedules.splice(idx, 1);
+    this._emit({ type: "unschedule", id });
+    return true;
+  }
+
+  /**
+   * List all scheduled items.
+   */
+  getSchedules(): readonly ScheduledItem[] {
+    return this._schedules;
+  }
+
+  /**
+   * Check scheduled items — fire any that are due as notifications.
+   * Called each tick.
+   */
+  private _checkSchedules(): void {
+    const now = Date.now();
+    const fired: string[] = [];
+
+    for (const item of this._schedules) {
+      if (now >= item.nextFireAt) {
+        this.pushNotification(`[scheduled] ${item.message}`);
+        if (item.intervalMs) {
+          item.nextFireAt = now + item.intervalMs;
+        } else {
+          fired.push(item.id);
+        }
+      }
+    }
+
+    // Remove one-shot schedules that fired
+    this._schedules = this._schedules.filter((s) => !fired.includes(s.id));
+  }
+
+  /**
+   * Restore schedules from persisted state. Called on boot.
+   */
+  restoreSchedules(schedules: ScheduledItem[]): void {
+    if (schedules.length > 0) {
+      this._schedules = schedules.map((s) => ({ ...s }));
+    }
+  }
+
+  /**
+   * Restore tick count from persisted state. Called on boot.
+   */
+  restoreTickCount(count: number): void {
+    this._tickCount = count;
   }
 
   /** Record that something happened (prevents idle skip). */
@@ -478,7 +634,10 @@ export class LLMThinkingLoop {
   /** Change the tick interval. Clamped to [minIntervalMs, maxIntervalMs]. */
   setInterval(ms: number): string {
     const previousMs = this.intervalMs;
-    const clamped = Math.min(Math.max(ms, this.minIntervalMs), this.maxIntervalMs);
+    const clamped = Math.min(
+      Math.max(ms, this.minIntervalMs),
+      this.maxIntervalMs,
+    );
     this.intervalMs = clamped;
     this._emit({ type: "set_interval", previousMs, newMs: clamped });
     // Restart the timer with new interval
@@ -497,12 +656,24 @@ export class LLMThinkingLoop {
     const task = this._tasks.find((t) => t.id === taskId);
     if (!task) return { ok: false, message: `Task ${taskId} not found.` };
     if (task.defers >= this.maxDefers) {
-      return { ok: false, message: `Task ${taskId} already deferred ${task.defers} times (max: ${this.maxDefers}). Must respond now.` };
+      return {
+        ok: false,
+        message: `Task ${taskId} already deferred ${task.defers} times (max: ${this.maxDefers}). Must respond now.`,
+      };
     }
     task.defers++;
     task.createdAt = Date.now(); // reset timeout clock
     task.softReminded = false;
-    this._emit({ type: "defer", taskId: task.id, message: task.message, defersUsed: task.defers, maxDefers: this.maxDefers });
-    return { ok: true, message: `Task ${taskId} deferred (${task.defers}/${this.maxDefers}).` };
+    this._emit({
+      type: "defer",
+      taskId: task.id,
+      message: task.message,
+      defersUsed: task.defers,
+      maxDefers: this.maxDefers,
+    });
+    return {
+      ok: true,
+      message: `Task ${taskId} deferred (${task.defers}/${this.maxDefers}).`,
+    };
   }
 }

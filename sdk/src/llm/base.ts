@@ -1,6 +1,7 @@
 import "reflect-metadata";
 import { z } from "zod";
 import { BaseEntity } from "../entity/types.js";
+import { State } from "../entity/decorators/index.js";
 import { getEntityMeta } from "../entity/decorators/index.js";
 import { getRegistry } from "../registry.js";
 import { LLMContext, type LLMMessage } from "./context.js";
@@ -12,7 +13,7 @@ import {
   type ToolOptions,
 } from "./decorators.js";
 import type { LLMExecutionTriggerParams } from "./trigger.js";
-import { LLMThinkingLoop, type PendingTask } from "./thinking-loop.js";
+import { LLMThinkingLoop, type PendingTask, type ScheduledItem } from "./thinking-loop.js";
 import {
   buildSystemPrompt,
   getExecutorModel,
@@ -21,6 +22,7 @@ import {
   type ResolvedTool,
 } from "./utils.js";
 
+// Single key for all @Tool metadata — unified in llm/decorators.ts
 const LLM_TOOL_KEY = Symbol.for("llm:tools");
 
 /** Priority levels for request queue */
@@ -84,6 +86,13 @@ export abstract class LLMEntity extends BaseEntity {
   private _thinkingLoop: LLMThinkingLoop | null = null;
   private _thinkingLoopBooted = false;
 
+  // ── Persisted thinking loop state ──
+  @State({ description: "Persisted scheduled items for the thinking loop" })
+  private _persistedSchedules: ScheduledItem[] = [];
+
+  @State({ description: "Total thinking loop tick count" })
+  private _persistedTickCount: number = 0;
+
   /**
    * Returns true if the entity has no queued or in-progress LLM invocations.
    */
@@ -124,9 +133,18 @@ export abstract class LLMEntity extends BaseEntity {
       loop.setObserver(this.id, observerEmit);
     }
 
+    // Restore persisted state
+    loop.restoreSchedules(this._persistedSchedules);
+    loop.restoreTickCount(this._persistedTickCount);
+
     // Start the loop
     loop.start(
-      () => this._thinkingTick(),
+      async () => {
+        await this._thinkingTick();
+        // Sync state back after each tick
+        this._persistedSchedules = [...loop.getSchedules()];
+        this._persistedTickCount = loop.tickCount;
+      },
       (task) => this._forceInvoke(task),
     );
   }
@@ -191,6 +209,17 @@ export abstract class LLMEntity extends BaseEntity {
     });
   }
 
+  /**
+   * Send a fire-and-forget notification to the thinking loop.
+   * The LLM sees it on the next tick but doesn't need to respond.
+   */
+  notify(message: string): void {
+    if (!this._thinkingLoopBooted) this.__bootThinkingLoop();
+    if (this._thinkingLoop) {
+      this._thinkingLoop.pushNotification(message);
+    }
+  }
+
   // ── Thinking Loop Tick ──
 
   /**
@@ -210,9 +239,12 @@ export abstract class LLMEntity extends BaseEntity {
 
     // Build the tick user message
     const taskPrompt = loop.buildTasksPrompt();
-    const tickMessage = taskPrompt
-      ? `Continue your thinking.${taskPrompt}\n\nThink about the situation, then act. Use respond() to answer pending tasks. You can also use other tools.`
-      : `Continue your thinking. No pending tasks. You may act on your own, reflect, or idle.`;
+    const notifPrompt = loop.buildNotificationsPrompt();
+    const hasWork = taskPrompt || notifPrompt;
+    const hasSchedules = loop.getSchedules().length > 0;
+    const tickMessage = hasWork
+      ? `Continue your thinking.${taskPrompt}${notifPrompt}\n\nThink about the situation, then act. Use respond() to answer pending tasks. You can also use other tools.`
+      : `Continue your thinking. No pending tasks or notifications.${hasSchedules ? " You have active schedules — use sleep() to wait efficiently." : ""} If you have nothing to do, use sleep() to save tokens. Only stay awake if you are actively working on something.`;
 
     this.context.addUser(tickMessage);
 
@@ -280,14 +312,6 @@ export abstract class LLMEntity extends BaseEntity {
     });
 
     tools.push({
-      name: "idle",
-      description:
-        "Do nothing this tick. Call this when you have no tasks and nothing to act on.",
-      schema: z.object({}),
-      invoke: async () => "Idling.",
-    });
-
-    tools.push({
       name: "sleep",
       description: `Sleep for N ticks (max ${loop.maxSleepTicks}). Saves tokens when nothing is happening. Wakes early if a new task arrives.`,
       schema: z.object({
@@ -314,6 +338,50 @@ export abstract class LLMEntity extends BaseEntity {
       invoke: async (args: any) => {
         const result = loop.deferTask(args.taskId);
         return result.message;
+      },
+    });
+
+    tools.push({
+      name: "schedule",
+      description: "Schedule a future notification. Use delayMs for one-shot, add intervalMs for recurring.",
+      schema: z.object({
+        message: z.string().describe("The notification message"),
+        delayMs: z.number().describe("Delay in ms before first fire"),
+        intervalMs: z.number().optional().describe("If set, repeat every intervalMs after the first fire"),
+      }),
+      invoke: async (args: any) => {
+        const id = loop.schedule(args.message, args.delayMs, args.intervalMs);
+        return args.intervalMs
+          ? `Scheduled recurring "${args.message}" (id: ${id}), first in ${args.delayMs}ms, then every ${args.intervalMs}ms.`
+          : `Scheduled "${args.message}" (id: ${id}) in ${args.delayMs}ms.`;
+      },
+    });
+
+    tools.push({
+      name: "unschedule",
+      description: "Cancel a scheduled notification by ID.",
+      schema: z.object({
+        id: z.string().describe("The schedule ID to cancel"),
+      }),
+      invoke: async (args: any) => {
+        return loop.unschedule(args.id)
+          ? `Schedule ${args.id} cancelled.`
+          : `Schedule ${args.id} not found.`;
+      },
+    });
+
+    tools.push({
+      name: "see_schedules",
+      description: "List all active scheduled notifications.",
+      schema: z.object({}),
+      invoke: async () => {
+        const schedules = loop.getSchedules();
+        if (schedules.length === 0) return "No active schedules.";
+        return schedules.map((s) => {
+          const untilFire = Math.max(0, Math.round((s.nextFireAt - Date.now()) / 1000));
+          const recurring = s.intervalMs ? ` (every ${s.intervalMs / 1000}s)` : " (one-shot)";
+          return `  [${s.id}] "${s.message}" — fires in ${untilFire}s${recurring}`;
+        }).join("\n");
       },
     });
   }

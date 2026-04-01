@@ -949,18 +949,21 @@ importers:
 
   examples/content-pipeline:
     dependencies:
+      '@interactkit/cli':
+        specifier: ^0.2.0
+        version: 0.2.16(@cfworker/json-schema@4.1.1)(@types/node@25.5.0)(zod@3.25.76)
       '@interactkit/http':
-        specifier: workspace:*
-        version: link:../../extensions/http
+        specifier: ^0.2.0
+        version: 0.2.5(@interactkit/sdk@0.2.19(@cfworker/json-schema@4.1.1)(openai@6.33.0(ws@8.20.0)(zod@3.25.76))(reflect-metadata@0.2.2)(ws@8.20.0))(reflect-metadata@0.2.2)
       '@interactkit/prisma':
-        specifier: workspace:*
-        version: link:../../extensions/prisma
+        specifier: ^0.2.0
+        version: 0.2.1(@interactkit/sdk@0.2.19(@cfworker/json-schema@4.1.1)(openai@6.33.0(ws@8.20.0)(zod@3.25.76))(reflect-metadata@0.2.2)(ws@8.20.0))(@prisma/client@6.19.2(prisma@6.19.2(typescript@5.9.3))(typescript@5.9.3))(reflect-metadata@0.2.2)
       '@interactkit/sdk':
-        specifier: workspace:*
-        version: link:../../sdk
+        specifier: ^0.2.0
+        version: 0.2.19(@cfworker/json-schema@4.1.1)(openai@6.33.0(ws@8.20.0)(zod@3.25.76))(reflect-metadata@0.2.2)(ws@8.20.0)
       '@interactkit/websocket':
-        specifier: workspace:*
-        version: link:../../extensions/websocket
+        specifier: ^0.2.0
+        version: 0.2.3(@interactkit/sdk@0.2.19(@cfworker/json-schema@4.1.1)(openai@6.33.0(ws@8.20.0)(zod@3.25.76))(reflect-metadata@0.2.2)(ws@8.20.0))(reflect-metadata@0.2.2)
       '@langchain/openai':
         specifier: ^1.4.1
         version: 1.4.1(@langchain/core@1.1.36(openai@6.33.0(ws@8.20.0)(zod@3.25.76))(ws@8.20.0))(ws@8.20.0)
@@ -974,9 +977,6 @@ importers:
         specifier: ^0.2.2
         version: 0.2.2
     devDependencies:
-      '@interactkit/cli':
-        specifier: workspace:*
-        version: link:../../cli
       '@types/node':
         specifier: ^25.5.0
         version: 25.5.0
@@ -986,18 +986,21 @@ importers:
 
   examples/debate-club:
     dependencies:
+      '@interactkit/cli':
+        specifier: ^0.2.0
+        version: 0.2.16(@cfworker/json-schema@4.1.1)(@types/node@25.5.0)(zod@3.25.76)
       '@interactkit/http':
-        specifier: workspace:*
-        version: link:../../extensions/http
+        specifier: ^0.2.0
+        version: 0.2.5(@interactkit/sdk@0.2.19(@cfworker/json-schema@4.1.1)(openai@6.33.0(ws@8.20.0)(zod@3.25.76))(reflect-metadata@0.2.2)(ws@8.20.0))(reflect-metadata@0.2.2)
       '@interactkit/prisma':
-        specifier: workspace:*
-        version: link:../../extensions/prisma
+        specifier: ^0.2.0
+        version: 0.2.1(@interactkit/sdk@0.2.19(@cfworker/json-schema@4.1.1)(openai@6.33.0(ws@8.20.0)(zod@3.25.76))(reflect-metadata@0.2.2)(ws@8.20.0))(@prisma/client@6.19.2(prisma@6.19.2(typescript@5.9.3))(typescript@5.9.3))(reflect-metadata@0.2.2)
       '@interactkit/sdk':
-        specifier: workspace:*
-        version: link:../../sdk
+        specifier: ^0.2.0
+        version: 0.2.19(@cfworker/json-schema@4.1.1)(openai@6.33.0(ws@8.20.0)(zod@3.25.76))(reflect-metadata@0.2.2)(ws@8.20.0)
       '@interactkit/websocket':
-        specifier: workspace:*
-        version: link:../../extensions/websocket
+        specifier: ^0.2.0
+        version: 0.2.3(@interactkit/sdk@0.2.19(@cfworker/json-schema@4.1.1)(openai@6.33.0(ws@8.20.0)(zod@3.25.76))(reflect-metadata@0.2.2)(ws@8.20.0))(reflect-metadata@0.2.2)
       '@langchain/openai':
         specifier: ^1.4.1
         version: 1.4.1(@langchain/core@1.1.36(openai@6.33.0(ws@8.20.0)(zod@3.25.76))(ws@8.20.0))(ws@8.20.0)
@@ -1011,9 +1014,6 @@ importers:
         specifier: ^0.2.2
         version: 0.2.2
     devDependencies:
-      '@interactkit/cli':
-        specifier: workspace:*
-        version: link:../../cli
       '@types/node':
         specifier: ^25.5.0
         version: 25.5.0
@@ -1023,9 +1023,12 @@ importers:
 
   examples/sample-app:
     dependencies:
+      '@interactkit/cli':
+        specifier: ^0.2.0
+        version: 0.2.16(@cfworker/json-schema@4.1.1)(@types/node@25.5.0)(zod@3.25.76)
       '@interactkit/sdk':
-        specifier: workspace:*
-        version: link:../../sdk
+        specifier: ^0.2.0
+        version: 0.2.19(@cfworker/json-schema@4.1.1)(openai@6.33.0(ws@8.20.0)(zod@3.25.76))(reflect-metadata@0.2.2)(ws@8.20.0)
       '@langchain/anthropic':
         specifier: ^1.3.25
         version: 1.3.25(@langchain/core@1.1.36(openai@6.33.0(ws@8.20.0)(zod@3.25.76))(ws@8.20.0))
@@ -1039,9 +1042,6 @@ importers:
         specifier: ^0.2.2
         version: 0.2.2
     devDependencies:
-      '@interactkit/cli':
-        specifier: workspace:*
-        version: link:../../cli
       '@types/node':
         specifier: ^25.5.0
         version: 25.5.0
@@ -1051,18 +1051,21 @@ importers:
 
   examples/smart-notepad:
     dependencies:
+      '@interactkit/cli':
+        specifier: ^0.2.0
+        version: 0.2.16(@cfworker/json-schema@4.1.1)(@types/node@25.5.0)(zod@3.25.76)
       '@interactkit/http':
-        specifier: workspace:*
-        version: link:../../extensions/http
+        specifier: ^0.2.0
+        version: 0.2.5(@interactkit/sdk@0.2.19(@cfworker/json-schema@4.1.1)(openai@6.33.0(ws@8.20.0)(zod@3.25.76))(reflect-metadata@0.2.2)(ws@8.20.0))(reflect-metadata@0.2.2)
       '@interactkit/prisma':
-        specifier: workspace:*
-        version: link:../../extensions/prisma
+        specifier: ^0.2.0
+        version: 0.2.1(@interactkit/sdk@0.2.19(@cfworker/json-schema@4.1.1)(openai@6.33.0(ws@8.20.0)(zod@3.25.76))(reflect-metadata@0.2.2)(ws@8.20.0))(@prisma/client@6.19.2(prisma@6.19.2(typescript@5.9.3))(typescript@5.9.3))(reflect-metadata@0.2.2)
       '@interactkit/sdk':
-        specifier: workspace:*
-        version: link:../../sdk
+        specifier: ^0.2.0
+        version: 0.2.19(@cfworker/json-schema@4.1.1)(openai@6.33.0(ws@8.20.0)(zod@3.25.76))(reflect-metadata@0.2.2)(ws@8.20.0)
       '@interactkit/websocket':
-        specifier: workspace:*
-        version: link:../../extensions/websocket
+        specifier: ^0.2.0
+        version: 0.2.3(@interactkit/sdk@0.2.19(@cfworker/json-schema@4.1.1)(openai@6.33.0(ws@8.20.0)(zod@3.25.76))(reflect-metadata@0.2.2)(ws@8.20.0))(reflect-metadata@0.2.2)
       '@langchain/openai':
         specifier: ^1.4.1
         version: 1.4.1(@langchain/core@1.1.36(openai@6.33.0(ws@8.20.0)(zod@3.25.76))(ws@8.20.0))(ws@8.20.0)
@@ -1076,9 +1079,6 @@ importers:
         specifier: ^0.2.2
         version: 0.2.2
     devDependencies:
-      '@interactkit/cli':
-        specifier: workspace:*
-        version: link:../../cli
       '@types/node':
         specifier: ^25.5.0
         version: 25.5.0
@@ -1088,15 +1088,18 @@ importers:
 
   examples/startup-simulator:
     dependencies:
+      '@interactkit/cli':
+        specifier: ^0.2.0
+        version: 0.2.16(@cfworker/json-schema@4.1.1)(@types/node@25.5.0)(zod@3.25.76)
       '@interactkit/observer':
-        specifier: workspace:*
-        version: link:../../extensions/observer
+        specifier: ^0.2.0
+        version: 0.2.2(@cfworker/json-schema@4.1.1)(@interactkit/sdk@0.2.19(@cfworker/json-schema@4.1.1)(openai@6.33.0(ws@8.20.0)(zod@3.25.76))(reflect-metadata@0.2.2)(ws@8.20.0))(@types/node@25.5.0)(@types/react@19.2.14)(reflect-metadata@0.2.2)(typescript@5.9.3)
       '@interactkit/prisma':
-        specifier: workspace:*
-        version: link:../../extensions/prisma
+        specifier: ^0.2.0
+        version: 0.2.1(@interactkit/sdk@0.2.19(@cfworker/json-schema@4.1.1)(openai@6.33.0(ws@8.20.0)(zod@3.25.76))(reflect-metadata@0.2.2)(ws@8.20.0))(@prisma/client@6.19.2(prisma@6.19.2(typescript@5.9.3))(typescript@5.9.3))(reflect-metadata@0.2.2)
       '@interactkit/sdk':
-        specifier: workspace:*
-        version: link:../../sdk
+        specifier: ^0.2.0
+        version: 0.2.19(@cfworker/json-schema@4.1.1)(openai@6.33.0(ws@8.20.0)(zod@3.25.76))(reflect-metadata@0.2.2)(ws@8.20.0)
       '@langchain/openai':
         specifier: ^1.4.1
         version: 1.4.1(@langchain/core@1.1.36(openai@6.33.0(ws@8.20.0)(zod@3.25.76))(ws@8.20.0))(ws@8.20.0)
@@ -1110,9 +1113,6 @@ importers:
         specifier: ^0.2.2
         version: 0.2.2
     devDependencies:
-      '@interactkit/cli':
-        specifier: workspace:*
-        version: link:../../cli
       '@types/node':
         specifier: ^25.5.0
         version: 25.5.0
@@ -1122,18 +1122,21 @@ importers:
 
   examples/werewolf:
     dependencies:
+      '@interactkit/cli':
+        specifier: ^0.2.0
+        version: 0.2.16(@cfworker/json-schema@4.1.1)(@types/node@25.5.0)(zod@3.25.76)
       '@interactkit/http':
-        specifier: workspace:*
-        version: link:../../extensions/http
+        specifier: ^0.2.0
+        version: 0.2.5(@interactkit/sdk@0.2.19(@cfworker/json-schema@4.1.1)(openai@6.33.0(ws@8.20.0)(zod@3.25.76))(reflect-metadata@0.2.2)(ws@8.20.0))(reflect-metadata@0.2.2)
       '@interactkit/prisma':
-        specifier: workspace:*
-        version: link:../../extensions/prisma
+        specifier: ^0.2.0
+        version: 0.2.1(@interactkit/sdk@0.2.19(@cfworker/json-schema@4.1.1)(openai@6.33.0(ws@8.20.0)(zod@3.25.76))(reflect-metadata@0.2.2)(ws@8.20.0))(@prisma/client@6.19.2(prisma@6.19.2(typescript@5.9.3))(typescript@5.9.3))(reflect-metadata@0.2.2)
       '@interactkit/sdk':
-        specifier: workspace:*
-        version: link:../../sdk
+        specifier: ^0.2.0
+        version: 0.2.19(@cfworker/json-schema@4.1.1)(openai@6.33.0(ws@8.20.0)(zod@3.25.76))(reflect-metadata@0.2.2)(ws@8.20.0)
       '@interactkit/websocket':
-        specifier: workspace:*
-        version: link:../../extensions/websocket
+        specifier: ^0.2.0
+        version: 0.2.3(@interactkit/sdk@0.2.19(@cfworker/json-schema@4.1.1)(openai@6.33.0(ws@8.20.0)(zod@3.25.76))(reflect-metadata@0.2.2)(ws@8.20.0))(reflect-metadata@0.2.2)
       '@langchain/openai':
         specifier: ^1.4.1
         version: 1.4.1(@langchain/core@1.1.36(openai@6.33.0(ws@8.20.0)(zod@3.25.76))(ws@8.20.0))(ws@8.20.0)
@@ -1147,9 +1150,6 @@ importers:
         specifier: ^0.2.2
         version: 0.2.2
     devDependencies:
-      '@interactkit/cli':
-        specifier: workspace:*
-        version: link:../../cli
       '@types/node':
         specifier: ^25.5.0
         version: 25.5.0
@@ -1227,8 +1227,8 @@ importers:
   extensions/observer:
     dependencies:
       '@interactkit/observer-ui':
-        specifier: ^0.1.0
-        version: 0.1.1(@types/node@25.5.0)(@types/react@19.2.14)(typescript@5.9.3)
+        specifier: ^0.2.0
+        version: link:../observer-ui
       ws:
         specifier: ^8.18.0
         version: 8.20.0
@@ -2035,8 +2035,48 @@ packages:
       '@types/node':
         optional: true
 
+  '@interactkit/cli@0.2.16':
+    resolution: {integrity: sha512-jCbI32QY20D40xl949eOYFzPUh9NXsAEH6c/JxomzIvFaUy6Uv+IxsMHv9Ez+RBblwSy72ztLp7D6+3c7joF9g==}
+    engines: {node: '>=18'}
+    hasBin: true
+
+  '@interactkit/http@0.2.5':
+    resolution: {integrity: sha512-mrAfO2H5IPUFeQ4drzi8cysLRA/LcLO5bWIo9TXAYmwDPiGWPDDAk5MQxT6qJGsaLzRSb6PqrdABEs5wI5uN6g==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      '@interactkit/sdk': ^0.2.0
+      reflect-metadata: ^0.2.0
+
   '@interactkit/observer-ui@0.1.1':
     resolution: {integrity: sha512-SpCSyLdugQkMPMkhBUcwBs6UsjZtmsLUZjfB6QEqjl/FTTky0QJxz5Ju8Z3cs2y37i0IKlyeRZ91Smq/zTR39w==}
+
+  '@interactkit/observer@0.2.2':
+    resolution: {integrity: sha512-Swi9bwwb1v14HlT9WETIveNQUpoW1790kD4Mp3FSfGXN3tuX1quckHVjyFcgAR6ObYLqvnrivgHumASNwCV7NQ==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      '@interactkit/sdk': ^0.2.0
+      reflect-metadata: ^0.2.0
+
+  '@interactkit/prisma@0.2.1':
+    resolution: {integrity: sha512-g0KVZdkKYzLbm6ZWN9Pj0XRw/wM99t3yvocQCPcCXGLOUJu4EaemodgCskLuTGiGAxai590rwDxA0a6oK630Eg==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      '@interactkit/sdk': ^0.2.0
+      '@prisma/client': ^6.0.0
+      reflect-metadata: ^0.2.0
+
+  '@interactkit/sdk@0.2.19':
+    resolution: {integrity: sha512-hjDJfl+cXGLvSFKek/Qye9Qz+7m9bw+iC6KFq/FUrdAYI9xLKqKYNerK/3ZXu8t/r16+L5tDvRFVqkXa9VsBSw==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      reflect-metadata: ^0.2.0
+
+  '@interactkit/websocket@0.2.3':
+    resolution: {integrity: sha512-CdZPohsnxgZdRyjfBGQPBThVUI6qVS0pVE0T7hnCtvZ2MhLXIc4rL8B3hed/CGkOnpXUpvVoTFDtlgad/yiwCg==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      '@interactkit/sdk': ^0.2.0
+      reflect-metadata: ^0.2.0
 
   '@ioredis/commands@1.5.1':
     resolution: {integrity: sha512-JH8ZL/ywcJyR9MmJ5BNqZllXNZQqQbnVZOqpPQqE1vHiFgAw4NHbvE0FOduNU8IX9babitBT46571OnPTT0Zcw==}
@@ -5896,7 +5936,24 @@ snapshots:
     optionalDependencies:
       '@types/node': 25.5.0
 
-  '@interactkit/observer-ui@0.1.1(@types/node@25.5.0)(@types/react@19.2.14)(typescript@5.9.3)':
+  '@interactkit/cli@0.2.16(@cfworker/json-schema@4.1.1)(@types/node@25.5.0)(zod@3.25.76)':
+    dependencies:
+      '@inquirer/prompts': 8.3.2(@types/node@25.5.0)
+      '@modelcontextprotocol/sdk': 1.28.0(@cfworker/json-schema@4.1.1)(zod@3.25.76)
+      commander: 14.0.3
+      ts-morph: 24.0.0
+    transitivePeerDependencies:
+      - '@cfworker/json-schema'
+      - '@types/node'
+      - supports-color
+      - zod
+
+  '@interactkit/http@0.2.5(@interactkit/sdk@0.2.19(@cfworker/json-schema@4.1.1)(openai@6.33.0(ws@8.20.0)(zod@3.25.76))(reflect-metadata@0.2.2)(ws@8.20.0))(reflect-metadata@0.2.2)':
+    dependencies:
+      '@interactkit/sdk': 0.2.19(@cfworker/json-schema@4.1.1)(openai@6.33.0(ws@8.20.0)(zod@3.25.76))(reflect-metadata@0.2.2)(ws@8.20.0)
+      reflect-metadata: 0.2.2
+
+  '@interactkit/observer-ui@0.1.1(@cfworker/json-schema@4.1.1)(@types/node@25.5.0)(@types/react@19.2.14)(typescript@5.9.3)':
     dependencies:
       '@base-ui/react': 1.3.0(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       '@xyflow/react': 12.10.2(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -5906,7 +5963,7 @@ snapshots:
       next: 16.2.1(@babel/core@7.29.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       react: 19.2.4
       react-dom: 19.2.4(react@19.2.4)
-      shadcn: 4.1.1(@types/node@25.5.0)(typescript@5.9.3)
+      shadcn: 4.1.1(@cfworker/json-schema@4.1.1)(@types/node@25.5.0)(typescript@5.9.3)
       tailwind-merge: 3.5.0
       tw-animate-css: 1.4.0
     transitivePeerDependencies:
@@ -5922,6 +5979,58 @@ snapshots:
       - sass
       - supports-color
       - typescript
+
+  '@interactkit/observer@0.2.2(@cfworker/json-schema@4.1.1)(@interactkit/sdk@0.2.19(@cfworker/json-schema@4.1.1)(openai@6.33.0(ws@8.20.0)(zod@3.25.76))(reflect-metadata@0.2.2)(ws@8.20.0))(@types/node@25.5.0)(@types/react@19.2.14)(reflect-metadata@0.2.2)(typescript@5.9.3)':
+    dependencies:
+      '@interactkit/observer-ui': 0.1.1(@cfworker/json-schema@4.1.1)(@types/node@25.5.0)(@types/react@19.2.14)(typescript@5.9.3)
+      '@interactkit/sdk': 0.2.19(@cfworker/json-schema@4.1.1)(openai@6.33.0(ws@8.20.0)(zod@3.25.76))(reflect-metadata@0.2.2)(ws@8.20.0)
+      reflect-metadata: 0.2.2
+      ws: 8.20.0
+    transitivePeerDependencies:
+      - '@babel/core'
+      - '@cfworker/json-schema'
+      - '@opentelemetry/api'
+      - '@playwright/test'
+      - '@types/node'
+      - '@types/react'
+      - babel-plugin-macros
+      - babel-plugin-react-compiler
+      - bufferutil
+      - immer
+      - sass
+      - supports-color
+      - typescript
+      - utf-8-validate
+
+  '@interactkit/prisma@0.2.1(@interactkit/sdk@0.2.19(@cfworker/json-schema@4.1.1)(openai@6.33.0(ws@8.20.0)(zod@3.25.76))(reflect-metadata@0.2.2)(ws@8.20.0))(@prisma/client@6.19.2(prisma@6.19.2(typescript@5.9.3))(typescript@5.9.3))(reflect-metadata@0.2.2)':
+    dependencies:
+      '@interactkit/sdk': 0.2.19(@cfworker/json-schema@4.1.1)(openai@6.33.0(ws@8.20.0)(zod@3.25.76))(reflect-metadata@0.2.2)(ws@8.20.0)
+      '@prisma/client': 6.19.2(prisma@6.19.2(typescript@5.9.3))(typescript@5.9.3)
+      reflect-metadata: 0.2.2
+
+  '@interactkit/sdk@0.2.19(@cfworker/json-schema@4.1.1)(openai@6.33.0(ws@8.20.0)(zod@3.25.76))(reflect-metadata@0.2.2)(ws@8.20.0)':
+    dependencies:
+      '@langchain/core': 1.1.36(openai@6.33.0(ws@8.20.0)(zod@3.25.76))(ws@8.20.0)
+      '@modelcontextprotocol/sdk': 1.28.0(@cfworker/json-schema@4.1.1)(zod@3.25.76)
+      reflect-metadata: 0.2.2
+      zod: 3.25.76
+    transitivePeerDependencies:
+      - '@cfworker/json-schema'
+      - '@opentelemetry/api'
+      - '@opentelemetry/exporter-trace-otlp-proto'
+      - '@opentelemetry/sdk-trace-base'
+      - openai
+      - supports-color
+      - ws
+
+  '@interactkit/websocket@0.2.3(@interactkit/sdk@0.2.19(@cfworker/json-schema@4.1.1)(openai@6.33.0(ws@8.20.0)(zod@3.25.76))(reflect-metadata@0.2.2)(ws@8.20.0))(reflect-metadata@0.2.2)':
+    dependencies:
+      '@interactkit/sdk': 0.2.19(@cfworker/json-schema@4.1.1)(openai@6.33.0(ws@8.20.0)(zod@3.25.76))(reflect-metadata@0.2.2)(ws@8.20.0)
+      reflect-metadata: 0.2.2
+      ws: 8.20.0
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
 
   '@ioredis/commands@1.5.1': {}
 
@@ -8782,7 +8891,7 @@ snapshots:
       - supports-color
       - typescript
 
-  shadcn@4.1.1(@types/node@25.5.0)(typescript@5.9.3):
+  shadcn@4.1.1(@cfworker/json-schema@4.1.1)(@types/node@25.5.0)(typescript@5.9.3):
     dependencies:
       '@babel/core': 7.29.0
       '@babel/parser': 7.29.2

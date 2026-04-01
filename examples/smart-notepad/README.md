@@ -1,23 +1,23 @@
 # Smart Notepad
 
-LLM-powered note-taking app with automatic tagging, summarization, and search.
+LLM-powered note-taking app with search and an autonomous notes manager.
 
 ## Entity Tree
 
 ```
 Notepad (BaseEntity)
-├── NoteStore (BaseEntity)  -- persistent note storage with search
-└── Tagger (LLMEntity)      -- auto-generates tags and summaries via GPT-4o-mini
+├── NoteStore (BaseEntity)      -- persistent note storage with search
+└── NotesManager (LLMEntity)    -- LLM brain that manages notes via NoteStore
     └── @Ref NoteStore
 ```
 
 ## SDK Features Demonstrated
 
-- **Thinking loop**: Tagger is an LLMEntity -- invoke() pushes tasks to the built-in thinking loop, LLM responds via the respond() tool.
-- **@Tool({ llmCallable: true })**: Tagger's tagNote and findRelated are marked llmCallable so the LLM can call them during its thinking loop. suggestTags is not llmCallable (external only).
-- **@Component / @Ref**: Notepad owns NoteStore and Tagger as components. Tagger holds a @Ref to NoteStore so it can read/write notes -- ref tools are always visible to the LLM.
+- **Thinking loop**: NotesManager is an LLMEntity -- it autonomously reasons about notes using the built-in thinking loop.
+- **@Component / @Ref**: Notepad owns NoteStore and NotesManager as components. NotesManager holds a @Ref to NoteStore so it can read/write notes -- ref tools are always visible to the LLM.
 - **@State**: NoteStore persists its notes array across restarts.
-- **@Describe()**: Both NoteStore and Tagger provide dynamic self-descriptions for the LLM context.
+- **@Stream**: NotesManager emits notifications upstream to Notepad, which broadcasts them to connected WebSocket clients as toasts.
+- **@Describe()**: Both NoteStore and NotesManager provide dynamic self-descriptions for the LLM context.
 - **HTTP + WebSocket hooks**: Notepad serves a UI on port 3000 and handles real-time messages on port 3001.
 
 ## How to Run
@@ -27,3 +27,11 @@ pnpm dev
 ```
 
 Open http://localhost:3000 in your browser. WebSocket connects on port 3001.
+
+## Screenshots
+
+Type a messy note and the LLM cleans it up, tags it, and saves it automatically.
+
+| Before | After |
+|--------|-------|
+| ![Before](images/before.png) | ![After](images/after.png) |

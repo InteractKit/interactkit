@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Smart Notepad</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -20,14 +23,8 @@
       padding: 2rem 1.5rem;
     }
 
-    h1 {
-      font-size: 1.5rem;
-      font-weight: 600;
-      margin-bottom: 1.5rem;
-      color: #fff;
-    }
-
-    h1 span { color: #6c8aff; }
+    h1 { font-size: 1.5rem; font-weight: 600; margin-bottom: 1.5rem; color: #fff; }
+    h1 .accent { color: #6c8aff; }
 
     .status {
       display: inline-block;
@@ -38,15 +35,9 @@
       margin-left: 0.5rem;
       vertical-align: middle;
     }
-
     .status.connected { background: #4caf50; }
 
-    /* Input area */
-    .add-area {
-      display: flex;
-      gap: 0.5rem;
-      margin-bottom: 1.5rem;
-    }
+    .add-area { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; }
 
     .add-area textarea {
       flex: 1;
@@ -60,10 +51,9 @@
       resize: vertical;
       min-height: 60px;
     }
-
     .add-area textarea:focus { outline: none; border-color: #6c8aff; }
 
-    .add-area button {
+    .btn {
       background: #6c8aff;
       color: #fff;
       border: none;
@@ -75,15 +65,10 @@
       align-self: flex-end;
       height: 40px;
     }
+    .btn:hover { background: #5a7ae6; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-    .add-area button:hover { background: #5a7ae6; }
-    .add-area button:disabled { opacity: 0.5; cursor: not-allowed; }
-
-    /* Search */
-    .search-bar {
-      margin-bottom: 1.25rem;
-    }
-
+    .search-bar { margin-bottom: 1.25rem; }
     .search-bar input {
       width: 100%;
       background: #1a1a1a;
@@ -94,10 +79,8 @@
       font-size: 0.9rem;
       font-family: inherit;
     }
-
     .search-bar input:focus { outline: none; border-color: #6c8aff; }
 
-    /* Notes list */
     .notes { list-style: none; }
 
     .note {
@@ -106,81 +89,50 @@
       border-radius: 8px;
       padding: 1rem;
       margin-bottom: 0.75rem;
-      cursor: pointer;
       transition: border-color 0.15s;
     }
-
     .note:hover { border-color: #444; }
-    .note.active { border-color: #6c8aff; }
 
-    .note-text {
-      font-size: 0.95rem;
-      line-height: 1.5;
-      margin-bottom: 0.5rem;
-    }
+    .note-text { font-size: 0.95rem; line-height: 1.5; margin-bottom: 0.5rem; }
+    .note-summary { font-size: 0.8rem; color: #888; margin-bottom: 0.5rem; font-style: italic; }
+    .note-tags { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 0.5rem; }
+    .tag { display: inline-block; font-size: 0.7rem; padding: 0.15rem 0.5rem; border-radius: 10px; font-weight: 500; }
+    .note-meta { font-size: 0.7rem; color: #555; }
 
-    .note-summary {
-      font-size: 0.8rem;
-      color: #888;
-      margin-bottom: 0.5rem;
-      font-style: italic;
-    }
+    .empty { text-align: center; color: #555; padding: 3rem 0; font-size: 0.9rem; }
 
-    .note-tags {
+    .toast-container {
+      position: fixed;
+      top: 1rem;
+      right: 1rem;
+      z-index: 100;
       display: flex;
-      flex-wrap: wrap;
-      gap: 0.35rem;
+      flex-direction: column;
+      gap: 0.5rem;
+      pointer-events: none;
     }
 
-    .tag {
-      display: inline-block;
-      font-size: 0.7rem;
-      padding: 0.15rem 0.5rem;
-      border-radius: 10px;
-      font-weight: 500;
+    .toast {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      font-size: 0.85rem;
+      color: #e0e0e0;
+      animation: slideIn 0.2s ease-out, fadeOut 0.3s ease-in 3.7s forwards;
+      max-width: 320px;
     }
 
-    .note-meta {
-      font-size: 0.7rem;
-      color: #555;
-      margin-top: 0.5rem;
-    }
-
-    .related-section {
-      margin-top: 0.5rem;
-      padding-top: 0.5rem;
-      border-top: 1px solid #262626;
-      font-size: 0.8rem;
-      color: #888;
-    }
-
-    .empty {
-      text-align: center;
-      color: #555;
-      padding: 3rem 0;
-      font-size: 0.9rem;
-    }
+    @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: none; opacity: 1; } }
+    @keyframes fadeOut { to { opacity: 0; } }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1><span>Smart</span> Notepad <span class="status" id="status"></span></h1>
+  <div id="root"></div>
 
-    <div class="add-area">
-      <textarea id="noteInput" placeholder="Write a note..." rows="2"></textarea>
-      <button id="addBtn" disabled>Add</button>
-    </div>
+  <script type="text/babel">
+    const { useState, useEffect, useRef, useCallback } = React;
 
-    <div class="search-bar">
-      <input type="text" id="searchInput" placeholder="Search notes...">
-    </div>
-
-    <ul class="notes" id="notesList">
-      <li class="empty">No notes yet. Write something above.</li>
-    </ul>
-  </div>
-
-  <script>
     const TAG_COLORS = [
       '#6c8aff', '#ff6c8a', '#8aff6c', '#ff8a6c', '#8a6cff',
       '#6cffda', '#ffd76c', '#ff6cd7', '#6cfff0', '#d76cff',
@@ -192,133 +144,174 @@
       return TAG_COLORS[Math.abs(hash) % TAG_COLORS.length];
     }
 
-    const statusEl = document.getElementById('status');
-    const noteInput = document.getElementById('noteInput');
-    const addBtn = document.getElementById('addBtn');
-    const searchInput = document.getElementById('searchInput');
-    const notesList = document.getElementById('notesList');
+    function useWebSocket(url) {
+      const [connected, setConnected] = useState(false);
+      const wsRef = useRef(null);
+      const handlersRef = useRef(new Map());
 
-    let notes = [];
-    let activeNoteId = null;
-    let ws;
-
-    function connect() {
-      ws = new WebSocket('ws://localhost:3001');
-
-      ws.onopen = () => {
-        statusEl.classList.add('connected');
-        addBtn.disabled = false;
-        ws.send(JSON.stringify({ type: 'list' }));
-      };
-
-      ws.onclose = () => {
-        statusEl.classList.remove('connected');
-        addBtn.disabled = true;
-        setTimeout(connect, 2000);
-      };
-
-      ws.onmessage = (e) => {
-        const msg = JSON.parse(e.data);
-
-        switch (msg.type) {
-          case 'list':
-          case 'search':
-            notes = msg.notes;
-            render();
-            break;
-
-          case 'added':
-            notes.unshift(msg.note);
-            render();
-            break;
-
-          case 'related':
-            renderRelated(msg.id, msg.relatedIds);
-            break;
+      const send = useCallback((data) => {
+        if (wsRef.current?.readyState === WebSocket.OPEN) {
+          wsRef.current.send(JSON.stringify(data));
         }
-      };
+      }, []);
+
+      const on = useCallback((type, handler) => {
+        handlersRef.current.set(type, handler);
+      }, []);
+
+      useEffect(() => {
+        function connect() {
+          const ws = new WebSocket(url);
+          wsRef.current = ws;
+
+          ws.onopen = () => {
+            setConnected(true);
+            handlersRef.current.get('open')?.();
+          };
+
+          ws.onclose = () => {
+            setConnected(false);
+            setTimeout(connect, 2000);
+          };
+
+          ws.onmessage = (e) => {
+            const msg = JSON.parse(e.data);
+            handlersRef.current.get(msg.type)?.(msg);
+          };
+        }
+
+        connect();
+        return () => wsRef.current?.close();
+      }, [url]);
+
+      return { connected, send, on };
     }
 
-    function render() {
-      if (notes.length === 0) {
-        notesList.innerHTML = '<li class="empty">No notes found.</li>';
-        return;
-      }
+    function Toast({ message, onDone }) {
+      useEffect(() => {
+        const t = setTimeout(onDone, 4000);
+        return () => clearTimeout(t);
+      }, [onDone]);
 
-      notesList.innerHTML = notes.map(n => `
-        <li class="note ${n.id === activeNoteId ? 'active' : ''}" data-id="${n.id}">
-          <div class="note-text">${escHtml(n.text)}</div>
-          ${n.summary ? `<div class="note-summary">${escHtml(n.summary)}</div>` : ''}
-          <div class="note-tags">
-            ${n.tags.map(t => `<span class="tag" style="background:${tagColor(t)}22;color:${tagColor(t)}">${escHtml(t)}</span>`).join('')}
-          </div>
-          <div class="note-meta">${new Date(n.createdAt).toLocaleString()}</div>
-          <div class="related-section" id="related-${n.id}"></div>
+      return <div className="toast">{message}</div>;
+    }
+
+    function NoteCard({ note }) {
+      const c = tagColor;
+      return (
+        <li className="note">
+          <div className="note-text">{note.text}</div>
+          {note.summary && <div className="note-summary">{note.summary}</div>}
+          {note.tags?.length > 0 && (
+            <div className="note-tags">
+              {note.tags.map((t) => (
+                <span key={t} className="tag" style={{ background: c(t) + '22', color: c(t) }}>{t}</span>
+              ))}
+            </div>
+          )}
+          <div className="note-meta">{new Date(note.createdAt).toLocaleString()}</div>
         </li>
-      `).join('');
+      );
+    }
 
-      notesList.querySelectorAll('.note').forEach(el => {
-        el.addEventListener('click', () => {
-          const id = el.dataset.id;
-          activeNoteId = id === activeNoteId ? null : id;
-          render();
-          if (activeNoteId) {
-            ws.send(JSON.stringify({ type: 'related', id: activeNoteId }));
+    function App() {
+      const [notes, setNotes] = useState([]);
+      const [toasts, setToasts] = useState([]);
+      const [input, setInput] = useState('');
+      const [search, setSearch] = useState('');
+      const searchTimer = useRef(null);
+
+      const { connected, send, on } = useWebSocket('ws://localhost:3001');
+
+      const addToast = useCallback((message) => {
+        const id = Date.now() + Math.random();
+        setToasts((prev) => [...prev, { id, message }]);
+      }, []);
+
+      useEffect(() => {
+        on('open', () => send({ type: 'list' }));
+        on('list', (msg) => setNotes(msg.notes));
+        on('search', (msg) => setNotes(msg.notes));
+        on('added', (msg) => setNotes((prev) => [msg.note, ...prev]));
+        on('note:changed', (msg) => {
+          if (msg.action === 'updated' && msg.note) {
+            setNotes((prev) => prev.map((n) => n.id === msg.id ? msg.note : n));
+          } else if (msg.action === 'deleted') {
+            setNotes((prev) => prev.filter((n) => n.id !== msg.id));
           }
         });
-      });
+        on('notification', (msg) => addToast(msg.message));
+      }, [on, send, addToast]);
+
+      const handleAdd = () => {
+        const text = input.trim();
+        if (!text) return;
+        send({ type: 'add', text });
+        setInput('');
+      };
+
+      const handleSearch = (q) => {
+        setSearch(q);
+        clearTimeout(searchTimer.current);
+        searchTimer.current = setTimeout(() => {
+          if (q.trim()) {
+            send({ type: 'search', query: q.trim() });
+          } else {
+            send({ type: 'list' });
+          }
+        }, 300);
+      };
+
+      return (
+        <>
+          <div className="container">
+            <h1>
+              <span className="accent">Smart</span> Notepad{' '}
+              <span className={`status ${connected ? 'connected' : ''}`} />
+            </h1>
+
+            <div className="add-area">
+              <textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAdd(); } }}
+                placeholder="Write a note..."
+                rows={2}
+              />
+              <button className="btn" onClick={handleAdd} disabled={!connected}>Add</button>
+            </div>
+
+            <div className="search-bar">
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => handleSearch(e.target.value)}
+                placeholder="Search notes..."
+              />
+            </div>
+
+            <ul className="notes">
+              {notes.length === 0
+                ? <li className="empty">No notes yet. Write something above.</li>
+                : notes.map((n) => <NoteCard key={n.id} note={n} />)
+              }
+            </ul>
+          </div>
+
+          <div className="toast-container">
+            {toasts.map((t) => (
+              <Toast
+                key={t.id}
+                message={t.message}
+                onDone={() => setToasts((prev) => prev.filter((x) => x.id !== t.id))}
+              />
+            ))}
+          </div>
+        </>
+      );
     }
 
-    function renderRelated(id, relatedIds) {
-      const el = document.getElementById('related-' + id);
-      if (!el) return;
-      if (relatedIds.length === 0) {
-        el.textContent = 'No related notes.';
-        return;
-      }
-      const related = relatedIds
-        .map(rid => notes.find(n => n.id === rid))
-        .filter(Boolean)
-        .map(n => n.text.slice(0, 50));
-      el.textContent = 'Related: ' + related.join(' | ');
-    }
-
-    function escHtml(s) {
-      const d = document.createElement('div');
-      d.textContent = s;
-      return d.innerHTML;
-    }
-
-    addBtn.addEventListener('click', () => {
-      const text = noteInput.value.trim();
-      if (!text) return;
-      addBtn.disabled = true;
-      ws.send(JSON.stringify({ type: 'add', text }));
-      noteInput.value = '';
-      setTimeout(() => { addBtn.disabled = false; }, 500);
-    });
-
-    noteInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        addBtn.click();
-      }
-    });
-
-    let searchTimeout;
-    searchInput.addEventListener('input', () => {
-      clearTimeout(searchTimeout);
-      searchTimeout = setTimeout(() => {
-        const q = searchInput.value.trim();
-        if (q) {
-          ws.send(JSON.stringify({ type: 'search', query: q }));
-        } else {
-          ws.send(JSON.stringify({ type: 'list' }));
-        }
-      }, 300);
-    });
-
-    connect();
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
   </script>
 </body>
 </html>

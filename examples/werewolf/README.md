@@ -40,3 +40,7 @@ pnpm dev
 ```
 
 Open http://localhost:3000 in your browser. WebSocket connects on port 3001.
+
+## Screenshot
+
+![Werewolf game in action](images/image.png)

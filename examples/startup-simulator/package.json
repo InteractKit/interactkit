@@ -11,9 +11,9 @@
     "db:push": "prisma db push"
   },
   "dependencies": {
-    "@interactkit/cli": "^0.1.0",
-    "@interactkit/observer": "^0.1.0",
-    "@interactkit/prisma": "^0.1.0",
+    "@interactkit/cli": "^0.2.0",
+    "@interactkit/observer": "^0.2.0",
+    "@interactkit/prisma": "^0.2.0",
     "@interactkit/sdk": "^0.2.0",
     "@langchain/openai": "^1.4.1",
     "@prisma/client": "^6.0.0",

@@ -28,3 +28,7 @@ pnpm dev
 ```
 
 Open http://localhost:3000 in your browser. WebSocket connects on port 3001.
+
+## Screenshot
+
+![Debate Club in action](images/image.png)

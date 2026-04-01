@@ -4,7 +4,6 @@ import {
   Hook,
   Init,
   Component,
-  State,
   Tool,
   type Remote,
 } from "@interactkit/sdk";
@@ -12,19 +11,18 @@ import { HttpRequest } from "@interactkit/http";
 import { WsConnection, WsMessage } from "@interactkit/websocket";
 import { readFileSync } from "node:fs";
 import { NoteStore } from "./note-store.js";
-import { Tagger } from "./tagger.js";
+import { NotesManager } from "./notes-manager.js";
 
 interface Client {
   send: (msg: string) => void;
   _pinned: unknown;
 }
 
-@Entity({ description: "Smart Notepad — LLM-powered note taking with auto-tagging" })
+@Entity({ description: "Smart Notepad — LLM-powered note taking" })
 export class Notepad extends BaseEntity {
   @Component() private noteStore!: Remote<NoteStore>;
-  @Component() private tagger!: Remote<Tagger>;
+  @Component() private notesManager!: Remote<NotesManager>;
 
-  // In-memory client tracking (not persisted)
   private clients = new Map<string, Client>();
 
   @Hook(Init.Runner())
@@ -32,6 +30,22 @@ export class Notepad extends BaseEntity {
     console.log("\n  [notepad] Smart Notepad ready");
     console.log("    UI:        http://localhost:3000");
     console.log("    WebSocket: ws://localhost:3001\n");
+
+    this.notesManager.notifications.on("data", (notification: unknown) => {
+      const msg = JSON.stringify({ type: "notification", ...(notification as Record<string, unknown>) });
+      for (const client of this.clients.values()) {
+        client.send(msg);
+      }
+    });
+
+    this.notesManager.reviewAllNotes();
+
+    this.noteStore.changes.on("data", (change: unknown) => {
+      const msg = JSON.stringify({ type: "note:changed", ...(change as Record<string, unknown>) });
+      for (const client of this.clients.values()) {
+        client.send(msg);
+      }
+    });
   }
 
   @Hook(HttpRequest.Runner({ port: 3000, path: "/" }))
@@ -57,7 +71,7 @@ export class Notepad extends BaseEntity {
     const client = this.clients.get(clientId);
     if (!client) return;
 
-    let msg: { type: string; text?: string; query?: string; id?: string };
+    let msg: Record<string, unknown>;
     try {
       msg = JSON.parse(raw);
     } catch {
@@ -71,11 +85,11 @@ export class Notepad extends BaseEntity {
           client.send(JSON.stringify({ type: "error", message: "Missing text" }));
           return;
         }
-        const { id } = await this.noteStore.addNote({ text: msg.text });
-        // Auto-tag in the background, then send the updated note
-        await this.tagger.tagNote({ id });
+        const text = msg.text as string;
+        const { id } = await this.noteStore.addNote({ text });
         const note = await this.noteStore.getNote({ id });
         client.send(JSON.stringify({ type: "added", note }));
+        this.notesManager.onNoteAdded({ id, text });
         break;
       }
 
@@ -90,18 +104,8 @@ export class Notepad extends BaseEntity {
           client.send(JSON.stringify({ type: "error", message: "Missing query" }));
           return;
         }
-        const results = await this.noteStore.searchNotes({ query: msg.query });
+        const results = await this.noteStore.searchNotes({ query: msg.query as string });
         client.send(JSON.stringify({ type: "search", notes: results }));
-        break;
-      }
-
-      case "related": {
-        if (!msg.id) {
-          client.send(JSON.stringify({ type: "error", message: "Missing id" }));
-          return;
-        }
-        const relatedIds = await this.tagger.findRelated({ id: msg.id });
-        client.send(JSON.stringify({ type: "related", id: msg.id, relatedIds }));
         break;
       }
 

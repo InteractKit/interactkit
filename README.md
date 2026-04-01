@@ -267,6 +267,46 @@ Namespace is derived from the entity ID automatically — multiple instances sha
 
 ---
 
+## Examples
+
+### [Werewolf](examples/werewolf)
+
+Social deduction game with 6 LLM-controlled players. Demonstrates thinking loops, memory as components, structured LLM output, and human-in-the-loop via WebSocket.
+
+<img src="examples/werewolf/images/image.png" width="700" alt="Werewolf game" />
+
+### [Smart Notepad](examples/smart-notepad)
+
+LLM-powered note-taking app. Write a messy note and the LLM autonomously cleans it up, tags it, and saves it. Demonstrates @Component/@Ref, @Stream notifications, and @State persistence.
+
+| Before | After |
+|--------|-------|
+| <img src="examples/smart-notepad/images/before.png" width="350" alt="Before" /> | <img src="examples/smart-notepad/images/after.png" width="350" alt="After" /> |
+
+### [Startup Simulator](examples/startup-simulator)
+
+Give an AI team (CEO, CTO, Designer, Developer) a startup idea and watch them build it. Demonstrates autonomous @ThinkingLoop agents coordinating through shared resources -- no orchestration code.
+
+<img src="examples/startup-simulator/images/image.png" width="700" alt="Startup Simulator" />
+
+### [Content Pipeline](examples/content-pipeline)
+
+Multi-agent pipeline: research, write, edit. Demonstrates sequential multi-agent orchestration with invoke()/respond() thinking loops.
+
+<img src="examples/content-pipeline/images/image.png" width="700" alt="Content Pipeline" />
+
+### [Debate Club](examples/debate-club)
+
+Two LLM debaters argue a topic across multiple rounds while a judge scores each round. Demonstrates multiple instances of one LLMEntity with different @State.
+
+<img src="examples/debate-club/images/image.png" width="700" alt="Debate Club" />
+
+### [Sample App](examples/sample-app)
+
+Feature test suite covering the full decorator set: @Component, @Ref, @Stream, @Configurable, @SystemPrompt, @Executor, and LLM tool calling loops.
+
+---
+
 ## Docs
 
 Full documentation at **[docs.interactkit.dev](https://docs.interactkit.dev)**

@@ -30,7 +30,7 @@
   },
   "dependencies": {
     "ws": "^8.18.0",
-    "@interactkit/observer-ui": "^0.1.0"
+    "@interactkit/observer-ui": "^0.2.0"
   },
   "optionalDependencies": {},
   "peerDependencies": {
@@ -38,6 +38,7 @@
     "reflect-metadata": "^0.2.0"
   },
   "devDependencies": {
+    "@interactkit/observer-ui": "workspace:*",
     "@interactkit/sdk": "workspace:*",
     "@types/node": "^25.5.0",
     "@types/ws": "^8.18.0",

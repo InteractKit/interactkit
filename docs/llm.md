@@ -513,10 +513,77 @@ Each brain has its own thinking loop, context, and tools. The triage brain can c
 
 ## Context and Memory
 
-The thinking loop uses a sliding context window (default 50 messages). Old messages fall off automatically. For long-term memory, use a **separate memory entity as a `@Component`**. This is important: the LLM's own `@Tool` methods are hidden by default (`llmCallable: false`), but tools on `@Component` and `@Ref` children are always visible to the LLM. So memory lives in a component:
+The thinking loop uses a sliding context window (default 50 messages). Old messages fall off automatically. For long-term memory, there are two approaches:
+
+### Built-in `LongTermMemory` (RAG)
+
+The SDK ships `LongTermMemory` -- a ready-made entity backed by a `VectorStoreAdapter`. Add it as a `@Component` and the LLM gets semantic memory tools with zero custom code:
 
 ```typescript
-@Entity({ description: 'Long-term memory' })
+import { Entity, LLMEntity, Component, Executor, LongTermMemory, type Remote } from '@interactkit/sdk';
+import { ChatOpenAI } from '@langchain/openai';
+
+@Entity({ description: 'Research agent' })
+class ResearchAgent extends LLMEntity {
+  @Executor() private llm = new ChatOpenAI({ model: 'gpt-4o' });
+  @Component() private memory!: Remote<LongTermMemory>;
+  // LLM sees: memory_memorize(), memory_recall(), memory_forget()
+}
+```
+
+Configure the vector store globally in `interactkit.config.ts`:
+
+```typescript
+import { ChromaDBVectorStoreAdapter } from '@interactkit/chromadb';
+
+export default {
+  // ...
+  vectorStore: new ChromaDBVectorStoreAdapter({ collection: 'agent-memory' }),
+} satisfies InteractKitConfig;
+```
+
+The LLM gets three tools:
+
+| Tool | What it does |
+|------|-------------|
+| `memory_memorize({ content, tags?, metadata? })` | Store a memory with optional tags and metadata |
+| `memory_recall({ query, k?, tags?, scoreThreshold? })` | Search by semantic similarity |
+| `memory_forget({ ids? })` | Delete specific memories by ID |
+
+Namespace is derived from the entity ID automatically — multiple `LongTermMemory` instances sharing the same vector store are isolated by default. Results include similarity scores and tags for filtering.
+
+**Available adapters:**
+
+| Package | Store | Embeddings |
+|---------|-------|------------|
+| `@interactkit/chromadb` | ChromaDB | Built-in (zero config) |
+| `@interactkit/pinecone` | Pinecone | Bring your own (`embed` fn or LangChain `Embeddings`) |
+| `@interactkit/langchain` | Any LangChain VectorStore | Whatever the store uses |
+
+Or implement `VectorStoreAdapter` yourself -- it's three methods (`add`, `search`, `delete`). See [Infrastructure](./infrastructure.md#vector-store).
+
+**Shared memory** across multiple LLM entities works the same way as `ConversationContext`:
+
+```typescript
+@Entity()
+class AgentHub extends BaseEntity {
+  @Component() private memory!: Remote<LongTermMemory>;
+  @Component() private researcher!: Remote<ResearchAgent>;
+  @Component() private writer!: Remote<WriterAgent>;
+}
+
+class ResearchAgent extends LLMEntity {
+  @Ref() private memory!: Remote<LongTermMemory>;
+  // Both agents share the same memory store
+}
+```
+
+### Custom Memory Entity
+
+For full control, write your own memory entity. This is useful when you need custom indexing, expiration, or non-vector storage:
+
+```typescript
+@Entity({ description: 'Custom memory' })
 class Memory extends BaseEntity {
   @State({ description: 'Stored memories' })
   private memories: string[] = [];
@@ -537,15 +604,13 @@ class Memory extends BaseEntity {
 @Entity({ description: 'An NPC' })
 class Npc extends LLMEntity {
   @Executor() private llm = new ChatOpenAI({ model: 'gpt-4o-mini' });
-  @Component() private memory!: Remote<Memory>;  // LLM sees memory.remember(), memory.recall()
-
-  // ...
+  @Component() private memory!: Remote<Memory>;  // LLM sees memory_remember(), memory_recall()
 }
 ```
 
-The LLM sees `memory_remember` and `memory_recall` as tools automatically. It decides what's worth remembering. No auto-summarization -- the memory's `@Describe()` provides a summary each tick, and `recall()` retrieves specifics.
-
 **Why a component, not own methods?** Own `@Tool` methods on an `LLMEntity` are external-facing by default (other entities call them). To make them LLM-visible you'd need `llmCallable: true`. A separate component avoids this and keeps the pattern clean: tools = capabilities, components = the LLM's toolkit.
+
+### Context Window
 
 To customize the context window, use `@ThinkingLoop({ contextWindow: 100 })` or override the context directly:
 

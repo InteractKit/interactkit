@@ -160,6 +160,70 @@ class WritingBrain extends LLMEntity {
 }
 ```
 
+### LongTermMemory (RAG)
+
+`LongTermMemory` (from `sdk/src/vectorstore/entity.ts`) is an entity that provides semantic memory via a `VectorStoreAdapter`. Configured globally in `interactkit.config.ts` -- no subclassing needed. Use as a `@Component` or `@Ref` on any entity.
+
+When attached to an `LLMEntity`, the tools are automatically exposed as `memory_memorize()`, `memory_recall()`, `memory_forget()`.
+
+```typescript
+// interactkit.config.ts
+import { ChromaDBVectorStoreAdapter } from '@interactkit/chromadb';
+
+export default {
+  // ...
+  vectorStore: new ChromaDBVectorStoreAdapter({ collection: 'agent-memory' }),
+} satisfies InteractKitConfig;
+```
+
+```typescript
+// Entity usage
+class ResearchAgent extends LLMEntity {
+  @Executor() private llm = new ChatOpenAI({ model: 'gpt-4o' });
+  @Component() private memory!: Remote<LongTermMemory>;
+  // LLM sees: memory_memorize, memory_recall, memory_forget
+}
+
+// Shared memory across multiple LLM entities
+class AgentHub extends BaseEntity {
+  @Component() private memory!: Remote<LongTermMemory>;
+  @Component() private researcher!: Remote<ResearchAgent>;
+  @Component() private writer!: Remote<WriterAgent>;
+}
+
+class ResearchAgent extends LLMEntity {
+  @Ref() private memory!: Remote<LongTermMemory>;
+}
+```
+
+Namespace is derived from the entity ID automatically — multiple instances sharing the same vector store are isolated by default.
+
+**Tools:**
+
+| Tool | Input | Output |
+|------|-------|--------|
+| `memorize` | `{ content, tags?, metadata? }` | `{ id }` |
+| `recall` | `{ query, k?, tags?, scoreThreshold? }` | `Memory[]` (id, content, tags, metadata, score, storedAt) |
+| `forget` | `{ ids? }` | `{ deleted }` |
+
+**VectorStoreAdapter interface** (from `sdk/src/vectorstore/adapter.ts`):
+
+```typescript
+interface VectorStoreAdapter<TMeta extends Record<string, unknown> = Record<string, unknown>> {
+  add(docs: VectorDocument<TMeta>[]): Promise<string[]>;
+  search(query: string, k: number, filter?: Partial<TMeta>): Promise<ScoredDocument<TMeta>[]>;
+  delete(params: DeleteParams): Promise<void>;
+}
+```
+
+**Available adapters:**
+
+| Package | Store | Embeddings |
+|---------|-------|------------|
+| `@interactkit/chromadb` | ChromaDB | Built-in (no config needed) |
+| `@interactkit/pinecone` | Pinecone | Bring your own (`embed` fn or LangChain `Embeddings`) |
+| `@interactkit/langchain` | Any LangChain VectorStore | Whatever the store uses |
+
 ### Validation
 
 Validation is inline via the `validate` option on `@State()`. The SDK re-exports Zod as `z`. `@Secret()` remains a separate decorator for UI masking. If no `validate` is provided, codegen auto-derives the Zod type from the TypeScript type.
@@ -341,6 +405,7 @@ export default {
   database: new PrismaDatabaseAdapter({ url: 'file:./app.db' }),
   pubsub: new RedisPubSubAdapter({ host: 'localhost', port: 6379 }),
   observers: [new DevObserver(), new DashboardObserver()],
+  vectorStore: new ChromaDBVectorStoreAdapter({ collection: 'memory' }), // optional, for LongTermMemory
   timeout: 15_000,       // event bus request timeout (default: 30000)
   stateFlushMs: 50,      // state persistence debounce (default: 10)
 } satisfies InteractKitConfig;
@@ -399,6 +464,12 @@ interface ObserverAdapter {
   callMethod(entityId: string, method: string, payload?: unknown): Promise<unknown>;  // invoke method remotely
   getEntityTree(): Promise<EntityTree>;                             // get full entity tree structure
 }
+
+interface VectorStoreAdapter<TMeta extends Record<string, unknown> = Record<string, unknown>> {
+  add(docs: VectorDocument<TMeta>[]): Promise<string[]>;           // store documents, return IDs
+  search(query: string, k: number, filter?: Partial<TMeta>): Promise<ScoredDocument<TMeta>[]>;  // semantic search
+  delete(params: DeleteParams): Promise<void>;                     // delete by IDs or filter
+}
 ```
 
 ---
@@ -430,6 +501,9 @@ Extension packages live in `extensions/` in the monorepo. Each is published inde
 | `@interactkit/cron` | `Cron` hook -- cron scheduling via node-cron |
 | `@interactkit/http` | `HttpRequest` hook -- HTTP server |
 | `@interactkit/websocket` | `WsMessage`, `WsConnection` hooks -- WebSocket server |
+| `@interactkit/chromadb` | `ChromaDBVectorStoreAdapter` -- ChromaDB with built-in embeddings |
+| `@interactkit/pinecone` | `PineconeVectorStoreAdapter` -- Pinecone (bring your own embeddings) |
+| `@interactkit/langchain` | `LangChainVectorStoreAdapter` -- wraps any LangChain VectorStore |
 
 ### Example -- using `@interactkit/http`
 
@@ -563,6 +637,9 @@ src/
   pubsub/
     adapter.ts               # PubSubAdapter abstract base, LocalPubSubAdapter, RemotePubSubAdapter
     in-process.ts            # InProcessBusAdapter (extends LocalPubSubAdapter) -- zero-latency, single process
+  vectorstore/
+    adapter.ts               # VectorStoreAdapter interface (add, search, delete)
+    entity.ts                # LongTermMemory entity (memorize, recall, forget tools)
   database/
     adapter.ts               # DatabaseAdapter interface
   observer/

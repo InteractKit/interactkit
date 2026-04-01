@@ -208,16 +208,59 @@ Your agents can now send Slack messages, create GitHub issues, and process Strip
 
 ---
 
+## Long-Term Memory (RAG)
+
+Give any agent persistent semantic memory with one component:
+
+```typescript
+import { Entity, LLMEntity, Component, Executor, type Remote } from '@interactkit/sdk';
+import { LongTermMemory } from '@interactkit/sdk';
+import { ChatOpenAI } from '@langchain/openai';
+
+@Entity()
+class ResearchAgent extends LLMEntity {
+  @Executor() private llm = new ChatOpenAI({ model: 'gpt-4o' });
+  @Component() private memory!: Remote<LongTermMemory>;
+  // LLM automatically gets: memory_memorize(), memory_recall(), memory_forget()
+}
+```
+
+Configure the vector store in `interactkit.config.ts`:
+
+```typescript
+import { ChromaDBVectorStoreAdapter } from '@interactkit/chromadb';
+
+export default {
+  // ...
+  vectorStore: new ChromaDBVectorStoreAdapter({ collection: 'agent-memory' }),
+} satisfies InteractKitConfig;
+```
+
+Three adapters ship out of the box:
+
+| Package | Store | Embeddings |
+|---------|-------|------------|
+| `@interactkit/chromadb` | ChromaDB | Built-in (no config needed) |
+| `@interactkit/pinecone` | Pinecone | Bring your own (`embed` fn or LangChain `Embeddings`) |
+| `@interactkit/langchain` | Any LangChain VectorStore | Whatever the store uses |
+
+Namespace is derived from the entity ID automatically — multiple instances sharing the same vector store are isolated by default. Or implement `VectorStoreAdapter` for any vector DB — it's three methods: `add`, `search`, `delete`.
+
+---
+
 ## Extension Ecosystem
 
 | Package | Description |
 |---------|-------------|
-| `@interactkit/sdk` | Core: decorators, runtime, LLM, MCP, transparent proxy |
+| `@interactkit/sdk` | Core: decorators, runtime, LLM, MCP, transparent proxy, long-term memory |
 | `@interactkit/cli` | CLI: init, add, build, dev, start |
 | `@interactkit/observer` | Observer dashboard backend (WebSocket + static UI server) |
 | `@interactkit/observer-ui` | Observer dashboard frontend (Next.js, entity graph, event feed) |
 | `@interactkit/redis` | Redis pub/sub adapter for distributed entities |
 | `@interactkit/prisma` | Prisma database adapter for state persistence |
+| `@interactkit/chromadb` | ChromaDB vector store adapter (built-in embeddings) |
+| `@interactkit/pinecone` | Pinecone vector store adapter (managed cloud) |
+| `@interactkit/langchain` | LangChain vector store adapter (wraps any LangChain store) |
 | `@interactkit/cron` | Cron scheduling hook (node-cron) |
 | `@interactkit/http` | HTTP server hook |
 | `@interactkit/websocket` | WebSocket hooks (WsMessage, WsConnection) |

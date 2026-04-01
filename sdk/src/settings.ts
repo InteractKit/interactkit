@@ -4,6 +4,7 @@ import type {
   RemotePubSubAdapter,
 } from "./pubsub/adapter.js";
 import type { ObserverAdapter } from "./observer/adapter.js";
+import type { VectorStoreAdapter } from "./vectorstore/adapter.js";
 import type { BaseEntity } from "./entity/types.js";
 
 /**
@@ -42,4 +43,6 @@ export interface InteractKitConfig {
   timeout?: number;
   /** State persistence debounce interval in ms. Default: 10 */
   stateFlushMs?: number;
+  /** Vector store adapter — used by LongTermMemory entities for semantic search. */
+  vectorStore?: VectorStoreAdapter;
 }

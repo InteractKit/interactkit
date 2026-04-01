@@ -3,6 +3,7 @@ import type { BaseEntity } from '../types.js';
 import type { PubSubAdapter } from '../../pubsub/adapter.js';
 import type { DatabaseAdapter } from '../../database/adapter.js';
 import type { ObserverAdapter } from '../../observer/adapter.js';
+import type { VectorStoreAdapter } from '../../vectorstore/adapter.js';
 import type { EventEnvelope } from '../../events/types.js';
 import type { InteractKitConfig } from '../../settings.js';
 import { EventBus } from '../../events/bus.js';
@@ -29,6 +30,7 @@ export abstract class BaseWrapper {
   private static hooksConfig: Record<string, unknown> = {};
   private static timeout: number = 30_000;
   private static stateFlushMs: number = 10;
+  private static vectorStore: VectorStoreAdapter | undefined;
   private static tree: EntityTree;
   private static busCache = new Map<string, EventBus>();
   private static configured = false;
@@ -42,6 +44,7 @@ export abstract class BaseWrapper {
       BaseWrapper.hooksConfig = (config?.hooks as Record<string, unknown>) ?? {};
       BaseWrapper.timeout = config?.timeout ?? 30_000;
       BaseWrapper.stateFlushMs = config?.stateFlushMs ?? 10;
+      BaseWrapper.vectorStore = config?.vectorStore;
     }
     BaseWrapper.configured = true;
   }
@@ -54,6 +57,9 @@ export abstract class BaseWrapper {
 
   /** State flush debounce from config */
   static getStateFlushMs(): number { return BaseWrapper.stateFlushMs; }
+
+  /** Vector store adapter from config */
+  static getVectorStore(): VectorStoreAdapter | undefined { return BaseWrapper.vectorStore; }
 
   static setTree(tree: EntityTree): void { BaseWrapper.tree = tree; }
 

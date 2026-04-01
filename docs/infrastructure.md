@@ -110,6 +110,29 @@ Multiple observers can run simultaneously via the `observers` array. The `Dashbo
 
 Observers see all events flowing through the entity tree -- tool calls, hook events, errors. They can also control the runtime via `setState()`, `getState()`, `callMethod()`, and `getEntityTree()`.
 
+### Vector Store
+
+`VectorStoreAdapter` (from `@interactkit/sdk`) enables semantic memory for `LongTermMemory` entities. Configured globally:
+
+```typescript
+import { ChromaDBVectorStoreAdapter } from '@interactkit/chromadb';
+
+export default {
+  // ...
+  vectorStore: new ChromaDBVectorStoreAdapter({ collection: 'agent-memory' }),
+} satisfies InteractKitConfig;
+```
+
+| Package | Adapter | Constructor config |
+|---------|---------|-------------------|
+| `@interactkit/chromadb` | `ChromaDBVectorStoreAdapter` | `{ collection, url?, tenant?, database? }` |
+| `@interactkit/pinecone` | `PineconeVectorStoreAdapter` | `{ apiKey, index, embed? or embeddings?, namespace? }` |
+| `@interactkit/langchain` | `LangChainVectorStoreAdapter` | `{ store }` (any LangChain VectorStore) |
+
+ChromaDB includes built-in embeddings (no API key needed). Pinecone requires an embedding function or a LangChain `Embeddings` instance. The LangChain adapter wraps any existing LangChain VectorStore.
+
+See [LLM Entities > Context and Memory](./llm.md#context-and-memory) for usage with `LongTermMemory`.
+
 ## Custom Adapters
 
 ### Pub/Sub
@@ -160,6 +183,18 @@ class MyObserver extends BaseObserver {
 }
 ```
 
+### Vector Store
+
+```typescript
+import type { VectorStoreAdapter, VectorDocument, ScoredDocument, DeleteParams } from '@interactkit/sdk';
+
+class MyVectorStore implements VectorStoreAdapter {
+  async add(docs: VectorDocument[]): Promise<string[]> { /* embed + store, return IDs */ }
+  async search(query: string, k: number, filter?: Record<string, unknown>): Promise<ScoredDocument[]> { /* embed query + similarity search */ }
+  async delete(params: DeleteParams): Promise<void> { /* delete by IDs or filter */ }
+}
+```
+
 ## What the Adapters Control
 
 | Feature | Adapter | How it works |
@@ -169,6 +204,7 @@ class MyObserver extends BaseObserver {
 | State sync between replicas | Pub/Sub | `publish`/`subscribe` on state channels |
 | Stream data (child to parent) | Pub/Sub | `publish`/`subscribe` on stream channels (Redis), or direct in-memory (InProcess) |
 | State persistence | Database | Auto-save on mutation, restore on boot |
+| Semantic memory (RAG) | Vector Store | `LongTermMemory` entities use it for memorize/recall/forget |
 | Event observability | Observer | All events + errors flowing through the bus |
 
 ## Config
@@ -199,6 +235,9 @@ export default {
 | `@interactkit/redis` | `RedisPubSubAdapter` | `{ host: string, port: number }` or `{ url: string }` |
 | `@interactkit/prisma` | `PrismaDatabaseAdapter` | `{ url: string }` |
 | `@interactkit/observer` | `DashboardObserver` | `{ port?: number, token?: string }` |
+| `@interactkit/chromadb` | `ChromaDBVectorStoreAdapter` | `{ collection, url? }` |
+| `@interactkit/pinecone` | `PineconeVectorStoreAdapter` | `{ apiKey, index, embed? or embeddings? }` |
+| `@interactkit/langchain` | `LangChainVectorStoreAdapter` | `{ store }` |
 
 Missing config throws a clear error at startup.
 

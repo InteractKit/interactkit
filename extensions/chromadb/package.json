@@ -1,27 +1,18 @@
 {
-  "name": "@interactkit/http",
-  "version": "0.2.5",
-  "description": "HTTP webhook extension for InteractKit — receive and send HTTP requests",
+  "name": "@interactkit/chromadb",
+  "version": "0.1.0",
+  "description": "ChromaDB vector store adapter for InteractKit — local-first semantic memory",
   "type": "module",
   "license": "MIT",
-  "keywords": [
-    "interactkit",
-    "extension",
-    "http",
-    "webhook"
-  ],
+  "keywords": ["interactkit", "extension", "chromadb", "vector-store", "rag"],
   "exports": {
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
     }
   },
-  "files": [
-    "dist"
-  ],
-  "engines": {
-    "node": ">=18"
-  },
+  "files": ["dist"],
+  "engines": { "node": ">=18" },
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
@@ -29,12 +20,12 @@
   },
   "peerDependencies": {
     "@interactkit/sdk": "^0.2.0",
-    "reflect-metadata": "^0.2.0"
+    "chromadb": "^1.0.0"
   },
   "devDependencies": {
     "@interactkit/sdk": "workspace:*",
+    "chromadb": "^1.9.2",
     "@types/node": "^25.5.0",
-    "reflect-metadata": "^0.2.2",
     "typescript": "^5.5.0"
   }
 }

@@ -99,6 +99,19 @@ export type {
 export type { PubSubAdapter, LocalPubSubAdapter } from "./pubsub/adapter.js";
 export type { DatabaseAdapter } from "./database/adapter.js";
 export type { ObserverAdapter } from "./observer/adapter.js";
+export type {
+  VectorStoreAdapter,
+  VectorDocument,
+  ScoredDocument,
+  DeleteParams,
+} from "./vectorstore/adapter.js";
+export { LongTermMemory } from "./vectorstore/entity.js";
+export type {
+  StoreInput,
+  RecallInput,
+  ForgetInput,
+  Memory,
+} from "./vectorstore/entity.js";
 
 // Adapter implementations (SDK ships local-only; Redis + Prisma are separate packages)
 export { InProcessBusAdapter } from "./pubsub/in-process.js";

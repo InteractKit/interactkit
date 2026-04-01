@@ -48,3 +48,14 @@ export { ConversationContext } from "./conversation.js";
 
 // LLM trigger params
 export type { LLMExecutionTriggerParams } from "./trigger.js";
+
+// LLM utilities
+export {
+  buildSystemPrompt,
+  getExecutorModel,
+  extractContent,
+  toLangChainMessages,
+  toResultString,
+  runLLMLoop,
+} from "./utils.js";
+export type { ResolvedTool, LLMLoopCallbacks } from "./utils.js";

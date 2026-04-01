@@ -72,7 +72,7 @@ export function generateHooks(entities: ParsedEntity[], generatedDir: string) {
   for (const [ns, hooks] of groups) {
     lines.push(`  // ─── ${ns} (${hooks.length} hook${hooks.length > 1 ? 's' : ''}) ───`);
     lines.push(`  {`);
-    // Init shared resources once (e.g. HTTP server on a port)
+    // Init shared runner once (e.g. HTTP server on a port)
     lines.push(`    const _init = ${hooks[0].runnerExport};`);
     lines.push(`    const _shared = new _init.runnerClass();`);
     lines.push(`    await _shared.init({ ..._init.initConfig, ..._init.config, ...hooksConfig });`);
@@ -83,19 +83,14 @@ export function generateHooks(entities: ParsedEntity[], generatedDir: string) {
       const registerChannel = `hook-register:${hookKey}`;
 
       lines.push(`    // ${hookKey}`);
-      lines.push(`    {`);
-      lines.push(`      const handler = ${hook.runnerExport};`);
-      lines.push(`      const runner = new handler.runnerClass();`);
-      lines.push(`      await runner.init({ ...handler.initConfig, ...handler.config, ...hooksConfig });`);
-      lines.push(`      await pubsub.consume('${registerChannel}', (msg: unknown) => {`);
-      lines.push(`        const { entityId, dataChannel, config: runConfig } = msg as any;`);
-      lines.push(`        runner.register(`);
-      lines.push(`          async (data: unknown) => { await pubsub.publish(dataChannel, data); },`);
-      lines.push(`          runConfig,`);
-      lines.push(`        );`);
-      lines.push(`        console.log(\`  ▸ registered \${entityId} on ${hookKey}\`);`);
-      lines.push(`      });`);
-      lines.push(`    }`);
+      lines.push(`    await pubsub.consume('${registerChannel}', (msg: unknown) => {`);
+      lines.push(`      const { entityId, dataChannel, config: runConfig } = msg as any;`);
+      lines.push(`      _shared.register(`);
+      lines.push(`        async (data: unknown) => { await pubsub.publish(dataChannel, data); },`);
+      lines.push(`        runConfig,`);
+      lines.push(`      );`);
+      lines.push(`      console.log(\`  ▸ registered \${entityId} on ${hookKey}\`);`);
+      lines.push(`    });`);
     }
 
     lines.push(``);

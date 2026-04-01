@@ -1,27 +1,18 @@
 {
-  "name": "@interactkit/http",
-  "version": "0.2.5",
-  "description": "HTTP webhook extension for InteractKit — receive and send HTTP requests",
+  "name": "@interactkit/pinecone",
+  "version": "0.1.0",
+  "description": "Pinecone vector store adapter for InteractKit — managed cloud semantic memory",
   "type": "module",
   "license": "MIT",
-  "keywords": [
-    "interactkit",
-    "extension",
-    "http",
-    "webhook"
-  ],
+  "keywords": ["interactkit", "extension", "pinecone", "vector-store", "rag"],
   "exports": {
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
     }
   },
-  "files": [
-    "dist"
-  ],
-  "engines": {
-    "node": ">=18"
-  },
+  "files": ["dist"],
+  "engines": { "node": ">=18" },
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
@@ -29,12 +20,12 @@
   },
   "peerDependencies": {
     "@interactkit/sdk": "^0.2.0",
-    "reflect-metadata": "^0.2.0"
+    "@pinecone-database/pinecone": "^4.0.0"
   },
   "devDependencies": {
     "@interactkit/sdk": "workspace:*",
+    "@pinecone-database/pinecone": "^4.0.0",
     "@types/node": "^25.5.0",
-    "reflect-metadata": "^0.2.2",
     "typescript": "^5.5.0"
   }
 }

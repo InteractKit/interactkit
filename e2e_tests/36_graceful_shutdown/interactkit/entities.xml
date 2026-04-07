@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graph xmlns="https://interactkit.dev/schema/v1" version="1" root="App">
+  <entity name="App" type="base" description="Shutdown test">
+    <state>
+      <field name="count" type="number" description="Count" default="0" />
+    </state>
+    <tools>
+      <tool name="inc" description="Increment">
+        <input />
+        <output type="number" />
+      </tool>
+    </tools>
+  </entity>
+</graph>

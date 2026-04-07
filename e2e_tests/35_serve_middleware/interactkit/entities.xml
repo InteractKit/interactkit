@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graph xmlns="https://interactkit.dev/schema/v1" version="1" root="App">
+  <entity name="App" type="base" description="Test app">
+    <state>
+      <field name="count" type="number" description="Call count" default="0" />
+    </state>
+    <tools>
+      <tool name="fast" description="Fast tool">
+        <input><param name="msg" type="string" /></input>
+        <output type="string" />
+      </tool>
+      <tool name="slow" description="Slow tool that may timeout">
+        <input />
+        <output type="string" />
+      </tool>
+    </tools>
+  </entity>
+</graph>

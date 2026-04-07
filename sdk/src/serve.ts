@@ -32,6 +32,25 @@ export interface ServeRequest {
   tenantId?: string;
 }
 
+/**
+ * Middleware function. Return void to continue, throw to reject.
+ * Can modify req (e.g. attach tenantId, userId).
+ */
+export type Middleware = (req: ServeRequest, res: ServeResponse) => void | Promise<void>;
+
+export interface ServeResponse {
+  status: number;
+  headers: Record<string, string>;
+  /** Set status code */
+  setStatus(code: number): void;
+  /** Set response header */
+  setHeader(key: string, value: string): void;
+  /** End the request early with a response (skips route handler) */
+  end(body?: any): void;
+  /** Whether end() was called */
+  ended: boolean;
+}
+
 export interface HttpConfig {
   port?: number;
   host?: string;
@@ -39,6 +58,10 @@ export interface HttpConfig {
   expose?: string[];
   exclude?: string[];
   routes?: Record<string, string | RouteHandler>;
+  /** Middleware stack — runs in order before route handlers */
+  middleware?: Middleware[];
+  /** Request timeout in ms (default: 30000) */
+  timeout?: number;
   /** Extract tenant ID from request — enables per-tenant isolation */
   tenantFrom?: (req: ServeRequest) => string | undefined | Promise<string | undefined>;
   /** Entity names that are shared across all tenants (not cloned per tenant) */
@@ -187,9 +210,16 @@ export async function serve(app: InteractKitApp, config: ServeConfig): Promise<{
     routeMap.set(`${route.method} ${route.path}`, route);
   }
 
+  const middlewareStack = httpConf?.middleware ?? [];
+  const requestTimeout = httpConf?.timeout ?? 30_000;
+  const bootTime = Date.now();
+  let requestCount = 0;
+
   // ─── HTTP Server ────────────────────────────────────
 
   const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
+    requestCount++;
+
     // CORS
     if (cors) {
       res.setHeader('Access-Control-Allow-Origin', '*');
@@ -204,10 +234,29 @@ export async function serve(app: InteractKitApp, config: ServeConfig): Promise<{
     const query: Record<string, string> = {};
     url.searchParams.forEach((v, k) => { query[k] = v; });
 
-    // Build ServeRequest early (needed for tenantFrom)
-    const body = method === 'POST' || method === 'PUT' || method === 'PATCH'
-      ? await parseBody(req)
-      : undefined;
+    // Built-in /_health endpoint (skip middleware)
+    if (path === '/_health' && method === 'GET') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        status: 'ok',
+        uptime: Math.floor((Date.now() - bootTime) / 1000),
+        requests: requestCount,
+        tenants: pool?.size ?? 0,
+      }));
+      return;
+    }
+
+    // Parse body
+    let body: any;
+    try {
+      body = method === 'POST' || method === 'PUT' || method === 'PATCH'
+        ? await parseBody(req)
+        : undefined;
+    } catch (err: any) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err.message }));
+      return;
+    }
 
     const sreq: ServeRequest = {
       method, path, body,
@@ -215,58 +264,97 @@ export async function serve(app: InteractKitApp, config: ServeConfig): Promise<{
       query,
     };
 
-    // Built-in /schema endpoint
-    if (path === '/schema' && method === 'GET') {
-      const schema = buildSchema(tree);
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(schema));
+    // ─── Middleware stack ──────────────────────────────
+
+    const sres: ServeResponse = {
+      status: 200,
+      headers: {},
+      ended: false,
+      setStatus(code: number) { this.status = code; },
+      setHeader(key: string, value: string) { this.headers[key] = value; },
+      end(responseBody?: any) {
+        this.ended = true;
+        for (const [k, v] of Object.entries(this.headers)) res.setHeader(k, v);
+        if (responseBody === undefined || responseBody === null) {
+          res.writeHead(this.status);
+          res.end();
+        } else {
+          res.writeHead(this.status, { 'Content-Type': 'application/json' });
+          res.end(typeof responseBody === 'string' ? responseBody : JSON.stringify(responseBody));
+        }
+      },
+    };
+
+    try {
+      for (const mw of middlewareStack) {
+        await mw(sreq, sres);
+        if (sres.ended) return;
+      }
+    } catch (err: any) {
+      if (!sres.ended) {
+        const status = err.statusCode ?? 401;
+        res.writeHead(status, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message ?? 'Middleware rejected' }));
+      }
       return;
     }
 
-    // Built-in /_rpc endpoint
-    if (path === '/_rpc' && method === 'POST') {
-      try {
+    // ─── Request timeout wrapper ──────────────────────
+
+    const handleRequest = async (): Promise<void> => {
+      // Built-in /schema endpoint
+      if (path === '/schema' && method === 'GET') {
+        const schema = buildSchema(tree);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(schema));
+        return;
+      }
+
+      // Built-in /_rpc endpoint
+      if (path === '/_rpc' && method === 'POST') {
         if (!body?.entity || !body?.method) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'Missing entity or method in request body' }));
           return;
         }
         const targetApp = await resolveApp(sreq);
-        // For tenant apps, prefix entity path with tenant ID
         const entityPath = sreq.tenantId ? `${sreq.tenantId}:${body.entity}` : body.entity;
         const result = await targetApp.call(entityPath, body.method, body.input);
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ result: result ?? null }));
-      } catch (err: any) {
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: err.message ?? 'RPC error' }));
+        return;
       }
-      return;
-    }
 
-    // Try exact match
-    const route = routeMap.get(`${method} ${path}`) ?? routeMap.get(`* ${path}`);
-    if (!route) {
-      res.writeHead(404, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Not found' }));
-      return;
-    }
+      // Try exact match
+      const route = routeMap.get(`${method} ${path}`) ?? routeMap.get(`* ${path}`);
+      if (!route) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Not found' }));
+        return;
+      }
 
-    try {
-      // For auto-routes with tenants, we need to resolve the app and re-bind the handler
       const targetApp = await resolveApp(sreq);
 
-      // If tenant mode and this is an auto-route, call through the tenant app
       if (pool && targetApp !== app) {
-        // Re-route through tenant app instead of parent app
         const result = await executeRoute(route, sreq, targetApp);
         sendResult(res, result);
       } else {
         const result = await route.handler(sreq);
         sendResult(res, result);
       }
+    };
+
+    // Execute with timeout + error boundary
+    try {
+      await Promise.race([
+        handleRequest(),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Request timeout')), requestTimeout)
+        ),
+      ]);
     } catch (err: any) {
-      const status = err.statusCode ?? 500;
+      if (res.headersSent) return;
+      const status = err.message === 'Request timeout' ? 504 : (err.statusCode ?? 500);
       res.writeHead(status, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: err.message ?? 'Internal error' }));
     }

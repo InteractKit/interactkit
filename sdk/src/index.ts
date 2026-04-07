@@ -4,7 +4,7 @@
 export { Entity } from './entity.js';
 export { InteractKitRuntime, InteractKitApp } from './runtime.js';
 export type { EntityNode, RuntimeConfig, HandlerMap, HandlerFn, ListenerFn } from './runtime.js';
-export type { ServeConfig, HttpConfig, WsConfig, ServeRequest } from './serve.js';
+export type { ServeConfig, HttpConfig, WsConfig, ServeRequest, ServeResponse, Middleware } from './serve.js';
 
 // State
 export { createReactiveState, flushReactiveState } from './reactive.js';
@@ -34,6 +34,10 @@ export { DevObserver } from './observer/dev.js';
 // Vector store
 export type { VectorStoreAdapter, VectorDocument, ScoredDocument, DeleteParams } from './vectorstore.js';
 export { createMemoryHandlers } from './vectorstore.js';
+
+// Logger
+export { createLogger, logger } from './logger.js';
+export type { Logger, LogLevel, LogEntry } from './logger.js';
 
 // Zod (re-export for generated code)
 export { z } from 'zod';

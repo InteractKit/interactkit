@@ -1,0 +1,1 @@
+{ "name": "test-36", "private": true, "type": "module", "dependencies": { "@interactkit/sdk": "workspace:*" }, "devDependencies": { "@interactkit/cli": "workspace:*", "typescript": "^5.5.0" } }

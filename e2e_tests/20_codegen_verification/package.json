@@ -2,14 +2,10 @@
   "name": "e2e-20-codegen-verification",
   "private": true,
   "type": "module",
-  "scripts": {
-    "build": "interactkit build --root=src/agent:Agent"
-  },
   "dependencies": {
     "@interactkit/sdk": "workspace:*",
     "dotenv": "^16.4.0",
-    "reflect-metadata": "^0.2.2",
-    "@interactkit/redis": "workspace:*"
+    "reflect-metadata": "^0.2.2"
   },
   "devDependencies": {
     "@interactkit/cli": "workspace:*",

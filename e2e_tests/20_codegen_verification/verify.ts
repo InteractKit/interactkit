@@ -1,65 +1,96 @@
 import { execSync } from 'child_process';
 import { readFileSync, existsSync } from 'fs';
-import { join } from 'path';
+import { join, resolve } from 'path';
 
 const cwd = import.meta.dirname;
-const gen = join(cwd, '.interactkit/generated');
+const cliDist = resolve(cwd, '../../cli/dist/index.js');
+const gen = join(cwd, 'interactkit/.generated');
 
 try {
-  execSync('interactkit build --root=src/agent:Agent', { stdio: 'pipe', cwd });
+  // Compile XML
+  execSync(`node ${cliDist} compile`, { stdio: 'pipe', cwd });
 
-  // Check deployment.json
-  const plan = JSON.parse(readFileSync(join(gen, 'deployment.json'), 'utf-8'));
-  console.log(`  units: ${plan.units.length}`);
-  if (plan.units.length < 2) { console.error('FAIL: expected 2+ units'); process.exit(1); }
-  console.log('  ok 2+ deployment units');
-
-  const unitNames = plan.units.map((u: any) => u.name).sort();
-  console.log(`  unit names: ${unitNames.join(', ')}`);
-
-  // Check connections
-  console.log(`  connections: ${plan.connections.length}`);
-  if (plan.connections.length < 1) { console.error('FAIL: expected connections'); process.exit(1); }
-  console.log('  ok has cross-unit connections');
-
-  // Check generated entrypoints exist
-  for (const unit of plan.units) {
-    const path = join(gen, `_${unit.name}.ts`);
-    if (!existsSync(path)) { console.error(`FAIL: missing ${path}`); process.exit(1); }
-    console.log(`  ok ${unit.name} entrypoint`);
+  // 1. Check registry.ts exists and has entity names
+  const regPath = join(gen, 'registry.ts');
+  if (!existsSync(regPath)) { console.error('FAIL: missing registry.ts'); process.exit(1); }
+  const registry = readFileSync(regPath, 'utf-8');
+  if (!registry.includes("'agent'")) { console.error('FAIL: registry missing agent'); process.exit(1); }
+  console.log('  ok registry.ts has agent');
+  if (!registry.includes("'memory'") || !registry.includes('memory.store')) {
+    console.error('FAIL: registry missing memory'); process.exit(1);
   }
+  console.log('  ok registry.ts has memory');
 
-  // Check _all.ts exists
-  if (!existsSync(join(gen, '_all.ts'))) { console.error('FAIL: missing _all.ts'); process.exit(1); }
-  console.log('  ok _all.ts');
-
-  // Check _hooks.ts exists and has Tick (not Init since inProcess)
-  const hooks = readFileSync(join(gen, '_hooks.ts'), 'utf-8');
-  if (hooks.includes('Tick.Runner')) {
-    console.log('  ok _hooks.ts has Tick');
+  // 2. Check types.ts exists and has interfaces
+  const typesPath = join(gen, 'types.ts');
+  if (!existsSync(typesPath)) { console.error('FAIL: missing types.ts'); process.exit(1); }
+  const types = readFileSync(typesPath, 'utf-8');
+  if (!types.includes('AgentProxy') && !types.includes('AgentHandlers')) {
+    console.error('FAIL: types.ts missing Agent types'); process.exit(1);
   }
-  if (hooks.includes('Init.Runner')) {
-    console.error('FAIL: _hooks.ts should NOT have Init (inProcess)');
-    process.exit(1);
+  console.log('  ok types.ts has Agent types');
+  if (!types.includes('MemoryProxy') || !types.includes('MemoryHandlers')) {
+    console.error('FAIL: types.ts missing Memory types'); process.exit(1);
   }
-  console.log('  ok _hooks.ts excludes Init');
-
-  // Check type-registry.ts exists and has entities
-  const registry = readFileSync(join(gen, 'type-registry.ts'), 'utf-8');
-  if (!registry.includes('agent') || !registry.includes('memory')) {
-    console.error('FAIL: registry missing entities');
-    process.exit(1);
+  console.log('  ok types.ts has Memory types');
+  if (!types.includes('HandlersConfig')) {
+    console.error('FAIL: types.ts missing HandlersConfig'); process.exit(1);
   }
-  console.log('  ok type-registry has entities');
+  console.log('  ok types.ts has HandlersConfig');
 
-  // Check scalable flag
-  const memUnit = plan.units.find((u: any) => u.entities.includes('memory'));
-  if (!memUnit?.scalable) { console.error('FAIL: memory unit should be scalable'); process.exit(1); }
-  console.log('  ok memory unit is scalable');
+  // 3. Check graph.ts exists and has InteractKitGraph class
+  const graphPath = join(gen, 'graph.ts');
+  if (!existsSync(graphPath)) { console.error('FAIL: missing graph.ts'); process.exit(1); }
+  const graphSrc = readFileSync(graphPath, 'utf-8');
+  if (!graphSrc.includes('InteractKitGraph')) {
+    console.error('FAIL: graph.ts missing InteractKitGraph'); process.exit(1);
+  }
+  console.log('  ok graph.ts has InteractKitGraph');
+  if (!graphSrc.includes('export const graph')) {
+    console.error('FAIL: graph.ts missing graph export'); process.exit(1);
+  }
+  console.log('  ok graph.ts exports graph');
 
-  const agentUnit = plan.units.find((u: any) => u.entities.includes('agent'));
-  if (agentUnit?.scalable) { console.error('FAIL: agent unit should not be scalable'); process.exit(1); }
-  console.log('  ok agent unit is not scalable');
+  // 4. Check tree.ts exists and has entityTree
+  const treePath = join(gen, 'tree.ts');
+  if (!existsSync(treePath)) { console.error('FAIL: missing tree.ts'); process.exit(1); }
+  const tree = readFileSync(treePath, 'utf-8');
+  if (!tree.includes('entityTree')) {
+    console.error('FAIL: tree.ts missing entityTree'); process.exit(1);
+  }
+  console.log('  ok tree.ts has entityTree');
+  if (!tree.includes('"agent"')) {
+    console.error('FAIL: tree.ts missing agent entity'); process.exit(1);
+  }
+  console.log('  ok tree.ts has agent entity');
+  if (!tree.includes('"memory"')) {
+    console.error('FAIL: tree.ts missing memory entity'); process.exit(1);
+  }
+  console.log('  ok tree.ts has memory entity');
+
+  // 5. Check component wiring in tree
+  if (!tree.includes('components')) {
+    console.error('FAIL: tree.ts missing components'); process.exit(1);
+  }
+  console.log('  ok tree.ts has components');
+
+  // 6. Check methods in registry
+  if (!registry.includes('memory.store')) {
+    console.error('FAIL: registry missing memory.store method'); process.exit(1);
+  }
+  console.log('  ok registry has memory.store method');
+
+  // 7. Verify codegen output is valid by actually running a simple app
+  const output = execSync('npx tsx src/app.ts', { timeout: 15000, cwd }).toString();
+  if (!output.includes('CODEGEN_OK')) {
+    console.error('FAIL: app did not produce CODEGEN_OK\n' + output); process.exit(1);
+  }
+  console.log('  ok app runs with generated code');
 
   console.log('20_codegen_verification: PASS');
-} catch (e: any) { console.error('FAIL:', e.message); process.exit(1); }
+} catch (e: any) {
+  console.error('FAIL:', e.message);
+  if (e.stdout) console.error(e.stdout.toString());
+  if (e.stderr) console.error(e.stderr.toString());
+  process.exit(1);
+}

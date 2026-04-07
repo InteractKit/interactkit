@@ -1,0 +1,191 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graph xmlns="https://interactkit.dev/schema/v1" version="1" root="Startup">
+
+  <entity name="Startup" type="base" description="Startup simulator with autonomous AI team">
+    <components>
+      <component name="whiteboard" entity="Whiteboard" />
+      <component name="taskBoard" entity="TaskBoard" />
+      <component name="slack" entity="SlackChannel" />
+      <component name="codebase" entity="Codebase" />
+      <component name="designSystem" entity="DesignSystem" />
+      <component name="ceo" entity="CEO" />
+      <component name="cto" entity="CTO" />
+      <component name="designer" entity="Designer" />
+      <component name="developer" entity="Developer" />
+    </components>
+    <tools>
+      <tool name="launch" description="Launch the startup with a vision" src="tools/launch.ts">
+        <input><param name="vision" type="string" /></input>
+        <output type="string" />
+      </tool>
+      <tool name="message" description="Send a message to the team" src="tools/message.ts">
+        <input>
+          <param name="to" type="string" />
+          <param name="message" type="string" />
+        </input>
+        <output type="string" />
+      </tool>
+      <tool name="status" description="Get startup status" src="tools/status.ts">
+        <input />
+        <output type="object">
+          <param name="tasks" type="number" />
+          <param name="files" type="number" />
+          <param name="messages" type="number" />
+        </output>
+      </tool>
+    </tools>
+  </entity>
+
+  <!-- Shared resources — all CRUD via fieldGroups + autotools -->
+
+  <entity name="Whiteboard" type="base" description="Shared team whiteboard">
+    <state>
+      <fieldGroup name="posts" key="id">
+        <field name="author" type="string" description="Who posted" />
+        <field name="content" type="string" description="Content" />
+      </fieldGroup>
+    </state>
+    <tools>
+      <autotool name="post" on="posts" op="create" peerVisible="true" />
+      <autotool name="read" on="posts" op="list" peerVisible="true" />
+    </tools>
+  </entity>
+
+  <entity name="TaskBoard" type="base" description="Task tracking board">
+    <state>
+      <fieldGroup name="tasks" key="id">
+        <field name="title" type="string" description="Task title" />
+        <field name="assignee" type="string" description="Assigned to" />
+        <field name="status" type="string" description="Task status" />
+      </fieldGroup>
+    </state>
+    <tools>
+      <autotool name="addTask" on="tasks" op="create" peerVisible="true" />
+      <autotool name="moveTask" on="tasks" op="update" key="id" peerVisible="true" />
+      <autotool name="getTasks" on="tasks" op="list" peerVisible="true" />
+    </tools>
+  </entity>
+
+  <entity name="SlackChannel" type="base" description="Team chat channel">
+    <state>
+      <fieldGroup name="messages" key="id">
+        <field name="from" type="string" description="Sender" />
+        <field name="text" type="string" description="Message text" />
+      </fieldGroup>
+    </state>
+    <tools>
+      <autotool name="send" on="messages" op="create" peerVisible="true" />
+      <autotool name="getHistory" on="messages" op="list" peerVisible="true" />
+    </tools>
+  </entity>
+
+  <entity name="Codebase" type="base" description="Source code repository">
+    <state>
+      <fieldGroup name="files" key="path">
+        <field name="content" type="string" description="File content" />
+      </fieldGroup>
+    </state>
+    <tools>
+      <autotool name="writeFile" on="files" op="update" key="path" peerVisible="true" />
+      <autotool name="readFile" on="files" op="read" key="path" peerVisible="true" />
+      <autotool name="listFiles" on="files" op="list" peerVisible="true" />
+    </tools>
+  </entity>
+
+  <entity name="DesignSystem" type="base" description="Design assets and tokens">
+    <state>
+      <fieldGroup name="assets" key="name">
+        <field name="type" type="string" description="Asset type" />
+        <field name="content" type="string" description="Asset content" />
+      </fieldGroup>
+    </state>
+    <tools>
+      <autotool name="saveAsset" on="assets" op="create" peerVisible="true" />
+      <autotool name="listAssets" on="assets" op="list" peerVisible="true" />
+    </tools>
+  </entity>
+
+  <!-- AI Team -->
+
+  <entity name="CEO" type="llm" description="Startup CEO — sets vision and priorities">
+    <describe>CEO — vision: {{vision}}, priorities: {{priorities}}</describe>
+    <executor provider="openai" model="gpt-4o-mini" />
+    <thinking-loop interval-ms="15000" />
+    <state>
+      <field name="vision" type="string" description="Company vision" default="" />
+      <field name="priorities" type="string" description="Current priorities" default="" />
+    </state>
+    <tools>
+      <tool name="setVision" description="Set the startup vision" llm-callable="true" src="tools/set-vision.ts">
+        <input><param name="vision" type="string" /></input>
+        <output type="void" />
+      </tool>
+      <tool name="setPriorities" description="Set current priorities" llm-callable="true" src="tools/set-priorities.ts">
+        <input><param name="priorities" type="string" /></input>
+        <output type="void" />
+      </tool>
+    </tools>
+  </entity>
+
+  <entity name="CTO" type="llm" description="CTO — architecture and tech decisions">
+    <describe>CTO — stack: {{techStack}}, arch: {{architecture}}</describe>
+    <executor provider="openai" model="gpt-4o-mini" />
+    <thinking-loop interval-ms="12000" />
+    <state>
+      <field name="architecture" type="string" description="System architecture" default="" />
+      <field name="techStack" type="string" description="Technology stack" default="" />
+    </state>
+    <tools>
+      <tool name="createArchitecture" description="Define system architecture" llm-callable="true" src="tools/create-architecture.ts">
+        <input>
+          <param name="architecture" type="string" />
+          <param name="techStack" type="string" />
+        </input>
+        <output type="void" />
+      </tool>
+    </tools>
+  </entity>
+
+  <entity name="Designer" type="llm" description="Designer — UI/UX and visual design">
+    <describe>Designer — direction: {{designDirection}}, {{wireframeCount}} wireframes</describe>
+    <executor provider="openai" model="gpt-4o-mini" />
+    <thinking-loop interval-ms="12000" />
+    <state>
+      <field name="designDirection" type="string" description="Design direction" default="" />
+      <field name="wireframeCount" type="number" description="Wireframes created" default="0" />
+    </state>
+    <tools>
+      <tool name="createWireframe" description="Create a wireframe" llm-callable="true" src="tools/create-wireframe.ts">
+        <input>
+          <param name="name" type="string" />
+          <param name="svg" type="string" />
+        </input>
+        <output type="void" />
+      </tool>
+    </tools>
+  </entity>
+
+  <entity name="Developer" type="llm" description="Developer — writes code and runs tests">
+    <describe>Developer — working on task {{currentTaskId}}, {{filesWritten}} files written</describe>
+    <executor provider="openai" model="gpt-4o-mini" />
+    <thinking-loop interval-ms="10000" />
+    <state>
+      <field name="currentTaskId" type="string" description="Current task ID" default="" />
+      <field name="filesWritten" type="number" description="Files written" default="0" />
+    </state>
+    <tools>
+      <tool name="writeCode" description="Write a code file" llm-callable="true" src="tools/write-code.ts">
+        <input>
+          <param name="path" type="string" />
+          <param name="content" type="string" />
+        </input>
+        <output type="void" />
+      </tool>
+      <tool name="pickTask" description="Pick a task from the board" llm-callable="true" src="tools/pick-task.ts">
+        <input />
+        <output type="string" />
+      </tool>
+    </tools>
+  </entity>
+
+</graph>

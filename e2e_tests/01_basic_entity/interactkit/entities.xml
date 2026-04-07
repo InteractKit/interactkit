@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graph xmlns="https://interactkit.dev/schema/v1" version="1" root="Agent">
+  <entity name="Agent" type="base" description="Basic entity test">
+    <describe>Agent: {{count}} ops, {{log.length}} logs</describe>
+    <state>
+      <field name="count" type="number" description="Counter" default="0" />
+      <field name="log" type="array" description="Operation log" items="string" />
+    </state>
+    <tools>
+      <tool name="increment" description="Increment counter">
+        <input><param name="amount" type="number" /></input>
+        <output type="object">
+          <param name="count" type="number" />
+        </output>
+      </tool>
+      <tool name="getCount" description="Get count">
+        <input />
+        <output type="number" />
+      </tool>
+      <tool name="addLog" description="Add log">
+        <input><param name="entry" type="string" /></input>
+        <output type="object">
+          <param name="total" type="number" />
+        </output>
+      </tool>
+      <tool name="getLogs" description="Get logs">
+        <input />
+        <output type="array" items="string" />
+      </tool>
+      <tool name="returnObject" description="Return object">
+        <input />
+        <output type="object">
+          <param name="nested" type="object" />
+          <param name="arr" type="array" items="number" />
+        </output>
+      </tool>
+      <tool name="returnArray" description="Return array">
+        <input />
+        <output type="array" items="object" />
+      </tool>
+      <tool name="returnString" description="Return string">
+        <input />
+        <output type="string" />
+      </tool>
+      <tool name="returnNumber" description="Return number">
+        <input />
+        <output type="number" />
+      </tool>
+      <tool name="returnNull" description="Return null">
+        <input />
+        <output type="object" />
+      </tool>
+    </tools>
+  </entity>
+</graph>

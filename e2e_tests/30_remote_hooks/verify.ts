@@ -1,9 +1,8 @@
-import { execSync, spawn } from 'child_process';
+import { execSync } from 'child_process';
+import { resolve } from 'path';
 
 const cwd = import.meta.dirname;
-const pids: number[] = [];
-function cleanup() { for (const pid of pids) { try { process.kill(pid, 'SIGTERM'); } catch {} } }
-process.on('exit', cleanup);
+const cliDist = resolve(cwd, '../../cli/dist/index.js');
 
 const expected = [
   'http response:',
@@ -13,50 +12,21 @@ const expected = [
 ];
 
 try {
-  execSync('interactkit build --root=src/agent:Agent', { stdio: 'pipe', cwd });
-  execSync('redis-cli flushall', { stdio: 'pipe' });
+  execSync(`node ${cliDist} compile`, { stdio: 'pipe', cwd });
 
-  // 1. Start hook server first (needs to be ready before entities register)
-  const hooks = spawn('node', ['.interactkit/build/src/_hooks.js'], { cwd, stdio: ['pipe', 'pipe', 'pipe'] });
-  pids.push(hooks.pid!);
-  let hooksErr = '';
-  hooks.stderr.on('data', (d: Buffer) => { hooksErr += d.toString(); });
-  hooks.on('exit', (code: number | null) => { if (code && code !== 0) console.error(`  hooks exited ${code}: ${hooksErr}`); });
-  await new Promise(r => setTimeout(r, 2000));
+  const output = execSync('npx tsx src/app.ts', {
+    timeout: 15000, cwd,
+  }).toString();
 
-  // 2. Start worker
-  const worker = spawn('node', ['.interactkit/build/src/_unit-worker.js'], { cwd, stdio: ['pipe', 'pipe', 'pipe'] });
-  pids.push(worker.pid!);
-  let workerErr = '';
-  worker.stderr.on('data', (d: Buffer) => { workerErr += d.toString(); });
-  await new Promise(r => setTimeout(r, 2000));
-
-  // 3. Start agent (runs onInit which sends HTTP requests)
-  let output = '';
-  try {
-    output = execSync('node .interactkit/build/src/_unit-agent.js', { timeout: 15000, cwd }).toString();
-  } catch (e: any) {
-    output = e.stdout?.toString() ?? '';
-    if (!output.includes('DONE')) {
-      if (hooksErr) console.error(`  hooks stderr: ${hooksErr.trim()}`);
-      if (workerErr) console.error(`  worker stderr: ${workerErr.trim()}`);
-      throw e;
-    }
-  }
-
+  let pass = 0;
   for (const exp of expected) {
-    if (!output.includes(exp)) {
-      if (hooksErr) console.error(`  hooks stderr: ${hooksErr.trim()}`);
-      if (workerErr) console.error(`  worker stderr: ${workerErr.trim()}`);
-      console.error(`  FAIL: missing "${exp}"\n${output}`);
-      process.exit(1);
-    }
-    console.log(`  ok ${exp}`);
+    if (output.includes(exp)) { pass++; console.log(`  ok ${exp}`); }
+    else { console.error(`  FAIL: missing "${exp}"`); console.error(output); process.exit(1); }
   }
-  console.log('30_remote_hooks: PASS');
+  console.log(`30_remote_hooks: PASS (${pass}/${expected.length})`);
 } catch (e: any) {
-  console.error('FAIL', e.stdout?.toString(), e.stderr?.toString());
+  console.error('30_remote_hooks: FAIL');
+  if (e.stdout) console.error(e.stdout.toString());
+  if (e.stderr) console.error(e.stderr.toString());
   process.exit(1);
-} finally {
-  cleanup();
 }

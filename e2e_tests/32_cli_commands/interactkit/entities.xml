@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graph xmlns="https://interactkit.dev/schema/v1" version="1" root="MyAgent">
+  <entity name="MyAgent" type="base" description="Test agent">
+    <describe>MyAgent: {{count}} tasks</describe>
+    <state>
+      <field name="count" type="number" description="Task count" default="0" />
+    </state>
+    <components>
+      <component name="worker" entity="Worker" />
+      <component name="cache" entity="Cache" />
+    </components>
+    <tools>
+      <tool name="dispatch" description="Dispatch a task">
+        <input><param name="task" type="string" /></input>
+        <output type="object">
+          <param name="ok" type="boolean" />
+        </output>
+      </tool>
+    </tools>
+  </entity>
+  <entity name="Worker" type="base" description="Worker entity">
+    <describe>Worker</describe>
+    <state>
+      <field name="processed" type="number" description="Processed count" default="0" />
+    </state>
+    <refs>
+      <ref name="cache" entity="Cache" />
+    </refs>
+    <tools>
+      <tool name="process" description="Process a task" src="tools/worker-process.ts">
+        <input><param name="data" type="string" /></input>
+        <output type="object">
+          <param name="result" type="string" />
+        </output>
+      </tool>
+      <tool name="getStats" description="Get stats">
+        <input />
+        <output type="object">
+          <param name="count" type="number" />
+        </output>
+      </tool>
+    </tools>
+  </entity>
+  <entity name="Cache" type="base" description="Cache entity">
+    <describe>Cache</describe>
+    <state>
+      <field name="entries" type="record" values="string" description="Cache entries" />
+    </state>
+    <tools>
+      <tool name="get" description="Get cached value">
+        <input><param name="key" type="string" /></input>
+        <output type="object">
+          <param name="hit" type="boolean" />
+          <param name="value" type="string" />
+        </output>
+      </tool>
+      <tool name="put" description="Put value in cache" src="tools/cache-put.ts">
+        <input>
+          <param name="key" type="string" />
+          <param name="value" type="string" />
+        </input>
+        <output type="object">
+          <param name="stored" type="boolean" />
+        </output>
+      </tool>
+    </tools>
+  </entity>
+</graph>

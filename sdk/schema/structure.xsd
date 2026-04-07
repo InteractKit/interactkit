@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Graph structure: components, refs, streams, and describe.
+-->
+<xs:schema
+  xmlns:xs="http://www.w3.org/2001/XMLSchema"
+  xmlns:ik="https://interactkit.dev/schema/v1"
+  targetNamespace="https://interactkit.dev/schema/v1"
+  elementFormDefault="qualified">
+
+  <!-- ════════════════════════════════════════════════════════════
+       Component (owned child entity)
+       ════════════════════════════════════════════════════════════ -->
+  <xs:element name="component">
+    <xs:complexType>
+      <xs:attribute name="name" type="xs:string" use="required" />
+      <xs:attribute name="entity" type="xs:string" use="required" />
+    </xs:complexType>
+  </xs:element>
+
+  <!-- ════════════════════════════════════════════════════════════
+       Ref (sibling pointer)
+       ════════════════════════════════════════════════════════════ -->
+  <xs:element name="ref">
+    <xs:complexType>
+      <xs:attribute name="name" type="xs:string" use="required" />
+      <xs:attribute name="entity" type="xs:string" use="required" />
+    </xs:complexType>
+  </xs:element>
+
+  <!-- ════════════════════════════════════════════════════════════
+       Stream (typed upstream data flow)
+       ════════════════════════════════════════════════════════════ -->
+  <xs:element name="stream">
+    <xs:complexType>
+      <!-- For object payload streams: nested param shape -->
+      <xs:sequence>
+        <xs:element ref="ik:param" minOccurs="0" maxOccurs="unbounded" />
+      </xs:sequence>
+
+      <xs:attribute name="name" type="xs:string" use="required" />
+      <xs:attribute name="type" type="ik:fieldType" default="string" />
+      <xs:attribute name="description" type="xs:string" />
+    </xs:complexType>
+  </xs:element>
+
+  <!-- ════════════════════════════════════════════════════════════
+       Describe (runtime self-description template)
+       Simple interpolation: {{fieldName}}, {{field.length}}
+       Overridable at runtime via graph.addHandler(entity, 'describe', fn)
+       ════════════════════════════════════════════════════════════ -->
+  <xs:element name="describe" type="xs:string" />
+
+</xs:schema>

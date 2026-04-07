@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graph xmlns="https://interactkit.dev/schema/v1" version="1" root="World">
+  <entity name="World" type="base" description="5-level deep">
+    <components><component name="manager" entity="Manager" /></components>
+  </entity>
+  <entity name="Manager" type="base" description="Manager">
+    <components><component name="team" entity="Team" /></components>
+    <tools>
+      <tool name="delegate" description="Delegate"><input><param name="task" type="string" /></input><output type="object"><param name="jobNumber" type="number" /></output></tool>
+      <tool name="audit" description="Audit"><input /><output type="array" items="string" /></tool>
+    </tools>
+  </entity>
+  <entity name="Team" type="base" description="Team">
+    <state><field name="tasksAssigned" type="number" description="Tasks" default="0" /></state>
+    <components><component name="worker" entity="Worker" /></components>
+    <tools>
+      <tool name="assign" description="Assign"><input><param name="task" type="string" /></input><output type="object"><param name="task" type="string" /><param name="jobNumber" type="number" /><param name="teamTasks" type="number" /></output></tool>
+      <tool name="getDeepLogs" description="Get deep logs"><input /><output type="array" items="string" /></tool>
+    </tools>
+  </entity>
+  <entity name="Worker" type="base" description="Worker">
+    <state><field name="jobs" type="number" description="Jobs" default="0" /></state>
+    <components><component name="logger" entity="Logger" /></components>
+    <tools>
+      <tool name="doWork" description="Do work"><input><param name="task" type="string" /></input><output type="object"><param name="task" type="string" /><param name="jobNumber" type="number" /></output></tool>
+      <tool name="getWorkerLogs" description="Get logs"><input /><output type="array" items="string" /></tool>
+    </tools>
+  </entity>
+  <entity name="Logger" type="base" description="Logger">
+    <state><field name="logs" type="array" description="Logs" items="string" /></state>
+    <tools>
+      <tool name="log" description="Log"><input><param name="msg" type="string" /></input><output type="object"><param name="logged" type="boolean" /><param name="total" type="number" /></output></tool>
+      <tool name="getLogs" description="Get logs"><input /><output type="array" items="string" /></tool>
+    </tools>
+  </entity>
+</graph>

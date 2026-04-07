@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graph xmlns="https://interactkit.dev/schema/v1" version="1" root="Worker">
+  <entity name="Worker" type="base" description="Remote worker service">
+    <describe>Worker: {{processed}} processed</describe>
+    <state>
+      <field name="processed" type="number" description="Jobs processed" default="0" />
+      <field name="log" type="array" items="string" description="Processing log" />
+    </state>
+    <tools>
+      <tool name="process" description="Process a job">
+        <input><param name="data" type="string" /></input>
+        <output type="string" />
+      </tool>
+      <tool name="getStats" description="Get worker stats">
+        <input />
+        <output type="object">
+          <param name="processed" type="number" />
+          <param name="lastJob" type="string" />
+        </output>
+      </tool>
+    </tools>
+  </entity>
+</graph>

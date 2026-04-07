@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graph xmlns="https://interactkit.dev/schema/v1" version="1" root="World">
+  <entity name="World" type="base" description="World with two teams">
+    <components>
+      <component name="teamA" entity="TeamA" />
+      <component name="teamB" entity="TeamB" />
+    </components>
+  </entity>
+  <entity name="TeamA" type="base" description="Team A">
+    <components><component name="memory" entity="Memory" /></components>
+    <tools>
+      <tool name="storeA" description="Store in A"><input><param name="text" type="string" /></input><output type="number" /></tool>
+      <tool name="getA" description="Get A entries"><input /><output type="array" items="string" /></tool>
+      <tool name="countA" description="Count A"><input /><output type="number" /></tool>
+    </tools>
+  </entity>
+  <entity name="TeamB" type="base" description="Team B">
+    <components><component name="memory" entity="Memory" /></components>
+    <tools>
+      <tool name="storeB" description="Store in B"><input><param name="text" type="string" /></input><output type="number" /></tool>
+      <tool name="getB" description="Get B entries"><input /><output type="array" items="string" /></tool>
+      <tool name="countB" description="Count B"><input /><output type="number" /></tool>
+    </tools>
+  </entity>
+  <entity name="Memory" type="base" description="Memory store">
+    <state><field name="entries" type="array" description="Entries" items="string" /></state>
+    <tools>
+      <tool name="store" description="Store"><input><param name="text" type="string" /></input><output type="number" /></tool>
+      <tool name="getAll" description="Get all"><input /><output type="array" items="string" /></tool>
+      <tool name="count" description="Count"><input /><output type="number" /></tool>
+    </tools>
+  </entity>
+</graph>

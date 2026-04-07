@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graph xmlns="https://interactkit.dev/schema/v1" version="1" root="World">
+  <entity name="World" type="base" description="World">
+    <components>
+      <component name="alpha" entity="Alpha" />
+      <component name="beta" entity="Beta" />
+      <component name="gamma" entity="Gamma" />
+    </components>
+  </entity>
+  <entity name="Alpha" type="base" description="Alpha">
+    <tools>
+      <tool name="process" description="Process">
+        <input><param name="data" type="string" /></input>
+        <output type="string" />
+      </tool>
+    </tools>
+  </entity>
+  <entity name="Beta" type="base" description="Beta">
+    <tools>
+      <tool name="process" description="Process">
+        <input><param name="data" type="string" /></input>
+        <output type="string" />
+      </tool>
+    </tools>
+  </entity>
+  <entity name="Gamma" type="base" description="Gamma">
+    <tools>
+      <tool name="process" description="Process">
+        <input><param name="data" type="string" /></input>
+        <output type="string" />
+      </tool>
+    </tools>
+  </entity>
+</graph>

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graph xmlns="https://interactkit.dev/schema/v1" version="1" root="Agent">
+  <entity name="Agent" type="base" description="Agent with count/log state for persistence test">
+    <describe>Agent: {{count}} ops, {{log.length}} logs</describe>
+    <state>
+      <field name="count" type="number" description="Counter" default="0" />
+      <field name="log" type="array" description="Log" items="string" />
+    </state>
+    <tools>
+      <tool name="setCount" description="Set count">
+        <input><param name="value" type="number" /></input>
+        <output type="object" />
+      </tool>
+      <tool name="addLogs" description="Add logs">
+        <input><param name="entries" type="array" items="string" /></input>
+        <output type="object" />
+      </tool>
+      <tool name="getState" description="Get state">
+        <input />
+        <output type="object">
+          <param name="count" type="number" />
+          <param name="log" type="array" items="string" />
+        </output>
+      </tool>
+    </tools>
+  </entity>
+</graph>

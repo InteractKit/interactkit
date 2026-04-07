@@ -1,51 +1,35 @@
-import { execSync, spawn } from 'child_process';
+import { execSync } from 'child_process';
+import { resolve } from 'path';
 
 const cwd = import.meta.dirname;
-const env = { ...process.env, REDIS_HOST: 'localhost', REDIS_PORT: '6379' };
-const pids: number[] = [];
+const cliDist = resolve(cwd, '../../cli/dist/index.js');
 
-function cleanup() {
-  for (const pid of pids) { try { process.kill(pid, 'SIGTERM'); } catch {} }
-}
-process.on('exit', cleanup);
+const expected = [
+  'after store: count=2',
+  'function proxy: PASS',
+  'class proxy: PASS',
+  'recursive proxy: PASS',
+  'curried proxy: PASS',
+  'promise.all: PASS',
+  'DONE',
+];
 
 try {
-  execSync('interactkit build --root=src/agent:Agent', { stdio: 'pipe', cwd });
-  execSync('redis-cli flushall', { stdio: 'pipe' });
+  execSync(`node ${cliDist} compile`, { stdio: 'pipe', cwd });
 
-  // Start Worker unit
-  const worker = spawn('node', ['.interactkit/build/src/_unit-worker.js'], { cwd, env, stdio: 'pipe' });
-  pids.push(worker.pid!);
-
-  await new Promise(r => setTimeout(r, 2000));
-
-  // Run Agent unit
-  const output = execSync('node .interactkit/build/src/_unit-agent.js', {
-    timeout: 15000, cwd, env,
+  const output = execSync('npx tsx src/app.ts', {
+    timeout: 15000, cwd,
   }).toString();
 
-  const expected = [
-    'after store: count=2',
-    'function proxy: PASS',
-    'class proxy: PASS',
-    'recursive proxy: PASS',
-    'curried proxy: PASS',
-    'promise.all: PASS',
-    'DONE',
-  ];
-
+  let pass = 0;
   for (const exp of expected) {
-    if (!output.includes(exp)) {
-      console.error(`  FAIL: missing "${exp}"\n${output}`);
-      process.exit(1);
-    }
-    console.log(`  ok ${exp}`);
+    if (output.includes(exp)) { pass++; console.log(`  ok ${exp}`); }
+    else { console.error(`  FAIL: missing "${exp}"`); console.error(output); process.exit(1); }
   }
-
-  console.log('29_proxy_functions: PASS');
+  console.log(`29_proxy_functions: PASS (${pass}/${expected.length})`);
 } catch (e: any) {
-  console.error('FAIL', e.stdout?.toString(), e.stderr?.toString());
+  console.error('29_proxy_functions: FAIL');
+  if (e.stdout) console.error(e.stdout.toString());
+  if (e.stderr) console.error(e.stderr.toString());
   process.exit(1);
-} finally {
-  cleanup();
 }

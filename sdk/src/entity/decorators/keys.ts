@@ -1,9 +1,0 @@
-export const PATH_KEY = Symbol('entity:path');
-export const ENTITY_KEY = Symbol('entity:meta');
-export const STATE_KEY = Symbol('entity:state');
-export const REF_KEY = Symbol('entity:refs');
-export const STREAM_KEY = Symbol('entity:streams');
-export const TOOL_KEY = Symbol('entity:tools');
-export const HOOK_KEY = Symbol('entity:hooks');
-export const DESCRIBE_KEY = Symbol('entity:describe');
-export const CONFIGURABLE_KEY = Symbol('entity:configurable');

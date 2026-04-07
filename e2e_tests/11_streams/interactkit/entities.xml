@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graph xmlns="https://interactkit.dev/schema/v1" version="1" root="Agent">
+  <entity name="Agent" type="base" description="Stream test">
+    <components>
+      <component name="sensor" entity="Sensor" />
+      <component name="logger" entity="Logger" />
+    </components>
+    <state>
+      <field name="readings" type="array" description="Received readings" items="number" />
+      <field name="logs" type="array" description="Received logs" items="string" />
+    </state>
+  </entity>
+  <entity name="Sensor" type="base" description="Sensor with readings stream">
+    <streams><stream name="readings" type="number" description="Sensor readings" /></streams>
+    <tools>
+      <tool name="emitOne" description="Emit one reading"><input><param name="value" type="number" /></input><output type="object"><param name="emitted" type="number" /></output></tool>
+      <tool name="emitBatch" description="Emit batch"><input><param name="values" type="array" items="number" /></input><output type="object"><param name="count" type="number" /></output></tool>
+    </tools>
+  </entity>
+  <entity name="Logger" type="base" description="Logger with entries stream">
+    <streams><stream name="entries" type="string" description="Log entries" /></streams>
+    <tools>
+      <tool name="log" description="Log message"><input><param name="msg" type="string" /></input><output type="object"><param name="logged" type="boolean" /></output></tool>
+    </tools>
+  </entity>
+</graph>

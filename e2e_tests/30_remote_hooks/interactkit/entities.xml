@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graph xmlns="https://interactkit.dev/schema/v1" version="1" root="Agent">
+  <entity name="Agent" type="base" description="Agent that triggers HTTP hook on worker">
+    <describe>Agent</describe>
+    <components>
+      <component name="worker" entity="Worker" />
+    </components>
+    <tools>
+      <tool name="triggerHook" description="Send HTTP requests to worker hook">
+        <input />
+        <output type="object">
+          <param name="success" type="boolean" />
+        </output>
+      </tool>
+    </tools>
+  </entity>
+  <entity name="Worker" type="base" description="Worker with HTTP hook">
+    <describe>Worker: {{requests.length}} requests</describe>
+    <state>
+      <field name="requests" type="array" description="Received requests" items="string" />
+    </state>
+    <tools>
+      <tool name="getRequests" description="Get received requests">
+        <input />
+        <output type="array" items="string" />
+      </tool>
+      <tool name="receiveRequest" description="Simulate receiving an HTTP request">
+        <input>
+          <param name="method" type="string" />
+          <param name="path" type="string" />
+          <param name="body" type="string" />
+        </input>
+        <output type="object">
+          <param name="ok" type="boolean" />
+          <param name="count" type="number" />
+        </output>
+      </tool>
+    </tools>
+  </entity>
+</graph>

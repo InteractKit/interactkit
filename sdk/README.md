@@ -1,186 +1,224 @@
 # @interactkit/sdk
 
-The core framework for InteractKit. Write plain TypeScript classes -- the SDK handles state persistence, inter-entity communication, lifecycle hooks, LLM integration, transparent distributed proxying, and horizontal scaling.
+Runtime for InteractKit. Boots entity graphs compiled from XML, manages state persistence, event routing, LLM integration, HTTP serving, and multi-tenancy.
 
-```typescript
-import { Entity, LLMEntity, Component, SystemPrompt, Executor, Tool, type Remote } from '@interactkit/sdk';
-import { ChatOpenAI } from '@langchain/openai';
-
-@Entity({ description: 'Root agent' })
-class Agent extends LLMEntity {
-  @Component() private memory!: Remote<Memory>;
-
-  @SystemPrompt()
-  private get systemPrompt() { return 'You are a helpful agent.'; }
-
-  @Executor() private llm = new ChatOpenAI({ model: 'gpt-4o-mini' });
-
-  @Tool({ description: 'Search memory for relevant info' })
-  async search(input: { query: string }) { return this.memory.search(input); }
-}
-
-// interactkit build
-// interactkit start
-```
-
-## What it does
-
-- **State persistence** -- `@State` properties auto-save to the database, restore on restart, sync between replicas
-- **Transparent distribution** -- call methods on entities across machines like normal functions. `Remote<T>` gives compile-time type safety. Functions and objects returned from remote calls become live proxies.
-- **Lifecycle hooks** -- init, timers, and extension hooks (cron, HTTP, websocket) via decorated methods
-- **LLM-powered entities** -- extend `LLMEntity`, add `@SystemPrompt`, `@Executor`, and `@Tool` with LangChain `bindTools`/`invoke` compatibility
-- **Validation** -- inline Zod schemas via `@State({ validate })`, codegen reads them directly
-- **Build-time checks** -- codegen validates entity refs, LLM config, hook params, component wiring, `Remote<T>` enforcement
-- **Runtime configuration** -- `@Configurable` properties with enum, validation, description support
-- **Horizontal scaling** -- mark entities `detached: true` to use remote pubsub from config
-- **Explicit configuration** -- adapters take connection config via constructors in `interactkit.config.ts`
-- **Extensible** -- external packages provide custom hook types, runners, and entities via standard imports
-
-## Quick start
+## Install
 
 ```bash
-interactkit init my-agent
-cd my-agent && pnpm install
-interactkit dev
+npm install @interactkit/sdk
 ```
 
-## CLI
+## Usage
 
-```bash
-interactkit init <name>                                        # scaffold a new project
-interactkit add <name> [--llm] [--detached] [--attach Parent]  # generate entity file
-interactkit build                                              # codegen + tsc + boot (reads root from config)
-interactkit build --root=src/path:ExportName                   # override root entity from CLI
-interactkit dev                                                # build + watch mode
-interactkit start                                              # run the built app
-```
-
-## Configuration
-
-All infrastructure is configured in `interactkit.config.ts` at the project root. The `root` field specifies the root entity class, making `--root` optional on the CLI:
+The CLI compiles your `entities.xml` into a typed `graph` object. Your app code configures and boots it:
 
 ```typescript
-// interactkit.config.ts
-import { Agent } from './src/entities/agent.js';
+import { graph } from '../interactkit/.generated/graph.js';
 import { PrismaDatabaseAdapter } from '@interactkit/prisma';
-import { RedisPubSubAdapter } from '@interactkit/redis';
 import { DevObserver } from '@interactkit/sdk';
-import type { InteractKitConfig } from '@interactkit/sdk';
 
-export default {
-  root: Agent,
+const app = graph.configure({
   database: new PrismaDatabaseAdapter({ url: 'file:./app.db' }),
-  pubsub: new RedisPubSubAdapter({ host: 'localhost', port: 6379 }),
-  observer: new DevObserver(),
-  timeout: 15_000,      // event bus request timeout (default: 30000)
-  stateFlushMs: 50,     // state persistence debounce (default: 10)
-} satisfies InteractKitConfig;
+  observers: [new DevObserver()],
+  timeout: 15_000,
+  stateFlushMs: 50,
+});
+
+await app.boot();
 ```
 
-## Documentation
+## API
 
-Full docs at **[docs.interactkit.dev](https://docs.interactkit.dev)**
+### `graph.configure(config)`
 
-| Guide | Description |
-|-------|-------------|
-| [Getting Started](https://docs.interactkit.dev/#/getting-started) | First entity, boot, parent-child composition, config |
-| [Entities](https://docs.interactkit.dev/#/entities) | Decorators, components, refs, streams, validation |
-| [Hooks](https://docs.interactkit.dev/#/hooks) | Init, tick, and extension hooks |
-| [LLM Entities](https://docs.interactkit.dev/#/llm) | AI-powered entities with LangChain, tools, execution triggers |
-| [Infrastructure](https://docs.interactkit.dev/#/infrastructure) | Database, pubsub, observer adapters, config |
-| [Deployment](https://docs.interactkit.dev/#/deployment) | Deployment planning, scaling, co-location rules |
-| [Extensions](https://docs.interactkit.dev/#/extensions) | Building custom hook types, runners, and extension packages |
+Creates a configured app instance. Config options:
 
-## Quick reference
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `database` | `DatabaseAdapter` | required | State persistence (get/set/delete) |
+| `vectorStore` | `VectorStoreAdapter` | `undefined` | Vector store for long-term-memory entities |
+| `observers` | `ObserverAdapter[]` | `[]` | Event observability |
+| `timeout` | `number` | `30000` | Event bus request timeout (ms) |
+| `stateFlushMs` | `number` | `50` | State persistence debounce (ms) |
+| `handlers` | `HandlerMap` | `{}` | Additional tool handlers (override src-defined ones) |
 
-### Structural decorators
+### `app.boot()`
+
+Boots the entity graph: creates instances, hydrates state from database, wires refs/components, initializes LLM executors, calls init handlers (bottom-up).
 
 ```typescript
-@Entity({ type?, description?, persona?, detached? })                // class
-@State({ description })                                              // property (must be private)
-@Component()                                                         // property (must be private, use Remote<T>)
-@Ref()                                                               // property (must be private, use Remote<T>)
-@Tool({ description })                                               // method (public async)
-@Hook(Runner)                                                        // method
-@Configurable({ label, group?, enum?, validation?, ... })            // property
-@Secret()                                                            // property
-@Stream()                                                            // property (EntityStream<T>)
-@Describe()                                                          // method
-Remote<T>                                                            // type -- async proxy for distributed components/refs
+await app.boot();
+await app.boot({ strict: true });  // throws if any tool is missing a handler
 ```
 
-### LLM decorators
+### `app.serve(config)`
 
-Used on classes extending `LLMEntity` (which extends `BaseEntity`):
+Auto-exposes all tools as HTTP endpoints + WebSocket for streams:
 
 ```typescript
-@SystemPrompt()                                 // property/getter -- system prompt
-@Executor()                                     // property -- LangChain BaseChatModel
-@Tool({ description })                          // method -- LLM-callable tool
+await app.serve({
+  http: {
+    port: 3000,
+    cors: true,
+    expose: ['agent.*'],          // whitelist
+    exclude: ['agent.brain.*'],   // blacklist
+    routes: {
+      'POST /ask': 'agent.ask',   // custom alias
+      'GET /health': async () => ({ ok: true }),  // custom handler
+    },
+  },
+  ws: { port: 3001 },
+});
 ```
 
-### Built-in hooks
+Built-in endpoints:
+- `GET /schema` -- entity tree for remote discovery
+- `POST /_rpc` -- single RPC endpoint (`{ entity, method, input }`)
 
-| Namespace | Runner config | Trigger |
-|-----------|--------------|---------|
-| `Init` | `Init.Runner()` | Once on boot |
-| `Tick` | `Tick.Runner({ intervalMs })` | Fixed interval |
+#### Multi-tenant via `tenantFrom`
 
-### Extension hooks
+```typescript
+await app.serve({
+  http: {
+    port: 3000,
+    tenantFrom: (req) => req.headers['x-user-id'],  // sync or async
+    shared: ['KnowledgeBase'],
+    maxTenants: 1000,
+    tenantIdleMs: 300_000,
+  },
+});
+```
 
-| Package | Namespace | Runner config |
-|---------|-----------|--------------|
-| `@interactkit/cron` | `Cron` | `Cron.Runner({ expression: '...' })` |
-| `@interactkit/http` | `HttpRequest` | `HttpRequest.Runner({ path: '/' })` |
-| `@interactkit/websocket` | `WsMessage`, `WsConnection` | `WsMessage.Runner()` |
+Each request is routed to an isolated tenant instance. `tenantFrom` can be async (JWT, DB lookup). No tenant = parent app. LRU eviction for idle tenants. WebSocket: `ws://host/tenantId/streams/...`.
 
-### Adapters shipped with SDK
+### `app.call(entityPath, method, input?)`
+
+Call any entity method programmatically:
+
+```typescript
+const answer = await app.call('agent', 'agent.ask', { question: 'hello' });
+```
+
+Or use the typed proxy:
+
+```typescript
+const answer = await app.agent.ask({ question: 'hello' });
+```
+
+### `app.instance(tenantId)`
+
+Create an isolated tenant instance with independent state:
+
+```typescript
+const alice = await app.instance('alice');
+const bob = await app.instance('bob');
+
+await alice.agent.ask({ question: 'hi' });  // isolated state
+await bob.agent.ask({ question: 'hi' });    // isolated state
+```
+
+### `app.on(entityType, method, listener)`
+
+Subscribe to entity method calls:
+
+```typescript
+app.on('agent', 'ask', (input, result) => {
+  console.log('ask called with', input, 'returned', result);
+});
+```
+
+### `app.onStream(entityPath, streamName, fn)`
+
+Subscribe to entity streams:
+
+```typescript
+app.onStream('agent.mouth', 'transcript', (text) => {
+  console.log('Spoken:', text);
+});
+```
+
+### `app.stop()`
+
+Flush state and shut down:
+
+```typescript
+await app.stop();
+```
+
+## Testing
+
+```typescript
+import { graph } from '../interactkit/.generated/graph.js';
+import { createTestApp } from '@interactkit/sdk/test';
+
+const app = await createTestApp(graph, {
+  handlers: {
+    Memory: { store: async (e, i) => 'mock-id' },
+  },
+  state: {
+    agent: { count: 10 },
+  },
+});
+
+const result = await app.agent.ask({ question: 'test' });
+await app.stop();
+```
+
+`createTestApp` boots with an in-memory database. Override handlers and pre-seed state for unit tests.
+
+## Adapters
+
+### Shipped with SDK
 
 | Adapter | Type | Notes |
 |---------|------|-------|
-| `InProcessBusAdapter` | Local pub/sub | Default, zero-latency, pass by reference |
-| `BaseObserver` | Observer base class | Extend for custom observers |
-| `ConsoleObserver` | Observer | Plain stdout/stderr |
+| `InProcessBusAdapter` | Local pub/sub | Default, zero-latency |
 | `DevObserver` | Observer | Colored dev-mode output |
-| `RemotePubSubAdapter` | Remote pub/sub base | Extend for custom remote adapters |
+| `ConsoleObserver` | Observer | Plain stdout/stderr |
 
-### Adapter interfaces
+### Extension packages
 
-| Interface | Purpose |
-|-----------|---------|
-| `DatabaseAdapter` | State persistence (get/set/delete) |
-| `PubSubAdapter` | Message transport base class |
-| `LocalPubSubAdapter` | In-process pub/sub base |
-| `ObserverAdapter` | Event observability |
+| Package | Adapter | Description |
+|---------|---------|-------------|
+| `@interactkit/prisma` | `PrismaDatabaseAdapter` | Prisma-backed state persistence |
+| `@interactkit/redis` | `RedisPubSubAdapter` | Redis pub/sub for distributed entities |
+| `@interactkit/chromadb` | `ChromaDBVectorStoreAdapter` | ChromaDB with built-in embeddings |
+| `@interactkit/pinecone` | `PineconeVectorStoreAdapter` | Pinecone (bring your own embeddings) |
+| `@interactkit/langchain` | `LangChainVectorStoreAdapter` | Wraps any LangChain VectorStore |
 
-### Extension adapters
+## Long-Term Memory Entities
 
-| Package | Adapter | Constructor config |
-|---------|---------|-------------------|
-| `@interactkit/redis` | `RedisPubSubAdapter` | `{ host, port }` or `{ url }` |
-| `@interactkit/prisma` | `PrismaDatabaseAdapter` | `{ url }` |
+Entities with `type="long-term-memory"` get auto-registered handlers when `vectorStore` is configured. No handler code needed.
 
-### Extension ecosystem
+```xml
+<entity name="Memory" type="long-term-memory" description="Semantic memory" />
+```
 
-| Package | What it provides |
-|---------|-----------------|
-| `@interactkit/redis` | `RedisPubSubAdapter` -- horizontal scaling via Redis |
-| `@interactkit/prisma` | `PrismaDatabaseAdapter` -- Prisma-backed state persistence |
-| `@interactkit/cron` | `Cron` hook -- cron scheduling via node-cron |
-| `@interactkit/http` | `HttpRequest` hook -- HTTP server |
-| `@interactkit/websocket` | `WsMessage`, `WsConnection` hooks -- WebSocket server |
+Auto-generated tools: `memorize`, `recall`, `forget`. When attached as a component to an LLM entity, tools become LLM-visible (`memory_memorize`, `memory_recall`, `memory_forget`).
 
-### Build-time validation
+## Adapter Interfaces
 
-The codegen catches at build time:
-- State property missing `@State` or not `private`
-- Stream property not `private`
-- Component/ref property not `private`
-- Public async method missing `@Tool`
-- Unknown component entity types
-- `@Ref` targets not reachable as siblings
-- `LLMEntity` subclass missing `@Executor`
-- `@Tool` without description or not public async
-- Orphaned LLM decorators without `extends LLMEntity`
-- All `@Component`/`@Ref` missing `Remote<T>` (build enforces this on every component and ref)
-- Remote `@Hook` input missing `Remote<T>`
+```typescript
+interface VectorStoreAdapter {
+  add(docs: VectorDocument[]): Promise<string[]>;
+  search(query: string, k: number, filter?: Record<string, unknown>): Promise<ScoredDocument[]>;
+  delete(params: DeleteParams): Promise<void>;
+}
+
+interface DatabaseAdapter {
+  get(id: string): Promise<Record<string, unknown> | null>;
+  set(id: string, state: Record<string, unknown>): Promise<void>;
+  delete(id: string): Promise<void>;
+}
+
+interface ObserverAdapter {
+  event(envelope: EventEnvelope): void;
+  error(envelope: EventEnvelope, error: Error): void;
+  on(event: string, handler: Function): void;
+  off(event: string, handler: Function): void;
+  setState(id: string, field: string, value: unknown): void;
+  getState(id: string, field: string): Promise<unknown>;
+  callMethod(id: string, method: string, payload?: unknown): Promise<unknown>;
+  getEntityTree(): Promise<EntityTree>;
+}
+```

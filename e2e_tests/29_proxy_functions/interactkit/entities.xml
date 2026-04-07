@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graph xmlns="https://interactkit.dev/schema/v1" version="1" root="Agent">
+  <entity name="Agent" type="base" description="Agent that delegates to worker">
+    <describe>Agent</describe>
+    <components>
+      <component name="worker" entity="Worker" />
+    </components>
+    <tools>
+      <tool name="runAll" description="Run all proxy tests">
+        <input />
+        <output type="object">
+          <param name="results" type="array" items="string" />
+        </output>
+      </tool>
+    </tools>
+  </entity>
+  <entity name="Worker" type="base" description="Worker that returns complex values">
+    <describe>Worker</describe>
+    <state>
+      <field name="data" type="array" description="Stored data" items="string" />
+    </state>
+    <tools>
+      <tool name="store" description="Store a text item">
+        <input><param name="text" type="string" /></input>
+        <output type="object">
+          <param name="stored" type="boolean" />
+          <param name="total" type="number" />
+        </output>
+      </tool>
+      <tool name="getData" description="Get stored data">
+        <input />
+        <output type="object">
+          <param name="items" type="array" items="string" />
+          <param name="count" type="number" />
+        </output>
+      </tool>
+      <tool name="add" description="Add two numbers">
+        <input>
+          <param name="a" type="number" />
+          <param name="b" type="number" />
+        </input>
+        <output type="number" />
+      </tool>
+      <tool name="counterOps" description="Counter operations">
+        <input><param name="op" type="string" /></input>
+        <output type="number" />
+      </tool>
+      <tool name="nestedOps" description="Nested object operations">
+        <input>
+          <param name="op" type="string" />
+          <param name="item" type="string" />
+        </input>
+        <output type="object">
+          <param name="value" type="number" />
+          <param name="items" type="array" items="string" />
+        </output>
+      </tool>
+      <tool name="curried" description="Curried string concat">
+        <input>
+          <param name="prefix" type="string" />
+          <param name="suffix" type="string" />
+        </input>
+        <output type="string" />
+      </tool>
+      <tool name="getPid" description="Get process pid">
+        <input />
+        <output type="number" />
+      </tool>
+    </tools>
+  </entity>
+</graph>

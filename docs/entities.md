@@ -1,310 +1,321 @@
 # Entities
 
-An entity is a class that does one thing. A Browser browses. A Memory stores things. A Mailer sends emails.
+An entity is a node in your application graph. It has state, tools, and optionally children (components) or sibling references (refs). Everything is defined in `interactkit/entities.xml`.
 
-Each entity has:
-- **Describe:** a method (`@Describe()`) that returns a string describing the entity's current state
-- **State:** data that gets saved automatically
-- **Tools:** methods that other entities (or an LLM) can call
-- **Children:** other entities it contains
-- **Hooks:** reactions to events, timers, or startup
+## Entity Types
+
+| Type | XML | Purpose |
+|------|-----|---------|
+| Base | `type="base"` | Standard entity with state and tools |
+| LLM | `type="llm"` | Entity with an LLM executor, gets `invoke()` automatically |
+| Long-Term Memory | `type="long-term-memory"` | Vector store entity with auto-generated memorize/recall/forget tools |
+| MCP | `type="mcp"` | Model Context Protocol server (planned) |
 
 ## Defining an Entity
 
-```typescript
-import { Entity, BaseEntity, State, Tool } from '@interactkit/sdk';
-
-@Entity()
-class Browser extends BaseEntity {
-  @State({ description: 'Search history' })
-  private history: string[] = [];
-
-  @Tool({ description: 'Search the web' })
-  async search(input: { query: string }): Promise<string[]> {
-    this.history.push(input.query);
-    return await doSearch(input.query);
-  }
-}
-```
-
-Options you can pass to `@Entity()`:
-
-| Option | What it does |
-|--------|-------------|
-| `description` | Human-readable description |
-| `detached` | `true` to use remote pubsub from config (can run on a separate machine) |
-
----
-
-## Describing an Entity (`@Describe()`)
-
-Every entity should have a `@Describe()` method. It returns a string that tells sibling entities and LLMs what this entity is and what it can do right now. For `LLMEntity` subclasses, the descriptions from the entity and its refs are automatically composed into the LLM's system prompt.
-
-```typescript
-import { Entity, BaseEntity, State, Describe, Tool } from '@interactkit/sdk';
-
-@Entity()
-class Memory extends BaseEntity {
-  @State({ description: 'Stored entries' })
-  private entries: string[] = [];
-
-  @Describe()
-  describe() {
-    return `A memory store with ${this.entries.length} entries.
-Currently remembering: ${this.entries.slice(-3).join(', ') || 'nothing yet'}.`;
-  }
-
-  @Tool({ description: 'Store a new entry' })
-  async store(input: { text: string }) {
-    this.entries.push(input.text);
-  }
-}
-```
-
-This is one of InteractKit's key ideas: entities describe themselves, and LLMs receive a system prompt that reflects the **current** state of the world -- not a static string written at development time.
-
----
-
-## State (`@State`)
-
-Any property with `@State()` gets saved to the database automatically.
-
-```typescript
-@State({ description: 'Bot name' })
-private name = 'Atlas';
-
-@State({ description: 'Message count' })
-private messageCount = 0;
-```
-
-### Editable in a UI (`@Configurable`)
-
-```typescript
-@State({ description: 'Bot name' })
-@Configurable({ label: 'Bot Name', group: 'General' })
-private name = 'Atlas';
-```
-
-### Secrets (`@Secret`)
-
-Masked in UIs and logs:
-
-```typescript
-@State({ description: 'API key' })
-@Secret()
-private apiKey!: string;
-```
-
-### Validation
-
-Use the `validate` option on `@State()` with a Zod schema (`z` is re-exported from the SDK):
-
-```typescript
-@State({ description: 'Username', validate: z.string().min(3).max(50) })
-private username!: string;
+```xml
+<entity name="Memory" type="base" description="Key-value memory store">
+  <describe>Memory -- {{entries.length}} entries (capacity: {{capacity}})</describe>
+  <state>
+    <field name="capacity" type="number" description="Max entries" default="100" />
+    <fieldGroup name="entries" key="id">
+      <field name="text" type="string" description="Entry content" />
+    </fieldGroup>
+  </state>
+  <tools>
+    <autotool name="store" on="entries" op="create" peerVisible="true" />
+    <autotool name="search" on="entries" op="search" key="query" peerVisible="true" />
+    <autotool name="getAll" on="entries" op="list" peerVisible="true" />
+    <autotool name="count" on="entries" op="count" peerVisible="true" />
+  </tools>
+</entity>
 ```
 
 ---
 
-## Tools (`@Tool`)
+## Describe Templates
 
-Tools are the entity's public API. Every public method needs `@Tool`:
+The `<describe>` element provides a dynamic description of the entity. It supports `{{fieldName}}` interpolation with entity state. On LLM entities, describe output feeds into the system prompt.
 
-```typescript
-@Tool({ description: 'Send an email' })
-async send(input: { to: string; body: string }): Promise<string> {
-  return 'Sent!';
-}
-```
-
-The description tells other entities (and LLMs) what the tool does. If you forget `@Tool` on a public method, the build fails.
-
-On an `LLMEntity`, own `@Tool` methods are external-facing by default -- other entities can call them, but the LLM cannot see them during its thinking loop. To make a tool visible to the LLM, add `llmCallable: true`:
-
-```typescript
-@Tool({ description: 'Move in a direction', llmCallable: true })
-async move(input: { direction: string }): Promise<string> { /* ... */ }
-```
-
-Tools on `@Ref` and `@Component` children are always visible to the LLM -- no `llmCallable` needed.
-
----
-
-## Components (`@Component`): Children
-
-An entity can contain other entities as children. All `@Component` and `@Ref` properties require `Remote<T>` -- the build enforces this:
-
-```typescript
-import { Entity, BaseEntity, Component, type Remote } from '@interactkit/sdk';
-
-@Entity()
-class Agent extends BaseEntity {
-  @Component() private brain!: Remote<Brain>;
-  @Component() private memory!: Remote<Memory>;
-  @Component() private browser!: Remote<Browser>;
-}
-```
-
-Call child methods like normal functions. InteractKit routes them through an event bus behind the scenes -- same process, different process, different machine. Same code either way:
-
-```typescript
-const results = await this.browser.search({ query: 'restaurants' });
+```xml
+<describe>Sensor "{{label}}" -- {{readingCount}} readings</describe>
 ```
 
 ---
 
-## Refs (`@Ref`): Sibling References
+## State
 
-Sometimes a child needs to talk to a sibling. Use `@Ref()`:
+### Fields
 
-```typescript
-import { Entity, BaseEntity, Component, Ref, Tool, type Remote } from '@interactkit/sdk';
+Simple state fields with type, default, and optional validation:
 
-@Entity()
-class Agent extends BaseEntity {
-  @Component() private brain!: Remote<Brain>;
-  @Component() private memory!: Remote<Memory>;
-}
-
-@Entity()
-class Brain extends BaseEntity {
-  @Ref() private memory!: Remote<Memory>;  // points to sibling
-
-  @Tool({ description: 'Remember something' })
-  async remember(input: { text: string }) {
-    await this.memory.store({ text: input.text });
-  }
-}
+```xml
+<state>
+  <field name="name" type="string" description="Agent name" default="Atlas">
+    <validate min-length="2" max-length="50" />
+  </field>
+  <field name="count" type="number" description="Message count" default="0">
+    <validate min="0" max="10000" />
+  </field>
+  <field name="tags" type="array" description="Tags" items="string" />
+</state>
 ```
 
-The build verifies the ref target exists as a sibling.
+| Attribute | Values |
+|-----------|--------|
+| `type` | `string`, `number`, `boolean`, `array`, `object` |
+| `default` | Initial value |
+| `items` | Array item type (when `type="array"`) |
+| `configurable` | `"true"` to make editable in UI |
+| `configurable-label` | Display label |
+| `configurable-group` | UI grouping |
+| `secret` | `"true"` to mask in UIs and logs |
 
-Refs are also how multiple `LLMEntity` instances share a single conversation history via `ConversationContext`. See [Shared Conversation Context](./llm.md#shared-conversation-context).
+### Field Groups
+
+Collections of structured items with an auto-generated `id` field. Used with autotools for zero-code CRUD:
+
+```xml
+<fieldGroup name="notes" key="id">
+  <field name="title" type="string" description="Note title" />
+  <field name="content" type="string" description="Note content" />
+  <field name="tags" type="array" description="Tags" items="string" />
+</fieldGroup>
+```
+
+Each item in a fieldGroup automatically gets an `id`, `createdAt`, and `updatedAt` field.
 
 ---
 
-## Streams (`EntityStream`): Child-to-Parent Data
+## Tools
 
-Streams let a child push data up to its parent in real time. They work both in-process and across Redis:
+Tools are the entity's public API. Define them with explicit input/output schemas:
 
-```typescript
-import { Entity, BaseEntity, Component, Stream, Hook, Init, Tick, type Remote } from '@interactkit/sdk';
-import type { EntityStream } from '@interactkit/sdk';
-
-@Entity({ detached: true })
-class Sensor extends BaseEntity {
-  @Stream() readings!: EntityStream<number>;
-
-  @Hook(Tick.Runner({ intervalMs: 1000 }))
-  async onTick(input: Remote<Tick.Input>) {
-    this.readings.emit(Math.random() * 100);
-  }
-}
-
-@Entity()
-class Monitor extends BaseEntity {
-  @Component() private sensor!: Remote<Sensor>;
-
-  @Hook(Init.Runner())
-  async onInit(input: Init.Input) {
-    this.sensor.readings.on('data', (value: unknown) => {
-      console.log('Reading:', value);
-    });
-  }
-}
+```xml
+<tools>
+  <tool name="ask" description="Ask a question" src="tools/ask.ts">
+    <input><param name="question" type="string" /></input>
+    <output type="string" />
+  </tool>
+</tools>
 ```
 
-When child and parent share a process, streams are direct in-memory calls. When the child is `detached`, streams automatically publish via the remote pubsub from config, and the parent subscribes. No code changes needed.
+### The `src` Attribute
+
+Points to a TypeScript file with the handler implementation. The file exports a default async function:
+
+```typescript
+// interactkit/tools/ask.ts
+import type { AgentEntity, AgentAskInput } from '../.generated/types.js';
+
+export default async (entity: AgentEntity, input: AgentAskInput): Promise<string> => {
+  const answer = await entity.components.brain.invoke({ message: input.question });
+  return answer;
+};
+```
+
+The handler receives:
+- `entity` -- the entity instance with typed `state`, `components`, `refs`, `streams`
+- `input` -- the validated input object
+
+### Tools Without `src`
+
+Tools without a `src` attribute on LLM entities automatically route to the LLM's `invoke()` handler. The LLM decides how to respond.
+
+### `peerVisible`
+
+On an LLM entity's refs and components, tools marked `peerVisible="true"` are visible to the LLM during invocation. The LLM can call them as part of its reasoning loop.
+
+```xml
+<tool name="speak" description="Speak a message" peerVisible="true" src="tools/speak.ts">
+  <input><param name="message" type="string" /></input>
+  <output type="void" />
+</tool>
+```
+
+### Autotools
+
+Autotools generate CRUD handlers automatically for fieldGroups. Zero handler code needed:
+
+```xml
+<autotool name="addNote" on="notes" op="create" peerVisible="true" />
+<autotool name="getNote" on="notes" op="read" key="id" peerVisible="true" />
+<autotool name="updateNote" on="notes" op="update" key="id" peerVisible="true" />
+<autotool name="deleteNote" on="notes" op="delete" key="id" peerVisible="true" />
+<autotool name="listNotes" on="notes" op="list" peerVisible="true" />
+<autotool name="searchNotes" on="notes" op="search" key="query" peerVisible="true" />
+<autotool name="countNotes" on="notes" op="count" peerVisible="true" />
+```
+
+| Operation | Behavior |
+|-----------|----------|
+| `create` | Push new item with auto-generated ID + timestamps |
+| `read` | Find item by key field |
+| `update` | Merge input into existing item by key |
+| `delete` | Remove item by key |
+| `list` | Return all items |
+| `search` | Case-insensitive substring search |
+| `count` | Return item count |
 
 ---
 
-## Distributed Entities
+## Components
 
-Add `detached: true` to an entity and it can run on a different machine (using the remote pubsub from `interactkit.config.ts`). `Remote<T>` is required on all `@Component` and `@Ref` properties -- the build enforces this. Every method call, property access, and return value becomes type-safe async:
+Components are child entities. The parent owns them:
 
-```typescript
-import { Entity, BaseEntity, Component, Tool, Hook, Init, type Remote } from '@interactkit/sdk';
-
-@Entity({ detached: true })
-class Worker extends BaseEntity {
-  @Tool({ description: 'Get a callback function' })
-  async getProcessor() {
-    return (data: string) => data.toUpperCase();  // returns a function
-  }
-}
-
-@Entity()
-class Agent extends BaseEntity {
-  @Component() private worker!: Remote<Worker>;
-
-  @Hook(Init.Runner())
-  async onInit() {
-    // Method call across machines -- type-safe
-    const fn = await this.worker.getProcessor();
-
-    // The returned function is a live proxy -- call it across machines
-    const result = await fn('hello');  // "HELLO"
-  }
-}
+```xml
+<entity name="Agent" type="base" description="Root agent">
+  <components>
+    <component name="brain" entity="Brain" />
+    <component name="memory" entity="Memory" />
+    <component name="sensor" entity="Sensor" />
+  </components>
+</entity>
 ```
 
-Everything works as you'd expect:
-- Call methods: `await this.worker.process({ data: 'hello' })`
-- Read properties: `const name = await this.worker.name`
-- Return functions: a function returned from a remote call is still callable
-- Return objects: class instances returned from remote calls keep their methods
+In handlers, access components via `entity.components`:
 
-Run 5 replicas, tasks distribute automatically, state syncs via the remote pubsub. No code changes.
+```typescript
+const answer = await entity.components.brain.invoke({ message: 'hello' });
+await entity.components.memory.store({ text: answer });
+```
+
+---
+
+## Refs
+
+Refs are sibling references -- a child entity referencing another child of the same parent. Used so that LLM entities can see sibling tools:
+
+```xml
+<entity name="Brain" type="llm" description="LLM brain">
+  <executor provider="openai" model="gpt-4o-mini" />
+  <refs>
+    <ref name="memory" entity="Memory" />
+    <ref name="mouth" entity="Mouth" />
+  </refs>
+</entity>
+```
+
+The compiler automatically infers `peerVisible` refs -- all siblings of an LLM entity become refs so their `peerVisible` tools are available to the LLM.
+
+In handlers, access refs via `entity.refs`:
+
+```typescript
+await entity.refs.memory.store({ text: 'hello' });
+```
+
+---
+
+## Streams
+
+Streams let entities push real-time data to parents or WebSocket clients:
+
+```xml
+<streams>
+  <stream name="readings" type="number" description="Sensor readings" />
+  <stream name="changes" type="object" description="Change events">
+    <param name="type" type="string" />
+    <param name="noteId" type="string" />
+  </stream>
+</streams>
+```
+
+Emit from a handler:
+
+```typescript
+entity.streams.transcript.emit('Hello world');
+```
+
+Subscribe from a parent handler:
+
+```typescript
+// In the parent's init handler
+entity.components.sensor.readings.on('data', (value) => {
+  console.log('Reading:', value);
+});
+```
+
+Streams are also exposed as WebSocket endpoints via `app.serve()`.
+
+---
+
+## Secrets
+
+Mark a field as secret to mask it in UIs and logs:
+
+```xml
+<field name="apiKey" type="string" description="API key" secret="true" />
+```
+
+Access in handlers via `entity.secrets`:
+
+```typescript
+const key = entity.secrets.apiKey;
+```
+
+---
+
+## Long-Term Memory Entities
+
+Set `type="long-term-memory"` on an entity to get auto-generated semantic memory tools. No handler code needed.
+
+```xml
+<entity name="Memory" type="long-term-memory" description="Semantic memory" />
+```
+
+The compiler auto-expands this into three tools:
+
+| Tool | Description |
+|------|-------------|
+| `memorize` | Store a document in the vector store |
+| `recall` | Semantic search over stored documents |
+| `forget` | Delete documents by ID or filter |
+
+Typed signatures are auto-generated (`MemoryMemorizeInput`, `MemoryRecallInput`, `MemoryForgetInput`).
+
+At runtime, handlers are auto-registered when `vectorStore` is present in `graph.configure()`:
+
+```typescript
+import { ChromaDBVectorStoreAdapter } from '@interactkit/chromadb';
+
+const app = graph.configure({
+  database: db,
+  vectorStore: new ChromaDBVectorStoreAdapter({ collection: 'memory' }),
+});
+```
+
+Works with ChromaDB, Pinecone, and LangChain adapters. State is tenant-isolated via entity ID namespacing.
+
+When attached as a component to an LLM entity, the tools become LLM-visible (`memory_memorize`, `memory_recall`, `memory_forget`):
+
+```xml
+<entity name="Agent" type="llm" description="Agent with memory">
+  <executor provider="openai" model="gpt-4o-mini" />
+  <components>
+    <component name="memory" entity="Memory" />
+  </components>
+</entity>
+
+<entity name="Memory" type="long-term-memory" description="Semantic memory" />
+```
 
 ---
 
 ## Entity IDs
 
-Every entity gets an auto-generated ID scoped to its parent:
+Every entity gets a dot-separated path ID scoped to its parent:
 
 ```
-agent:a1b2c3
-agent:a1b2c3/brain:d4e5f6
-agent:a1b2c3/memory:g7h8i9
+agent
+agent.brain
+agent.memory
+agent.brain  (if brain has children: agent.brain.subchild)
 ```
-
-Access it with `this.id`. You never set IDs manually.
-
----
-
-## Visibility Rules
-
-- **Public:** `@Tool` methods and `@Stream` properties (parents subscribe to child streams)
-- **Private:** State, components, and refs
-
-Entities interact through tools. Parents access child streams through the component proxy (`this.child.streamName.on('data', ...)`).
-
-## Entity Type
-
-When you omit `type` from `@Entity()` (recommended), it's auto-derived from the class name: `PascalCase` to `kebab-case`. For example, `ResearchBrain` becomes `research-brain`.
-
-## No Custom Constructors
-
-`BaseEntity` has a `protected` constructor. You cannot define your own -- the build enforces this. Use `@Hook(Init.Runner())` for initialization logic.
-
----
-
-## LLM Entities
-
-If an entity needs an LLM brain, extend `LLMEntity` instead of `BaseEntity`. Every `LLMEntity` runs a **thinking loop** -- a continuous inner monologue where the LLM thinks, uses tools, and responds to tasks. `invoke()` pushes tasks to the loop; the LLM uses `respond()` to return results. Between tasks, the LLM can think autonomously, manage memory, or sleep.
-
-Key points:
-- Own `@Tool` methods are external-only by default. Use `llmCallable: true` to expose to the LLM.
-- `@Ref` and `@Component` tools are always LLM-visible -- so capabilities (memory, browser) should be components.
-- Use `@ThinkingLoop(options)` to configure interval, timeouts, and get a runtime handle.
-- Set `alwaysThink: true` for autonomous agents that think even without tasks.
-
-Full details in [LLM Entities](./llm.md).
 
 ---
 
 ## What's Next?
 
-- [LLM Entities](./llm.md): give an entity an LLM brain
-- [Hooks](./hooks.md): make entities react to timers, schedules, and events
-- [Infrastructure](./infrastructure.md): database, pub/sub, and observer adapters
+- [LLM Entities](llm.md) -- executor config, invoke, tool visibility
+- [Hooks](hooks.md) -- init handlers
+- [Infrastructure](infrastructure.md) -- database, observers

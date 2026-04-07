@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graph xmlns="https://interactkit.dev/schema/v1" version="1" root="Orchestrator">
+  <entity name="Orchestrator" type="base" description="Top-level orchestrator">
+    <describe>Orchestrator</describe>
+    <components>
+      <component name="teamA" entity="Team" />
+      <component name="teamB" entity="Team" />
+    </components>
+  </entity>
+  <entity name="Team" type="base" description="Team with worker and cache">
+    <describe>Team</describe>
+    <components>
+      <component name="worker" entity="Worker" />
+      <component name="cache" entity="Cache" />
+    </components>
+    <tools>
+      <tool name="run" description="Run a task through the worker">
+        <input>
+          <param name="key" type="string" />
+          <param name="data" type="string" />
+        </input>
+        <output type="object">
+          <param name="result" type="string" />
+          <param name="source" type="string" />
+        </output>
+      </tool>
+      <tool name="cacheSize" description="Check cache size">
+        <input />
+        <output type="object">
+          <param name="size" type="number" />
+        </output>
+      </tool>
+      <tool name="workerStats" description="Get worker stats">
+        <input />
+        <output type="object">
+          <param name="count" type="number" />
+        </output>
+      </tool>
+    </tools>
+  </entity>
+  <entity name="Worker" type="base" description="Worker that processes tasks using cache">
+    <describe>Worker: {{processed}} processed</describe>
+    <state>
+      <field name="processed" type="number" description="Processed count" default="0" />
+    </state>
+    <refs>
+      <ref name="cache" entity="Cache" />
+    </refs>
+    <tools>
+      <tool name="process" description="Process a task, using cache for dedup">
+        <input>
+          <param name="key" type="string" />
+          <param name="data" type="string" />
+        </input>
+        <output type="object">
+          <param name="result" type="string" />
+          <param name="source" type="string" />
+        </output>
+      </tool>
+      <tool name="getProcessed" description="Get processed count">
+        <input />
+        <output type="object">
+          <param name="count" type="number" />
+        </output>
+      </tool>
+    </tools>
+  </entity>
+  <entity name="Cache" type="base" description="Cache store">
+    <describe>Cache: {{size}} entries</describe>
+    <state>
+      <field name="store" type="record" values="string" description="Cache store" />
+      <field name="size" type="number" description="Cache size" default="0" />
+    </state>
+    <tools>
+      <tool name="get" description="Get a cached value">
+        <input><param name="key" type="string" /></input>
+        <output type="object">
+          <param name="hit" type="boolean" />
+          <param name="value" type="string" />
+        </output>
+      </tool>
+      <tool name="put" description="Put a value in cache">
+        <input>
+          <param name="key" type="string" />
+          <param name="value" type="string" />
+        </input>
+        <output type="object">
+          <param name="stored" type="boolean" />
+        </output>
+      </tool>
+      <tool name="getSize" description="Get cache size">
+        <input />
+        <output type="object">
+          <param name="size" type="number" />
+        </output>
+      </tool>
+    </tools>
+  </entity>
+</graph>

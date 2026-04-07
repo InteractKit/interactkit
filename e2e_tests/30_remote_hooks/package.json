@@ -1,12 +1,15 @@
 {
   "name": "e2e-30-remote-hooks",
+  "private": true,
   "type": "module",
   "dependencies": {
     "@interactkit/sdk": "workspace:*",
-    "@interactkit/http": "workspace:*",
+    "dotenv": "^16.4.0",
+    "reflect-metadata": "^0.2.2"
+  },
+  "devDependencies": {
+    "@interactkit/cli": "workspace:*",
     "@types/node": "^25.5.0",
-    "reflect-metadata": "^0.2.2",
-    "dotenv": "^16.4.7",
-    "@interactkit/redis": "workspace:*"
+    "typescript": "^5.5.0"
   }
 }

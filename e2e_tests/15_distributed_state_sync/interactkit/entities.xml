@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graph xmlns="https://interactkit.dev/schema/v1" version="1" root="Agent">
+  <entity name="Agent" type="base" description="Agent">
+    <components><component name="counter" entity="Counter" /></components>
+  </entity>
+  <entity name="Counter" type="base" description="Counter">
+    <state>
+      <field name="value" type="number" description="Value" default="0" />
+      <field name="history" type="array" description="History" items="number" />
+    </state>
+    <tools>
+      <tool name="increment" description="Increment">
+        <input><param name="by" type="number" /></input>
+        <output type="number" />
+      </tool>
+      <tool name="get" description="Get">
+        <input />
+        <output type="object">
+          <param name="value" type="number" />
+          <param name="historyLen" type="number" />
+        </output>
+      </tool>
+      <tool name="getHistory" description="Get history">
+        <input />
+        <output type="array" items="number" />
+      </tool>
+    </tools>
+  </entity>
+</graph>

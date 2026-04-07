@@ -11,10 +11,9 @@
     "db:push": "prisma db push"
   },
   "dependencies": {
-    "@interactkit/cli": "^0.2.0",
-    "@interactkit/observer": "^0.2.0",
-    "@interactkit/prisma": "^0.2.0",
-    "@interactkit/sdk": "^0.2.0",
+    "@interactkit/cli": "^0.3.0",
+    "@interactkit/prisma": "^0.3.0",
+    "@interactkit/sdk": "^0.3.0",
     "@langchain/openai": "^1.4.1",
     "@prisma/client": "^6.0.0",
     "prisma": "^6.0.0",
@@ -22,7 +21,6 @@
   },
   "devDependencies": {
     "@interactkit/cli": "workspace:*",
-    "@interactkit/observer": "workspace:*",
     "@interactkit/prisma": "workspace:*",
     "@interactkit/sdk": "workspace:*",
     "@types/node": "^25.5.0",

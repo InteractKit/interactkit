@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graph xmlns="https://interactkit.dev/schema/v1" version="1" root="Agent">
+  <entity name="Agent" type="base" description="Agent that distributes tasks to Worker">
+    <describe>Agent</describe>
+    <components>
+      <component name="worker" entity="Worker" />
+    </components>
+  </entity>
+  <entity name="Worker" type="base" description="Worker that processes tasks">
+    <describe>Worker: {{handled}} handled</describe>
+    <state>
+      <field name="handled" type="number" description="handled count" default="0" />
+    </state>
+    <tools>
+      <tool name="doWork" description="Do work">
+        <input><param name="task" type="string" /></input>
+        <output type="object">
+          <param name="task" type="string" />
+          <param name="n" type="number" />
+        </output>
+      </tool>
+      <tool name="stats" description="Stats">
+        <input />
+        <output type="object">
+          <param name="handled" type="number" />
+        </output>
+      </tool>
+    </tools>
+  </entity>
+</graph>

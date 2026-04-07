@@ -3,6 +3,6 @@
   "private": true,
   "type": "module",
   "scripts": { "build": "interactkit build --root=src/world:World" },
-  "dependencies": { "@interactkit/sdk": "workspace:*", "@interactkit/redis": "workspace:*", "reflect-metadata": "^0.2.2" },
+  "dependencies": { "@interactkit/sdk": "workspace:*", "dotenv": "^16.4.0", "reflect-metadata": "^0.2.2" },
   "devDependencies": { "@interactkit/cli": "workspace:*", "@types/node": "^25.5.0", "typescript": "^5.5.0" }
 }

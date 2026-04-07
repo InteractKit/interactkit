@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graph xmlns="https://interactkit.dev/schema/v1" version="1" root="Agent">
+  <entity name="Agent" type="base" description="Agent">
+    <components>
+      <component name="svcA" entity="ServiceA" />
+      <component name="svcB" entity="ServiceB" />
+    </components>
+  </entity>
+  <entity name="ServiceA" type="base" description="Service A">
+    <state>
+      <field name="calls" type="number" description="Call count" default="0" />
+    </state>
+    <tools>
+      <tool name="processA" description="Process A">
+        <input><param name="data" type="string" /></input>
+        <output type="object">
+          <param name="from" type="string" />
+          <param name="data" type="string" />
+          <param name="callNum" type="number" />
+        </output>
+      </tool>
+      <tool name="statsA" description="Get A stats">
+        <input />
+        <output type="object">
+          <param name="calls" type="number" />
+        </output>
+      </tool>
+    </tools>
+  </entity>
+  <entity name="ServiceB" type="base" description="Service B">
+    <state>
+      <field name="calls" type="number" description="Call count" default="0" />
+    </state>
+    <tools>
+      <tool name="processB" description="Process B">
+        <input><param name="data" type="string" /></input>
+        <output type="object">
+          <param name="from" type="string" />
+          <param name="data" type="string" />
+          <param name="callNum" type="number" />
+        </output>
+      </tool>
+      <tool name="statsB" description="Get B stats">
+        <input />
+        <output type="object">
+          <param name="calls" type="number" />
+        </output>
+      </tool>
+    </tools>
+  </entity>
+</graph>

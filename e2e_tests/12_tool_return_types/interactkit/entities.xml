@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graph xmlns="https://interactkit.dev/schema/v1" version="1" root="Agent">
+  <entity name="Agent" type="base" description="Return types test">
+    <components><component name="tools" entity="Tools" /></components>
+  </entity>
+  <entity name="Tools" type="base" description="Various return types">
+    <tools>
+      <tool name="retString" description="String"><input /><output type="string" /></tool>
+      <tool name="retNumber" description="Number"><input /><output type="number" /></tool>
+      <tool name="retBoolean" description="Boolean"><input /><output type="boolean" /></tool>
+      <tool name="retNull" description="Null"><input /><output type="object" /></tool>
+      <tool name="retUndefined" description="Undefined"><input /><output type="object" /></tool>
+      <tool name="retObject" description="Object"><input /><output type="object"><param name="a" type="number" /></output></tool>
+      <tool name="retArray" description="Array"><input /><output type="array" items="object" /></tool>
+      <tool name="retEmpty" description="Empty"><input /><output type="object" /></tool>
+      <tool name="retLarge" description="Large"><input /><output type="object"><param name="items" type="array" items="object" /></output></tool>
+    </tools>
+  </entity>
+</graph>

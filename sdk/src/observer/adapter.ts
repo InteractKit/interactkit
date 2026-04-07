@@ -1,5 +1,7 @@
 import type { EventEnvelope } from '../events/types.js';
-import type { EntityTree } from '../entity/wrappers/types.js';
+import type { EntityNode } from '../runtime.js';
+
+type EntityTree = EntityNode;
 
 export interface ObserverAdapter {
   event(envelope: EventEnvelope): void;

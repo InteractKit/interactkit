@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graph xmlns="https://interactkit.dev/schema/v1" version="1" root="World">
+  <entity name="World" type="base" description="Root entity that starts the chain">
+    <describe>World</describe>
+    <components>
+      <component name="stepB" entity="StepB" />
+    </components>
+  </entity>
+  <entity name="StepB" type="base" description="Step B in chain">
+    <describe>StepB</describe>
+    <components>
+      <component name="stepC" entity="StepC" />
+    </components>
+    <tools>
+      <tool name="processB" description="Process B">
+        <input><param name="data" type="string" /></input>
+        <output type="object">
+          <param name="result" type="string" />
+          <param name="step" type="string" />
+          <param name="n" type="number" />
+        </output>
+      </tool>
+    </tools>
+  </entity>
+  <entity name="StepC" type="base" description="Step C in chain">
+    <describe>StepC</describe>
+    <components>
+      <component name="stepD" entity="StepD" />
+    </components>
+    <tools>
+      <tool name="processC" description="Process C">
+        <input><param name="data" type="string" /></input>
+        <output type="object">
+          <param name="result" type="string" />
+          <param name="step" type="string" />
+          <param name="n" type="number" />
+        </output>
+      </tool>
+    </tools>
+  </entity>
+  <entity name="StepD" type="base" description="Step D - final step">
+    <describe>StepD: {{count}}</describe>
+    <state>
+      <field name="count" type="number" description="Count" default="0" />
+    </state>
+    <tools>
+      <tool name="finalize" description="Finalize">
+        <input><param name="data" type="string" /></input>
+        <output type="object">
+          <param name="result" type="string" />
+          <param name="step" type="string" />
+          <param name="n" type="number" />
+        </output>
+      </tool>
+    </tools>
+  </entity>
+</graph>

@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graph xmlns="https://interactkit.dev/schema/v1" version="1" root="Pipeline">
+
+  <entity name="Pipeline" type="base" description="Content pipeline orchestrating research, writing, and editing">
+    <describe>Pipeline with {{jobs.length}} completed jobs</describe>
+    <components>
+      <component name="researcher" entity="Researcher" />
+      <component name="writer" entity="Writer" />
+      <component name="editor" entity="Editor" />
+    </components>
+    <state>
+      <fieldGroup name="jobs" key="id">
+        <field name="topic" type="string" description="Job topic" />
+        <field name="status" type="string" description="Job status" />
+        <field name="output" type="string" description="Final output" />
+      </fieldGroup>
+    </state>
+    <tools>
+      <tool name="process" description="Run the full content pipeline for a topic" src="tools/process.ts">
+        <input><param name="topic" type="string" /></input>
+        <output type="object">
+          <param name="research" type="string" />
+          <param name="draft" type="string" />
+          <param name="final" type="string" />
+        </output>
+      </tool>
+    </tools>
+  </entity>
+
+  <entity name="Researcher" type="llm" description="Researches topics and gathers key facts">
+    <describe>Content researcher</describe>
+    <executor provider="openai" model="gpt-4o-mini" />
+    <tools>
+      <tool name="research" description="Research a topic and return key findings" peerVisible="true">
+        <input><param name="topic" type="string" /></input>
+        <output type="string" />
+      </tool>
+    </tools>
+  </entity>
+
+  <entity name="Writer" type="llm" description="Writes content based on research findings">
+    <describe>Content writer</describe>
+    <executor provider="openai" model="gpt-4o-mini" />
+    <tools>
+      <tool name="write" description="Write an article based on research" peerVisible="true">
+        <input>
+          <param name="topic" type="string" />
+          <param name="research" type="string" />
+        </input>
+        <output type="string" />
+      </tool>
+    </tools>
+  </entity>
+
+  <entity name="Editor" type="llm" description="Edits and polishes written content">
+    <describe>Content editor</describe>
+    <executor provider="openai" model="gpt-4o-mini" />
+    <tools>
+      <tool name="edit" description="Edit and polish a draft article" peerVisible="true">
+        <input><param name="draft" type="string" /></input>
+        <output type="string" />
+      </tool>
+    </tools>
+  </entity>
+
+</graph>

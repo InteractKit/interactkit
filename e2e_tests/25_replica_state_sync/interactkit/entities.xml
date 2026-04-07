@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graph xmlns="https://interactkit.dev/schema/v1" version="1" root="Agent">
+  <entity name="Agent" type="base" description="Agent with ConfigStore">
+    <describe>Agent</describe>
+    <components>
+      <component name="config" entity="ConfigStore" />
+    </components>
+  </entity>
+  <entity name="ConfigStore" type="base" description="Config store with set/get/getAll">
+    <describe>Config: {{settings.length}} settings</describe>
+    <state>
+      <field name="settings" type="array" description="settings" items="object" />
+      <field name="version" type="number" description="version" default="0" />
+    </state>
+    <tools>
+      <tool name="set" description="Set config value">
+        <input>
+          <param name="key" type="string" />
+          <param name="value" type="string" />
+        </input>
+        <output type="object">
+          <param name="version" type="number" />
+        </output>
+      </tool>
+      <tool name="get" description="Get config value">
+        <input><param name="key" type="string" /></input>
+        <output type="object">
+          <param name="value" type="string" />
+          <param name="version" type="number" />
+        </output>
+      </tool>
+      <tool name="getAll" description="Get all">
+        <input />
+        <output type="object">
+          <param name="settings" type="array" items="object" />
+          <param name="version" type="number" />
+        </output>
+      </tool>
+    </tools>
+  </entity>
+</graph>

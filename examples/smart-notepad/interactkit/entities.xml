@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graph xmlns="https://interactkit.dev/schema/v1" version="1" root="Notepad">
+
+  <entity name="Notepad" type="base" description="Smart notepad with AI-powered note management">
+    <components>
+      <component name="noteStore" entity="NoteStore" />
+      <component name="notesManager" entity="NotesManager" />
+    </components>
+  </entity>
+
+  <entity name="NoteStore" type="base" description="Persistent note storage">
+    <describe>Note store with {{notes.length}} notes</describe>
+    <state>
+      <fieldGroup name="notes" key="id">
+        <field name="title" type="string" description="Note title" />
+        <field name="content" type="string" description="Note content" />
+        <field name="tags" type="array" description="Note tags" items="string" />
+      </fieldGroup>
+    </state>
+    <streams>
+      <stream name="changes" type="object" description="Note change events">
+        <param name="type" type="string" />
+        <param name="noteId" type="string" />
+      </stream>
+    </streams>
+    <tools>
+      <autotool name="addNote" on="notes" op="create" peerVisible="true" />
+      <autotool name="getNote" on="notes" op="read" key="id" peerVisible="true" />
+      <autotool name="updateNote" on="notes" op="update" key="id" peerVisible="true" />
+      <autotool name="deleteNote" on="notes" op="delete" key="id" peerVisible="true" />
+      <autotool name="listNotes" on="notes" op="list" peerVisible="true" />
+      <autotool name="searchNotes" on="notes" op="search" key="query" peerVisible="true" />
+    </tools>
+  </entity>
+
+  <entity name="NotesManager" type="llm" description="AI-powered notes assistant that organizes and curates notes">
+    <describe>Notes manager AI assistant</describe>
+    <executor provider="openai" model="gpt-4o-mini" />
+    <refs>
+      <ref name="noteStore" entity="NoteStore" />
+    </refs>
+    <streams>
+      <stream name="notifications" type="object" description="Manager notifications">
+        <param name="type" type="string" />
+        <param name="message" type="string" />
+      </stream>
+    </streams>
+    <tools>
+      <tool name="reviewAllNotes" description="Review and organize all notes">
+        <input />
+        <output type="string" />
+      </tool>
+    </tools>
+  </entity>
+
+</graph>

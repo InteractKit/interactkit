@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graph xmlns="https://interactkit.dev/schema/v1" version="1" root="Agent">
+  <entity name="Agent" type="base" description="Init test">
+    <components><component name="counter" entity="Counter" /></components>
+    <state><field name="initCalls" type="number" description="Init calls" default="0" /></state>
+  </entity>
+  <entity name="Counter" type="base" description="Counter">
+    <state><field name="value" type="number" description="Value" default="0" /></state>
+    <tools>
+      <tool name="increment" description="Increment"><input><param name="by" type="number" /></input><output type="number" /></tool>
+      <tool name="get" description="Get"><input /><output type="number" /></tool>
+    </tools>
+  </entity>
+</graph>

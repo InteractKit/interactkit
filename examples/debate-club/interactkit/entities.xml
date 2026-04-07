@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graph xmlns="https://interactkit.dev/schema/v1" version="1" root="Arena">
+
+  <entity name="Arena" type="base" description="Debate arena orchestrating matches between debaters">
+    <describe>Debate arena with {{debates.length}} completed debates</describe>
+    <components>
+      <component name="debaterFor" entity="Debater" />
+      <component name="debaterAgainst" entity="Debater" />
+      <component name="judge" entity="Judge" />
+    </components>
+    <state>
+      <fieldGroup name="debates" key="id">
+        <field name="topic" type="string" description="Debate topic" />
+        <field name="winner" type="string" description="Winner side" />
+        <field name="rounds" type="number" description="Number of rounds" />
+      </fieldGroup>
+    </state>
+    <tools>
+      <tool name="getDebateCount" description="Get total number of completed debates" src="tools/get-debate-count.ts">
+        <input />
+        <output type="number" />
+      </tool>
+    </tools>
+  </entity>
+
+  <entity name="Debater" type="llm" description="LLM-powered debater that argues a position">
+    <describe>Debater "{{name}}" arguing {{side}} in {{style}} style</describe>
+    <executor provider="openai" model="gpt-4o-mini" />
+    <state>
+      <field name="name" type="string" description="Debater name" default="" />
+      <field name="side" type="string" description="Which side (for/against)" default="" />
+      <field name="style" type="string" description="Debate style" default="balanced" />
+    </state>
+    <tools>
+      <tool name="configure" description="Set debater name, side, and style" src="tools/configure-debater.ts">
+        <input>
+          <param name="name" type="string" />
+          <param name="side" type="string" />
+          <param name="style" type="string" optional="true" />
+        </input>
+        <output type="void" />
+      </tool>
+      <tool name="argue" description="Present an argument on the topic" peerVisible="true">
+        <input>
+          <param name="topic" type="string" />
+          <param name="opponentArgument" type="string" optional="true" />
+        </input>
+        <output type="string" />
+      </tool>
+    </tools>
+  </entity>
+
+  <entity name="Judge" type="llm" description="Impartial judge that scores debate rounds">
+    <describe>Impartial debate judge</describe>
+    <executor provider="openai" model="gpt-4o-mini" />
+    <tools>
+      <tool name="scoreRound" description="Score a round of debate" peerVisible="true">
+        <input>
+          <param name="topic" type="string" />
+          <param name="forArgument" type="string" />
+          <param name="againstArgument" type="string" />
+        </input>
+        <output type="object">
+          <param name="forScore" type="number" />
+          <param name="againstScore" type="number" />
+          <param name="feedback" type="string" />
+        </output>
+      </tool>
+      <tool name="finalVerdict" description="Deliver final verdict after all rounds" peerVisible="true">
+        <input>
+          <param name="topic" type="string" />
+          <param name="rounds" type="array" items="string" />
+        </input>
+        <output type="object">
+          <param name="winner" type="string" />
+          <param name="reasoning" type="string" />
+        </output>
+      </tool>
+    </tools>
+  </entity>
+
+</graph>

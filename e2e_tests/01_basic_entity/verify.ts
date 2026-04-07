@@ -1,28 +1,30 @@
 import { execSync } from 'child_process';
+import { resolve } from 'path';
+
+const cwd = import.meta.dirname;
+const cliDist = resolve(cwd, '../../cli/dist/index.js');
 
 const expected = [
-  // Sequential
   '50 sequential increments: count=50',
   'after +10,+25,-5: count=80',
-  // Parallel
   '20 parallel increments: count=100',
-  // Logging
   '["first","second","third"]',
-  // Return types
   '"nested":{"deep":true}',
   '[{"a":1},{"b":2}]',
   'string: hello world',
   'number: 42',
   'null: null',
-  // Describe
   'Agent: 100 ops, 3 logs',
   'DONE',
 ];
 
 try {
-  execSync('interactkit build --root=src/agent:Agent', { stdio: 'pipe', cwd: import.meta.dirname });
-  const output = execSync('node .interactkit/build/src/_entry.js', {
-    timeout: 15000, cwd: import.meta.dirname,
+  // Compile XML → interactkit/
+  execSync(`node ${cliDist} compile`, { stdio: 'pipe', cwd });
+
+  // Run the app
+  const output = execSync('npx tsx src/app.ts', {
+    timeout: 15000, cwd,
   }).toString();
 
   let pass = 0;

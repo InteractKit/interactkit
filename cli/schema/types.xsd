@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Shared simple types used across all schema fragments.
+-->
+<xs:schema
+  xmlns:xs="http://www.w3.org/2001/XMLSchema"
+  xmlns:ik="https://interactkit.dev/schema/v1"
+  targetNamespace="https://interactkit.dev/schema/v1"
+  elementFormDefault="qualified">
+
+  <!-- Entity type enum -->
+  <xs:simpleType name="entityType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="base" />
+      <xs:enumeration value="llm" />
+      <xs:enumeration value="mcp" />
+      <xs:enumeration value="conversation-context" />
+      <xs:enumeration value="long-term-memory" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Supported field/param types -->
+  <xs:simpleType name="fieldType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="string" />
+      <xs:enumeration value="number" />
+      <xs:enumeration value="boolean" />
+      <xs:enumeration value="array" />
+      <xs:enumeration value="object" />
+      <xs:enumeration value="record" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Known string validation formats -->
+  <xs:simpleType name="stringFormat">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="email" />
+      <xs:enumeration value="url" />
+      <xs:enumeration value="uuid" />
+      <xs:enumeration value="datetime" />
+      <xs:enumeration value="date" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Auto CRUD operation -->
+  <xs:simpleType name="autoOp">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="create" />
+      <xs:enumeration value="read" />
+      <xs:enumeration value="update" />
+      <xs:enumeration value="delete" />
+      <xs:enumeration value="list" />
+      <xs:enumeration value="search" />
+      <xs:enumeration value="count" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- LLM provider enum -->
+  <xs:simpleType name="llmProvider">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="openai" />
+      <xs:enumeration value="anthropic" />
+      <xs:enumeration value="google" />
+      <xs:enumeration value="ollama" />
+    </xs:restriction>
+  </xs:simpleType>
+
+</xs:schema>

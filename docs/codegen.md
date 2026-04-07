@@ -1,88 +1,160 @@
 # Codegen
 
-`interactkit build` reads your entity classes and generates a type registry with Zod schemas, validation, and a deployment plan.
+`interactkit compile` reads your `interactkit/entities.xml` and generates a fully typed TypeScript library in `interactkit/.generated/`.
 
 ## Running It
 
 ```bash
-interactkit build --root=src/entities/agent:Agent
+interactkit compile         # XML -> TypeScript
+interactkit build           # compile + tsc
+interactkit dev             # compile + tsc + run + watch
 ```
 
-This does: codegen, TypeScript compile, boot setup. Outputs to `.interactkit/`
+## The Pipeline
 
-| Flag | Default | What it does |
-|------|---------|-------------|
-| `--root` | (required) | Entry point, `path:ExportName` |
-| `--project`, `-p` | `./tsconfig.json` | Path to tsconfig |
-| `--outDir`, `-o` | `./.interactkit/generated` | Output directory |
+```
+entities.xml
+    |
+    v
+  Parse XML          → intermediate representation
+    |
+    v
+  Expand autotools   → generate CRUD methods for fieldGroups
+    |
+    v
+  Validate           → check refs exist, types match, required fields present
+    |
+    v
+  Fetch remote       → GET /schema from remote entities at compile time
+  schemas
+    |
+    v
+  Infer peerVisible  → auto-add refs for LLM entities to see sibling tools
+  refs
+    |
+    v
+  Generate           → tree.ts, registry.ts, types.ts, graph.ts, handlers.ts
+```
 
 ## What Gets Generated
 
-Everything goes into `.interactkit/generated/type-registry.ts`:
+All output goes to `interactkit/.generated/`:
 
-### Entity Registry
+### `tree.ts` -- Entity Graph
 
-A map of all entities, their state schemas, methods, components, and hooks:
+The full entity tree as a nested JavaScript object. This is the runtime's source of truth for entity structure, state defaults, methods, refs, components, streams, and hooks.
+
+```typescript
+export const entityTree = {
+  id: "agent",
+  type: "agent",
+  className: "Agent",
+  describe: "Agent \"{{name}}\"",
+  state: [{ name: "name", id: "agent.name", default: "Agent" }],
+  components: [
+    { id: "agent.brain", propertyName: "brain", entityType: "brain", entity: { /* ... */ } },
+  ],
+  methods: [
+    { methodName: "ask", eventName: "agent.ask", id: "agent.ask", description: "Ask a question" },
+  ],
+  // ...
+} as const;
+```
+
+### `registry.ts` -- Zod Schemas
+
+Zod schemas for every entity's state and tool inputs/outputs. Used for runtime validation:
 
 ```typescript
 export const Registry = {
   entities: {
-    'browser': {
-      state: z.object({ history: z.array(z.string()) }),
+    'agent': {
+      state: z.object({ name: z.string().min(2).max(50) }),
       methods: {
-        'browser.search': { input: z.object({ query: z.string() }), result: z.array(z.string()) },
-        'browser.read': { input: z.object({ url: z.string() }), result: z.string() },
+        'agent.ask': {
+          input: z.object({ question: z.string() }),
+          result: z.string(),
+        },
       },
-      components: [],
-      hooks: [{ method: 'onInit', type: 'Init' }],
+      components: [{ property: 'brain', type: 'brain' }],
+      refs: [],
     },
   },
 } as const;
 ```
 
-### Configurable Fields
+### `types.ts` -- TypeScript Interfaces
 
-UI schema for `@Configurable` properties:
-
-```typescript
-export const ConfigurableFields = {
-  'brain': [
-    { key: 'personality', label: 'Personality', group: 'Config', type: 'string' },
-  ],
-} as const;
-```
-
-### Type Helpers
+Typed interfaces for every entity, its state, input types, and proxy types:
 
 ```typescript
-export type EntityType = 'agent' | 'brain' | 'browser' | 'memory';
-export type MethodName = 'browser.search' | 'browser.read' | 'memory.store';
+export interface AgentEntity extends Entity {
+  state: AgentState;
+  components: { brain: BrainProxy; memory: MemoryProxy };
+}
+
+export interface AgentProxy {
+  ask(input: { question: string }): Promise<string>;
+  brain: BrainProxy;
+  memory: MemoryProxy;
+}
+
+export interface BrainProxy {
+  invoke(input: { message: string }): Promise<string>;
+}
 ```
 
-### Deployment Plan
+### `graph.ts` -- Runtime Instance
 
-Also generates `deployment.json`. See [Deployment](./deployment.md).
+The configured runtime with typed `configure()` method and typed entity proxies:
+
+```typescript
+export const graph = new InteractKitGraph();
+// graph.configure({ ... }) returns a typed App with:
+// app.agent.ask({ question: '...' })
+// app.brain.invoke({ message: '...' })
+```
+
+### `handlers.ts` -- Handler Imports
+
+Imports all tool handlers from `src` attributes in XML:
+
+```typescript
+import _h0 from '../tools/ask.js';
+import _h1 from '../tools/speak.js';
+
+export const handlers = {
+  Agent: { ask: _h0 },
+  Mouth: { speak: _h1 },
+};
+```
+
+## The `src` Attribute
+
+When a `<tool>` has `src="tools/ask.ts"`, the compiler:
+1. Records the path relative to `interactkit/`
+2. Generates an import in `handlers.ts`
+3. The handler file must export a default function `(entity, input?) => result`
+
+Tools without `src`:
+- **On LLM entities**: automatically route to the LLM invoke handler
+- **Autotools**: get built-in CRUD handlers (no file needed)
+- **Otherwise**: must be provided via `graph.configure({ handlers })` in app.ts
 
 ## Build-time Checks
 
-The build catches mistakes before your app runs:
-
 | Problem | Result |
 |---------|--------|
-| State property missing `@State` | Build fails |
-| Property not `private` | Build fails |
-| `@Component` references unknown entity | Build fails |
-| `@Ref` target doesn't exist as sibling | Build fails |
-| Public method missing `@Tool` | Build fails |
-| `@Hook` without runner or typed parameter | Build fails |
-| `LLMEntity` subclass missing `@Executor` | Build fails |
-| Distributed `@Component`/`@Ref` missing `Remote<T>` | Build fails |
-| Remote `@Hook` input missing `Remote<T>` | Build fails |
-
-The build automatically detects which entities use remote adapters and enforces `Remote<T>` where needed. You don't configure this -- it works from your `@Entity({ pubsub })` declaration. At compile time, `Remote<T>` is stripped so runtime metadata stays correct.
+| Unknown entity in `<component>` or `<ref>` | Compile error |
+| Ref target not a sibling | Compile error |
+| LLM entity missing `<executor>` | Compile error |
+| Tool `src` file not found | Compile error |
+| Duplicate entity names | Compile error |
+| Circular component references | Compile error |
 
 ---
 
 ## What's Next?
 
-- [Deployment](./deployment.md): how to deploy units from the generated plan
+- [Entities](entities.md) -- XML element reference
+- [Testing](testing.md) -- test with generated graph

@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graph xmlns="https://interactkit.dev/schema/v1" version="1" root="World">
+  <entity name="World" type="base" description="World">
+    <components>
+      <component name="db" entity="Db" />
+      <component name="cache" entity="Cache" />
+    </components>
+  </entity>
+  <entity name="Db" type="base" description="Database">
+    <state>
+      <field name="records" type="array" description="records" items="object">
+        <field name="key" type="string" description="key" />
+        <field name="val" type="string" description="value" />
+      </field>
+    </state>
+    <tools>
+      <tool name="set" description="Set">
+        <input><param name="key" type="string" /><param name="val" type="string" /></input>
+        <output type="number" />
+      </tool>
+      <tool name="get" description="Get">
+        <input><param name="key" type="string" /></input>
+        <output type="string" />
+      </tool>
+      <tool name="keys" description="Keys">
+        <input />
+        <output type="array" items="string" />
+      </tool>
+    </tools>
+  </entity>
+  <entity name="Cache" type="base" description="Cache">
+    <state>
+      <field name="store" type="record" values="string" description="store" default="{}" />
+    </state>
+    <tools>
+      <tool name="put" description="Put">
+        <input><param name="key" type="string" /><param name="val" type="string" /></input>
+        <output type="boolean" />
+      </tool>
+      <tool name="fetch" description="Fetch">
+        <input><param name="key" type="string" /></input>
+        <output type="string" />
+      </tool>
+      <tool name="size" description="Size">
+        <input />
+        <output type="number" />
+      </tool>
+    </tools>
+  </entity>
+</graph>

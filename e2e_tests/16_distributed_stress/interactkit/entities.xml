@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graph xmlns="https://interactkit.dev/schema/v1" version="1" root="Agent">
+  <entity name="Agent" type="base" description="Agent">
+    <components><component name="calculator" entity="Calculator" /></components>
+  </entity>
+  <entity name="Calculator" type="base" description="Calculator">
+    <state>
+      <field name="counter" type="number" description="Counter" default="0" />
+    </state>
+    <tools>
+      <tool name="add" description="Add one">
+        <input />
+        <output type="number" />
+      </tool>
+      <tool name="get" description="Get count">
+        <input />
+        <output type="number" />
+      </tool>
+    </tools>
+  </entity>
+</graph>

@@ -8,6 +8,8 @@ node_modules/
 # InteractKit generated
 .interactkit/
 __generated__/
+interactkit/.generated/
+**/interactkit/.generated/
 
 # Environment
 .env

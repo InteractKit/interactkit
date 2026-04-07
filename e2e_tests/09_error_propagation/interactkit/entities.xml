@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graph xmlns="https://interactkit.dev/schema/v1" version="1" root="Agent">
+  <entity name="Agent" type="base" description="Error test">
+    <components><component name="broken" entity="Broken" /></components>
+  </entity>
+  <entity name="Broken" type="base" description="Always fails">
+    <tools>
+      <tool name="fail" description="Always fails"><input><param name="msg" type="string" /></input><output type="void" /></tool>
+      <tool name="failTyped" description="Fails with code"><input><param name="code" type="number" /></input><output type="void" /></tool>
+    </tools>
+  </entity>
+</graph>

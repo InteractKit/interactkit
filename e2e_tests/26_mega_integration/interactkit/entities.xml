@@ -1,0 +1,265 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graph xmlns="https://interactkit.dev/schema/v1" version="1" root="World">
+  <entity name="World" type="base" description="World root entity">
+    <describe>World</describe>
+    <components>
+      <component name="orchestrator" entity="Orchestrator" />
+      <component name="teamAlpha" entity="TeamAlpha" />
+      <component name="teamBeta" entity="TeamBeta" />
+    </components>
+  </entity>
+
+  <entity name="Orchestrator" type="base" description="Orchestrator">
+    <describe>Orchestrator</describe>
+    <components>
+      <component name="taskQueue" entity="TaskQueue" />
+      <component name="resultStore" entity="ResultStore" />
+    </components>
+    <tools>
+      <tool name="submit" description="Submit and process task">
+        <input>
+          <param name="id" type="string" />
+          <param name="data" type="string" />
+          <param name="result" type="string" />
+          <param name="worker" type="string" />
+        </input>
+        <output type="object"><param name="stored" type="boolean" /></output>
+      </tool>
+      <tool name="queueStats" description="Get queue stats">
+        <input />
+        <output type="object">
+          <param name="total" type="number" />
+          <param name="pending" type="number" />
+          <param name="processing" type="number" />
+          <param name="done" type="number" />
+        </output>
+      </tool>
+      <tool name="getResults" description="Get results">
+        <input />
+        <output type="array" items="object" />
+      </tool>
+      <tool name="resultCount" description="Get result count">
+        <input />
+        <output type="number" />
+      </tool>
+    </tools>
+  </entity>
+
+  <entity name="TeamAlpha" type="base" description="Team Alpha">
+    <describe>TeamAlpha</describe>
+    <components>
+      <component name="alphaWorker" entity="AlphaWorker" />
+      <component name="alphaCache" entity="AlphaCache" />
+    </components>
+    <tools>
+      <tool name="process" description="Process via Alpha">
+        <input><param name="data" type="string" /></input>
+        <output type="object">
+          <param name="result" type="string" />
+          <param name="source" type="string" />
+        </output>
+      </tool>
+      <tool name="cacheStats" description="Cache stats">
+        <input />
+        <output type="object">
+          <param name="hits" type="number" />
+          <param name="misses" type="number" />
+        </output>
+      </tool>
+    </tools>
+  </entity>
+
+  <entity name="TeamBeta" type="base" description="Team Beta">
+    <describe>TeamBeta</describe>
+    <components>
+      <component name="betaWorker" entity="BetaWorker" />
+      <component name="betaCache" entity="BetaCache" />
+    </components>
+    <tools>
+      <tool name="process" description="Process via Beta">
+        <input><param name="data" type="string" /></input>
+        <output type="object">
+          <param name="result" type="string" />
+          <param name="source" type="string" />
+        </output>
+      </tool>
+    </tools>
+  </entity>
+
+  <entity name="AlphaWorker" type="base" description="Alpha worker">
+    <describe>AlphaWorker: {{processed}}</describe>
+    <state>
+      <field name="processed" type="number" description="processed" default="0" />
+    </state>
+    <refs><ref name="alphaCache" entity="AlphaCache" /></refs>
+    <tools>
+      <tool name="process" description="Process">
+        <input><param name="data" type="string" /></input>
+        <output type="object">
+          <param name="result" type="string" />
+          <param name="source" type="string" />
+        </output>
+      </tool>
+    </tools>
+  </entity>
+
+  <entity name="AlphaCache" type="base" description="Alpha cache">
+    <describe>AlphaCache: {{hits}}/{{misses}}</describe>
+    <state>
+      <field name="hits" type="number" description="hits" default="0" />
+      <field name="misses" type="number" description="misses" default="0" />
+      <field name="store" type="record" values="string" description="store" default="{}" />
+    </state>
+    <tools>
+      <tool name="get" description="Get or miss">
+        <input><param name="key" type="string" /></input>
+        <output type="object">
+          <param name="hit" type="boolean" />
+          <param name="value" type="string" />
+        </output>
+      </tool>
+      <tool name="put" description="Put">
+        <input>
+          <param name="key" type="string" />
+          <param name="value" type="string" />
+        </input>
+        <output type="object" />
+      </tool>
+      <tool name="stats" description="Stats">
+        <input />
+        <output type="object">
+          <param name="hits" type="number" />
+          <param name="misses" type="number" />
+        </output>
+      </tool>
+    </tools>
+  </entity>
+
+  <entity name="BetaWorker" type="base" description="Beta worker">
+    <describe>BetaWorker: {{processed}}</describe>
+    <state>
+      <field name="processed" type="number" description="processed" default="0" />
+    </state>
+    <refs><ref name="betaCache" entity="BetaCache" /></refs>
+    <tools>
+      <tool name="process" description="Process">
+        <input><param name="data" type="string" /></input>
+        <output type="object">
+          <param name="result" type="string" />
+          <param name="source" type="string" />
+        </output>
+      </tool>
+    </tools>
+  </entity>
+
+  <entity name="BetaCache" type="base" description="Beta cache">
+    <describe>BetaCache</describe>
+    <state>
+      <field name="store" type="record" values="string" description="store" default="{}" />
+    </state>
+    <tools>
+      <tool name="get" description="Get">
+        <input><param name="key" type="string" /></input>
+        <output type="object">
+          <param name="hit" type="boolean" />
+          <param name="value" type="string" />
+        </output>
+      </tool>
+      <tool name="put" description="Put">
+        <input>
+          <param name="key" type="string" />
+          <param name="value" type="string" />
+        </input>
+        <output type="object" />
+      </tool>
+    </tools>
+  </entity>
+
+  <entity name="TaskQueue" type="base" description="Task queue">
+    <describe>TaskQueue: {{tasks.length}} tasks</describe>
+    <state>
+      <field name="tasks" type="array" description="tasks" items="object" />
+    </state>
+    <components>
+      <component name="logger" entity="Logger" />
+    </components>
+    <tools>
+      <tool name="enqueue" description="Enqueue task">
+        <input>
+          <param name="id" type="string" />
+          <param name="data" type="string" />
+        </input>
+        <output type="object"><param name="queued" type="number" /></output>
+      </tool>
+      <tool name="dequeue" description="Dequeue next pending">
+        <input />
+        <output type="object">
+          <param name="id" type="string" />
+          <param name="data" type="string" />
+        </output>
+      </tool>
+      <tool name="complete" description="Complete task">
+        <input>
+          <param name="id" type="string" />
+          <param name="result" type="string" />
+        </input>
+        <output type="object"><param name="completed" type="boolean" /></output>
+      </tool>
+      <tool name="stats" description="Stats">
+        <input />
+        <output type="object">
+          <param name="total" type="number" />
+          <param name="pending" type="number" />
+          <param name="processing" type="number" />
+          <param name="done" type="number" />
+        </output>
+      </tool>
+    </tools>
+  </entity>
+
+  <entity name="ResultStore" type="base" description="Result store">
+    <describe>ResultStore: {{results.length}} results</describe>
+    <state>
+      <field name="results" type="array" description="results" items="object" />
+    </state>
+    <tools>
+      <tool name="store" description="Store result">
+        <input>
+          <param name="taskId" type="string" />
+          <param name="result" type="string" />
+          <param name="worker" type="string" />
+        </input>
+        <output type="number" />
+      </tool>
+      <tool name="getResults" description="Get results">
+        <input />
+        <output type="array" items="object" />
+      </tool>
+      <tool name="count" description="Count">
+        <input />
+        <output type="number" />
+      </tool>
+    </tools>
+  </entity>
+
+  <entity name="Logger" type="base" description="Logger">
+    <describe>Logger: {{entries.length}} entries</describe>
+    <state>
+      <field name="entries" type="array" description="entries" items="string" />
+    </state>
+    <tools>
+      <tool name="log" description="Log">
+        <input><param name="msg" type="string" /></input>
+        <output type="number" />
+      </tool>
+      <tool name="getLogs" description="Get logs">
+        <input />
+        <output type="array" items="string" />
+      </tool>
+      <tool name="count" description="Count">
+        <input />
+        <output type="number" />
+      </tool>
+    </tools>
+  </entity>
+</graph>

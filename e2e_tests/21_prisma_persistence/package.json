@@ -2,9 +2,6 @@
   "name": "e2e-21-prisma-persistence",
   "private": true,
   "type": "module",
-  "scripts": {
-    "build": "interactkit build --root=src/agent:Agent"
-  },
   "dependencies": {
     "@interactkit/sdk": "workspace:*",
     "@prisma/client": "^6.9.0",

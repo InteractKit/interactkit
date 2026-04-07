@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graph xmlns="https://interactkit.dev/schema/v1" version="1" root="Agent">
+  <entity name="Agent" type="base" description="Agent">
+    <components><component name="memory" entity="Memory" /></components>
+  </entity>
+  <entity name="Memory" type="base" description="Memory">
+    <state>
+      <field name="entries" type="array" description="Entries" items="string" />
+    </state>
+    <tools>
+      <tool name="store" description="Store">
+        <input><param name="text" type="string" /></input>
+        <output type="number" />
+      </tool>
+      <tool name="getAll" description="Get all">
+        <input />
+        <output type="array" items="string" />
+      </tool>
+      <tool name="count" description="Count">
+        <input />
+        <output type="number" />
+      </tool>
+      <tool name="search" description="Search">
+        <input><param name="query" type="string" /></input>
+        <output type="array" items="string" />
+      </tool>
+    </tools>
+  </entity>
+</graph>

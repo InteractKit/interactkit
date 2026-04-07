@@ -1,5 +1,3 @@
-import "reflect-metadata";
-import { getDescribeMethod } from "../entity/decorators/index.js";
 import { LLMContext } from "./context.js";
 import type { AIMessageChunk, BaseMessage } from "@langchain/core/messages";
 import {
@@ -9,8 +7,6 @@ import {
   ToolMessage,
 } from "@langchain/core/messages";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
-
-const LLM_EXECUTOR_KEY = Symbol.for("llm:executor");
 
 /** Resolved tool descriptor used by the LLM loop. */
 export interface ResolvedTool {
@@ -33,40 +29,6 @@ export function extractContent(response: AIMessageChunk): string {
   if (Array.isArray(response.content))
     return response.content.map((b: any) => b.text ?? "").join("");
   return String(response.content ?? "");
-}
-
-/** Build a system prompt by collecting @Describe() output from entity and its children. */
-export function buildSystemPrompt(entity: any): string | null {
-  const entityCtor = entity.constructor;
-  const parts: string[] = [];
-
-  const ownDescribe = getDescribeMethod(entityCtor);
-  if (ownDescribe && typeof entity[ownDescribe] === "function") {
-    const desc = entity[ownDescribe]();
-    if (desc) parts.push(desc);
-  }
-
-  for (const propName of Object.getOwnPropertyNames(entity)) {
-    const child = entity[propName];
-    if (!child || typeof child !== "object" || !("id" in child) || child === entity)
-      continue;
-    const childDescribe = getDescribeMethod(child.constructor);
-    if (childDescribe && typeof child[childDescribe] === "function") {
-      const desc = child[childDescribe]();
-      if (desc) parts.push(`[${propName}] ${desc}`);
-    }
-  }
-
-  return parts.length > 0 ? parts.join("\n\n") : null;
-}
-
-/** Get the BaseChatModel from the @Executor() property on the entity. */
-export function getExecutorModel(entity: any): BaseChatModel | null {
-  const executorProp: string | undefined = Reflect.getOwnMetadata(
-    LLM_EXECUTOR_KEY,
-    entity.constructor,
-  );
-  return executorProp ? entity[executorProp] : null;
 }
 
 /** Convert LLMContext messages to LangChain BaseMessage[]. */
@@ -124,18 +86,14 @@ export async function processToolCalls(
 
 /** Callbacks for customizing LLM loop behavior. */
 export interface LLMLoopCallbacks {
-  /** Called when the LLM responds with no tool calls (final text response). */
   onTextResponse(content: string): void;
-  /** Called after each iteration of tool processing. */
   onIterationEnd?(): void;
-  /** Called with each tool result. */
   onToolResult?(tool: string, args: unknown, result: string): void;
 }
 
 /**
  * Run the core LLM tool-use loop: invoke the model, process tool calls, repeat.
  * Returns the final text content when the LLM responds without tool calls.
- * Throws if max iterations exceeded.
  */
 export async function runLLMLoop(
   model: BaseChatModel,

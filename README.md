@@ -1,269 +1,408 @@
 # InteractKit
 
-**Build agent swarms, virtual worlds, and autonomous systems in TypeScript.**
+**TypeScript framework for composable, multi-agent AI systems.**
 
-InteractKit lets you compose AI agents from plain TypeScript classes. Each agent has its own brain, memory, and tools. Agents snap together as a tree. The tree scales across machines with one decorator change.
+Define your entity graph in XML. Write tool handlers in TypeScript. The CLI compiles everything into a fully typed runtime.
 
 ```bash
 npm i -g @interactkit/cli
-interactkit init my-world
-cd my-world && pnpm install && pnpm dev
+interactkit init my-app
+cd my-app && npm install && npx interactkit dev
 ```
 
 ---
 
-## How It Works
+## Quick Example
 
-Everything is an **entity** -- a TypeScript class that does one thing.
+**`interactkit/entities.xml`** -- define the entity graph:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<graph xmlns="https://interactkit.dev/schema/v1" version="1" root="Agent">
+
+  <entity name="Agent" type="base" description="Agent with brain and memory">
+    <components>
+      <component name="brain" entity="Brain" />
+      <component name="memory" entity="Memory" />
+    </components>
+    <state>
+      <field name="count" type="number" description="Request count" default="0" />
+    </state>
+    <tools>
+      <tool name="ask" description="Ask a question" src="tools/ask.ts">
+        <input><param name="question" type="string" /></input>
+        <output type="string" />
+      </tool>
+    </tools>
+  </entity>
+
+  <entity name="Brain" type="llm" description="LLM-powered reasoning">
+    <executor provider="openai" model="gpt-4o-mini" />
+    <tools>
+      <tool name="think" description="Think about something" peerVisible="true">
+        <input><param name="query" type="string" /></input>
+        <output type="string" />
+      </tool>
+    </tools>
+  </entity>
+
+  <entity name="Memory" type="long-term-memory" description="Semantic memory" />
+
+</graph>
+```
+
+**`interactkit/tools/ask.ts`** -- typed tool handler:
 
 ```typescript
-import { Entity, BaseEntity, Describe, State, Tool } from '@interactkit/sdk';
+import type { AgentEntity, AgentAskInput } from '../.generated/types.js';
 
-@Entity()
-class Memory extends BaseEntity {
-  @Describe()
-  describe() { return `Memory with ${this.entries.length} entries.`; }
-
-  @State({ description: 'Stored entries' })
-  private entries: string[] = [];
-
-  @Tool({ description: 'Store something' })
-  async store(input: { text: string }) { this.entries.push(input.text); }
-
-  @Tool({ description: 'Search entries' })
-  async search(input: { query: string }) {
-    return this.entries.filter(e => e.includes(input.query));
-  }
-}
+export default async (entity: AgentEntity, input: AgentAskInput): Promise<string> => {
+  entity.state.count++;
+  const answer = await entity.components.brain.think({ query: input.question });
+  await entity.components.memory.store({ text: `Q: ${input.question} A: ${answer}` });
+  return answer;
+};
 ```
 
-Give an entity a brain and it can think:
+**`src/app.ts`** -- boot and serve:
 
 ```typescript
-import { Entity, LLMEntity, Describe, Executor, Ref } from '@interactkit/sdk';
-import { ChatOpenAI } from '@langchain/openai';
-
-@Entity()
-class Brain extends LLMEntity {
-  @Describe()
-  describe() { return 'You are a helpful assistant. Search memory before answering.'; }
-
-  @Executor() private llm = new ChatOpenAI({ model: 'gpt-4o-mini' });
-  @Ref() private memory!: Remote<Memory>;
-}
-```
-
-Snap entities together and the tree **is** the architecture:
-
-```typescript
-import { Entity, BaseEntity, Component, type Remote } from '@interactkit/sdk';
-
-@Entity()
-class Agent extends BaseEntity {
-  @Component() private brain!: Remote<Brain>;
-  @Component() private memory!: Remote<Memory>;
-}
-```
-
-The LLM automatically sees all available tools. You don't write orchestration logic.
-
----
-
-## Build a Customer Support Team
-
-```
-SupportTeam
-  +-- Triage (LLM)           <-- classifies issues, routes to specialists
-  +-- BillingAgent
-  |   +-- BillingBrain (LLM) <-- handles refunds, invoices, account issues
-  |   +-- Stripe (MCP)       <-- real Stripe API access
-  |   +-- Memory             <-- remembers past interactions
-  +-- TechAgent
-  |   +-- TechBrain (LLM)    <-- debugs problems, searches docs
-  |   +-- Docs               <-- knowledge base search
-  |   +-- Jira (MCP)         <-- creates tickets automatically
-  +-- SharedContext           <-- all agents share the conversation
-```
-
-```bash
-interactkit init support-team
-interactkit add Triage --llm --attach SupportTeam
-interactkit add Stripe --mcp-stdio "npx -y @stripe/mcp" --attach BillingAgent
-interactkit add Jira --mcp-stdio "npx -y @jira/mcp" --attach TechAgent
-```
-
-No orchestration code. Each agent figures out what to do at its level.
-
----
-
-## Create an Autonomous System
-
-Agents that watch, decide, and act -- no human in the loop.
-
-```typescript
-import { Entity, BaseEntity, Ref, Hook, Tick, type Remote } from '@interactkit/sdk';
-
-@Entity()
-class Monitor extends BaseEntity {
-  @Ref() private brain!: Remote<Brain>;
-
-  @Hook(Tick.Runner({ intervalMs: 60000 }))
-  async onTick() {
-    const cpu = await checkCPU();
-    if (cpu > 90) {
-      await this.brain.invoke({ message: `CPU is at ${cpu}%. What should we do?` });
-    }
-  }
-}
-```
-
-Wire in any external service with one CLI command:
-
-```bash
-interactkit add Slack --mcp-stdio "npx -y @slack/mcp" --attach Monitor
-interactkit add PagerDuty --mcp-stdio "npx -y @pagerduty/mcp" --attach Monitor
-```
-
----
-
-## Scale to Another Machine
-
-Any entity can run on a different machine. Same code. One decorator change.
-
-```typescript
-import { Entity, BaseEntity, Component, Tool, Hook, Init, type Remote } from '@interactkit/sdk';
-
-@Entity({ detached: true })
-class Worker extends BaseEntity {
-  @Tool({ description: 'Process task' })
-  async process(input: { task: string }) { return input.task.toUpperCase(); }
-}
-
-@Entity()
-class Agent extends BaseEntity {
-  @Component() private worker!: Remote<Worker>;
-
-  @Hook(Init.Runner())
-  async onInit() {
-    const result = await this.worker.process({ task: 'hello' }); // works across machines
-  }
-}
-```
-
-Run 5 replicas. Tasks distribute automatically. Functions, objects, and callbacks pass transparently over the wire.
-
----
-
-## Configure Infrastructure
-
-All infrastructure lives in `interactkit.config.ts` at the project root:
-
-```typescript
-// interactkit.config.ts
-import { Agent } from './src/entities/agent.js';
-import { PrismaDatabaseAdapter } from '@interactkit/prisma';
-import { RedisPubSubAdapter } from '@interactkit/redis';
-import { DashboardObserver } from '@interactkit/observer';
-import { DevObserver } from '@interactkit/sdk';
-import type { InteractKitConfig } from '@interactkit/sdk';
-
-export default {
-  root: Agent,
-  database: new PrismaDatabaseAdapter({ url: 'file:./app.db' }),
-  pubsub: new RedisPubSubAdapter({ host: 'localhost', port: 6379 }),
-  observers: [new DevObserver(), new DashboardObserver()],
-  timeout: 15_000,
-  stateFlushMs: 50,
-} satisfies InteractKitConfig;
-```
-
----
-
-## Add Any External Service
-
-Any [MCP](https://modelcontextprotocol.io) server becomes a typed entity with one command:
-
-```bash
-interactkit add Slack --mcp-stdio "npx -y @slack/mcp" --attach Agent
-interactkit add GitHub --mcp-stdio "npx -y @github/mcp" --attach Agent
-interactkit add Stripe --mcp-stdio "npx -y @stripe/mcp" --attach Agent
-```
-
-Your agents can now send Slack messages, create GitHub issues, and process Stripe payments -- all as natural tool calls.
-
----
-
-## Quick Reference
-
-| You want to... | You do this |
-|----------------|------------|
-| Build your project | `interactkit build` |
-| Create a new project | `interactkit init my-world` |
-| Add an agent with a brain | `interactkit add Brain --llm --attach Agent` |
-| Add memory | `interactkit add Memory --attach Agent` |
-| Connect Slack, GitHub, etc. | `interactkit add Slack --mcp-stdio "npx -y @slack/mcp"` |
-| Make an agent autonomous | Add `@Hook(Tick.Runner({ intervalMs: 5000 }))` |
-| Scale to another machine | Add `{ detached: true }` to `@Entity()` |
-| Share context between brains | Use `ConversationContext` as a shared `@Component` |
-
----
-
-## Long-Term Memory (RAG)
-
-Give any agent persistent semantic memory with one component:
-
-```typescript
-import { Entity, LLMEntity, Component, Executor, type Remote } from '@interactkit/sdk';
-import { LongTermMemory } from '@interactkit/sdk';
-import { ChatOpenAI } from '@langchain/openai';
-
-@Entity()
-class ResearchAgent extends LLMEntity {
-  @Executor() private llm = new ChatOpenAI({ model: 'gpt-4o' });
-  @Component() private memory!: Remote<LongTermMemory>;
-  // LLM automatically gets: memory_memorize(), memory_recall(), memory_forget()
-}
-```
-
-Configure the vector store in `interactkit.config.ts`:
-
-```typescript
+import { graph } from '../interactkit/.generated/graph.js';
 import { ChromaDBVectorStoreAdapter } from '@interactkit/chromadb';
 
-export default {
-  // ...
-  vectorStore: new ChromaDBVectorStoreAdapter({ collection: 'agent-memory' }),
-} satisfies InteractKitConfig;
+const app = graph.configure({
+  database: db,
+  vectorStore: new ChromaDBVectorStoreAdapter({ collection: 'memory' }),
+});
+
+await app.boot();
+await app.serve({ http: 3000 });
 ```
 
-Three adapters ship out of the box:
-
-| Package | Store | Embeddings |
-|---------|-------|------------|
-| `@interactkit/chromadb` | ChromaDB | Built-in (no config needed) |
-| `@interactkit/pinecone` | Pinecone | Bring your own (`embed` fn or LangChain `Embeddings`) |
-| `@interactkit/langchain` | Any LangChain VectorStore | Whatever the store uses |
-
-Namespace is derived from the entity ID automatically — multiple instances sharing the same vector store are isolated by default. Or implement `VectorStoreAdapter` for any vector DB — it's three methods: `add`, `search`, `delete`.
+Run `interactkit compile` and everything gets full type safety -- entity state, components, inputs, outputs.
 
 ---
 
-## Extension Ecosystem
+## Getting Started
 
-| Package | Description |
+```bash
+interactkit init my-app        # scaffold project
+cd my-app && npm install
+npx interactkit dev            # compile + run + watch
+```
+
+This creates:
+
+```
+my-app/
+  interactkit/
+    entities.xml               # entity graph definition
+    tools/                     # tool handler files
+    .generated/                # auto-generated (gitignored)
+  src/
+    app.ts                     # boot + serve
+  package.json
+  tsconfig.json
+```
+
+---
+
+## Core Concepts
+
+### Entities
+
+Everything is an entity. Entities have state, tools, components (children), refs (siblings), and streams.
+
+```xml
+<entity name="Sensor" type="base" description="Temperature sensor">
+  <describe>Sensor "{{label}}" -- {{readingCount}} readings</describe>
+  <state>
+    <field name="label" type="string" description="Sensor label" default="temperature"
+           configurable="true" configurable-label="Label" />
+    <field name="readingCount" type="number" description="Total readings" default="0" />
+  </state>
+  <streams>
+    <stream name="readings" type="number" description="Sensor readings stream" />
+  </streams>
+  <tools>
+    <tool name="read" description="Take a reading" peerVisible="true" src="tools/read-sensor.ts">
+      <input />
+      <output type="number" />
+    </tool>
+  </tools>
+</entity>
+```
+
+### Tools
+
+Tools are methods on entities. Point `src` to a TypeScript handler file:
+
+```xml
+<tool name="speak" description="Speak a message" src="tools/speak.ts">
+  <input><param name="message" type="string" /></input>
+  <output type="void" />
+</tool>
+```
+
+```typescript
+// interactkit/tools/speak.ts
+import type { MouthEntity, MouthSpeakInput } from '../.generated/types.js';
+
+export default async (entity: MouthEntity, input: MouthSpeakInput): Promise<void> => {
+  entity.state.history.push({ message: input.message });
+  entity.streams.transcript.emit(input.message);
+};
+```
+
+Handlers receive a fully typed `entity` with `.state`, `.components`, `.refs`, and `.streams`.
+
+### Autotools
+
+Zero-code CRUD on fieldGroups. No handler file needed.
+
+```xml
+<state>
+  <fieldGroup name="entries" key="id">
+    <field name="text" type="string" description="Entry content" />
+  </fieldGroup>
+</state>
+<tools>
+  <autotool name="store" on="entries" op="create" peerVisible="true" />
+  <autotool name="search" on="entries" op="search" key="query" peerVisible="true" />
+  <autotool name="getAll" on="entries" op="list" peerVisible="true" />
+  <autotool name="count" on="entries" op="count" peerVisible="true" />
+</tools>
+```
+
+Operations: `create`, `read`, `update`, `delete`, `list`, `search`, `count`.
+
+### Components and Refs
+
+Components are children. Refs are sibling references. Both are accessed as typed proxies.
+
+```xml
+<entity name="Agent" type="base">
+  <components>
+    <component name="brain" entity="Brain" />
+    <component name="mouth" entity="Mouth" />
+  </components>
+</entity>
+```
+
+In a tool handler, access components via `entity.components.brain.think(...)`.
+
+`peerVisible="true"` on a tool makes it visible to LLM sibling entities via refs.
+
+### LLM Entities
+
+Set `type="llm"` and add an `<executor>`:
+
+```xml
+<entity name="Brain" type="llm" description="LLM-powered reasoning">
+  <describe>Brain with {{personality}} personality</describe>
+  <executor provider="anthropic" model="claude-sonnet-4-20250514" />
+  <state>
+    <field name="personality" type="string" description="Personality" default="helpful" />
+  </state>
+  <tools>
+    <tool name="think" description="Think about something" peerVisible="true">
+      <input><param name="query" type="string" /></input>
+      <output type="string" />
+    </tool>
+  </tools>
+</entity>
+```
+
+LLM entities get a built-in `invoke()` method and a thinking loop. Tools on peer entities (with `peerVisible="true"`) are automatically available to the LLM. Tools without a `src` handler on LLM entities are auto-invoked through the thinking loop.
+
+### Streams
+
+Typed data flow from entities to subscribers:
+
+```xml
+<streams>
+  <stream name="transcript" type="string" description="Spoken text" />
+</streams>
+```
+
+Emit in handlers: `entity.streams.transcript.emit("hello")`. Subscribe from the app: `app.onStream('agent.mouth', 'transcript', fn)`.
+
+### State
+
+Fields with types, defaults, validation, and configurable flags:
+
+```xml
+<state>
+  <field name="capacity" type="number" description="Max entries" default="100"
+         configurable="true" configurable-label="Capacity">
+    <validate min="1" max="1000" />
+  </field>
+  <field name="name" type="string" description="Agent name" default="Agent">
+    <validate min-length="2" max-length="50" />
+  </field>
+  <fieldGroup name="entries" key="id">
+    <field name="text" type="string" description="Entry content" />
+  </fieldGroup>
+</state>
+```
+
+---
+
+## CLI Reference
+
+| Command | Description |
 |---------|-------------|
-| `@interactkit/sdk` | Core: decorators, runtime, LLM, MCP, transparent proxy, long-term memory |
-| `@interactkit/cli` | CLI: init, add, build, dev, start |
-| `@interactkit/observer` | Observer dashboard backend (WebSocket + static UI server) |
-| `@interactkit/observer-ui` | Observer dashboard frontend (Next.js, entity graph, event feed) |
-| `@interactkit/redis` | Redis pub/sub adapter for distributed entities |
-| `@interactkit/prisma` | Prisma database adapter for state persistence |
-| `@interactkit/chromadb` | ChromaDB vector store adapter (built-in embeddings) |
-| `@interactkit/pinecone` | Pinecone vector store adapter (managed cloud) |
-| `@interactkit/langchain` | LangChain vector store adapter (wraps any LangChain store) |
-| `@interactkit/cron` | Cron scheduling hook (node-cron) |
-| `@interactkit/http` | HTTP server hook |
-| `@interactkit/websocket` | WebSocket hooks (WsMessage, WsConnection) |
+| `interactkit init <name>` | Scaffold a new project |
+| `interactkit compile` | Compile XML to typed TypeScript |
+| `interactkit build` | Compile + run `tsc --noEmit` |
+| `interactkit dev` | Compile + run + watch for changes |
+| `interactkit start` | Run the app (`npx tsx src/app.ts`) |
+
+---
+
+## `app.serve()`
+
+Auto-expose all tools as HTTP endpoints, with WebSocket for streams:
+
+```typescript
+import { graph } from '../interactkit/.generated/graph.js';
+
+const app = graph.configure({ database: db });
+await app.boot();
+
+await app.serve({
+  http: {
+    port: 3000,
+    cors: true,
+    routes: {
+      'POST /ask': 'agent.ask',    // custom route alias
+    },
+    exclude: ['agent.brain.*'],    // hide internal tools
+  },
+  ws: { port: 3001 },             // WebSocket for streams
+});
+```
+
+Generated routes:
+
+```
+POST  /agent/ask
+GET   /agent/readSensor
+POST  /agent/brain/invoke
+POST  /agent/mouth/speak
+GET   /agent/memory/getAll
+GET   /schema                      # entity tree for discovery
+POST  /_rpc                        # single RPC endpoint
+```
+
+WebSocket: connect to `ws://host:3001/streams/agent/mouth/transcript` for live stream data.
+
+---
+
+## Remote Entities
+
+Proxy calls to another InteractKit service over HTTP. Schema is fetched at compile time.
+
+```xml
+<graph xmlns="https://interactkit.dev/schema/v1" version="1" root="Gateway">
+  <entity name="Gateway" type="base" description="API gateway">
+    <components>
+      <component name="worker" entity="Worker" />
+    </components>
+  </entity>
+
+  <!-- Remote: tools/state fetched from http://localhost:4100/schema at compile time -->
+  <entity name="Worker" type="base" remote="http://localhost:4100" />
+</graph>
+```
+
+The remote entity's tools become fully typed in the local graph. Calls transparently proxy over HTTP.
+
+---
+
+## Multi-Tenant
+
+### Programmatic
+
+`app.instance()` creates isolated entity instances with independent state:
+
+```typescript
+const alice = await app.instance('alice');
+const bob = await app.instance('bob');
+
+await alice.agent.ask({ question: 'hi' });  // alice's state
+await bob.agent.ask({ question: 'hi' });    // bob's state (independent)
+```
+
+Handlers are shared. State is namespaced by tenant ID.
+
+### Via `app.serve()` with `tenantFrom`
+
+Extract a tenant ID from each request. Each tenant gets an isolated entity tree with namespaced state. Idle tenants are evicted via LRU.
+
+```typescript
+await app.serve({
+  http: {
+    port: 3000,
+    tenantFrom: (req) => req.headers['x-user-id'],  // sync or async
+    shared: ['KnowledgeBase'],  // shared across tenants
+    maxTenants: 1000,
+    tenantIdleMs: 300_000,
+  },
+});
+```
+
+- `tenantFrom` can be async (JWT verification, DB lookup)
+- No tenant header = uses the parent app (no isolation)
+- Tenant pool with LRU eviction (`maxTenants` + `tenantIdleMs`)
+- WebSocket connections can be tenant-scoped: `ws://host/tenantId/streams/...`
+
+---
+
+## Testing
+
+```typescript
+import { graph } from '../interactkit/.generated/graph.js';
+import { createTestApp } from '@interactkit/sdk/test';
+
+const app = await createTestApp(graph, {
+  handlers: {
+    Memory: { store: async (e, i) => 'mocked-id' },
+  },
+  state: {
+    agent: { count: 5 },
+  },
+});
+
+const result = await app.agent.ask({ question: 'test' });
+expect(result).toBeDefined();
+
+await app.stop();
+```
+
+`createTestApp` uses an in-memory database. Override handlers and pre-seed state for unit tests.
+
+---
+
+## Architecture
+
+```
+entities.xml          interactkit compile         src/app.ts
+     |                       |                        |
+     v                       v                        v
+  XML graph    -->    .generated/               graph.configure()
+  definition         types.ts (interfaces)      app.boot()
+                     tree.ts  (entity tree)     app.serve()
+                     graph.ts (typed runtime)
+                     handlers.ts (src imports)
+```
+
+1. You define entities, tools, state, and structure in `entities.xml`
+2. `interactkit compile` reads the XML and generates fully typed TypeScript
+3. Tool handlers in `interactkit/tools/` get typed `entity` and `input` parameters
+4. `graph.configure()` wires up infrastructure (database, observers)
+5. `app.boot()` creates entities, hydrates state, initializes LLM executors
+6. `app.serve()` exposes everything as HTTP + WebSocket
 
 ---
 
@@ -271,53 +410,58 @@ Namespace is derived from the entity ID automatically — multiple instances sha
 
 ### [Werewolf](examples/werewolf)
 
-Social deduction game with 6 LLM-controlled players. Demonstrates thinking loops, memory as components, structured LLM output, and human-in-the-loop via WebSocket.
+Social deduction game with 6 LLM-controlled players. Thinking loops, memory, structured LLM output, WebSocket.
 
 <img src="examples/werewolf/images/image.png" width="700" alt="Werewolf game" />
 
 ### [Smart Notepad](examples/smart-notepad)
 
-LLM-powered note-taking app. Write a messy note and the LLM autonomously cleans it up, tags it, and saves it. Demonstrates @Component/@Ref, @Stream notifications, and @State persistence.
+LLM-powered note-taking. Write messy notes, the LLM cleans, tags, and saves them.
 
 | Before | After |
 |--------|-------|
 | <img src="examples/smart-notepad/images/before.png" width="350" alt="Before" /> | <img src="examples/smart-notepad/images/after.png" width="350" alt="After" /> |
 
-### [Startup Simulator](examples/startup-simulator)
-
-Give an AI team (CEO, CTO, Designer, Developer) a startup idea and watch them build it. Demonstrates autonomous @ThinkingLoop agents coordinating through shared resources -- no orchestration code.
-
-<img src="examples/startup-simulator/images/image.png" width="700" alt="Startup Simulator" />
-
 ### [Content Pipeline](examples/content-pipeline)
 
-Multi-agent pipeline: research, write, edit. Demonstrates sequential multi-agent orchestration with invoke()/respond() thinking loops.
+Multi-agent pipeline: research, write, edit.
 
 <img src="examples/content-pipeline/images/image.png" width="700" alt="Content Pipeline" />
 
+### [Startup Simulator](examples/startup-simulator)
+
+AI team (CEO, CTO, Designer, Developer) builds a startup from an idea.
+
+<img src="examples/startup-simulator/images/image.png" width="700" alt="Startup Simulator" />
+
 ### [Debate Club](examples/debate-club)
 
-Two LLM debaters argue a topic across multiple rounds while a judge scores each round. Demonstrates multiple instances of one LLMEntity with different @State.
+Two LLM debaters argue a topic, a judge scores each round.
 
 <img src="examples/debate-club/images/image.png" width="700" alt="Debate Club" />
 
 ### [Sample App](examples/sample-app)
 
-Feature test suite covering the full decorator set: @Component, @Ref, @Stream, @Configurable, @SystemPrompt, @Executor, and LLM tool calling loops.
+Feature test covering tools, autotools, LLM entities, streams, state, refs, and components.
+
+---
+
+## Packages
+
+| Package | Description |
+|---------|-------------|
+| `@interactkit/sdk` | Runtime: entity system, event bus, LLM integration, serve, test helpers |
+| `@interactkit/cli` | CLI: init, compile, build, dev, start |
+| `@interactkit/prisma` | Prisma database adapter for state persistence |
+| `@interactkit/redis` | Redis pub/sub adapter for distributed entities |
+| `@interactkit/observer` | Observer dashboard backend |
+| `@interactkit/observer-ui` | Observer dashboard frontend (Next.js) |
+| `@interactkit/chromadb` | ChromaDB vector store adapter |
+| `@interactkit/pinecone` | Pinecone vector store adapter |
+| `@interactkit/langchain` | LangChain vector store adapter |
 
 ---
 
 ## Docs
 
 Full documentation at **[docs.interactkit.dev](https://docs.interactkit.dev)**
-
-| Guide | What you'll learn |
-|-------|-------------------|
-| [Getting Started](https://docs.interactkit.dev/#/getting-started) | Your first agent with brain and memory |
-| [Use Cases & Recipes](https://docs.interactkit.dev/#/why) | Agent teams, simulations, autonomous systems |
-| [Entities](https://docs.interactkit.dev/#/entities) | State, tools, components, refs, streams |
-| [LLM Entities](https://docs.interactkit.dev/#/llm) | Brains, shared context, router patterns |
-| [Hooks](https://docs.interactkit.dev/#/hooks) | Timers, cron, HTTP, webhooks |
-| [Infrastructure](https://docs.interactkit.dev/#/infrastructure) | Database, pub/sub, observability |
-| [Deployment](https://docs.interactkit.dev/#/deployment) | Docker, scaling, distributed systems |
-| [Extensions](https://docs.interactkit.dev/#/extensions) | Custom hooks and MCP integrations |

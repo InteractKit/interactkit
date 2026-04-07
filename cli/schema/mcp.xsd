@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  MCP (Model Context Protocol) bridge configuration.
+  Only applicable to entities with type="mcp".
+-->
+<xs:schema
+  xmlns:xs="http://www.w3.org/2001/XMLSchema"
+  xmlns:ik="https://interactkit.dev/schema/v1"
+  targetNamespace="https://interactkit.dev/schema/v1"
+  elementFormDefault="qualified">
+
+  <!-- ════════════════════════════════════════════════════════════
+       MCP configuration
+       ════════════════════════════════════════════════════════════ -->
+  <xs:element name="mcp">
+    <xs:complexType>
+      <xs:choice>
+        <xs:element ref="ik:stdio" />
+        <xs:element ref="ik:http" />
+        <xs:element ref="ik:sse" />
+      </xs:choice>
+
+      <xs:attribute name="tool-prefix" type="xs:string" />
+      <xs:attribute name="connect-timeout" type="xs:positiveInteger" default="10000" />
+      <xs:attribute name="call-timeout" type="xs:positiveInteger" default="30000" />
+      <xs:attribute name="retry" type="xs:boolean" default="true" />
+      <xs:attribute name="max-retries" type="xs:positiveInteger" default="3" />
+      <!-- Pipe-separated tool filter, e.g. "sendMessage|readChannel" -->
+      <xs:attribute name="tools" type="xs:string" />
+    </xs:complexType>
+  </xs:element>
+
+  <!-- ─── Transport: stdio ──────────────────────────────── -->
+  <xs:element name="stdio">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="env" minOccurs="0" maxOccurs="unbounded">
+          <xs:complexType>
+            <xs:attribute name="key" type="xs:string" use="required" />
+            <xs:attribute name="value" type="xs:string" use="required" />
+          </xs:complexType>
+        </xs:element>
+      </xs:sequence>
+      <xs:attribute name="command" type="xs:string" use="required" />
+      <xs:attribute name="args" type="xs:string" />
+      <xs:attribute name="cwd" type="xs:string" />
+    </xs:complexType>
+  </xs:element>
+
+  <!-- ─── Transport: http ───────────────────────────────── -->
+  <xs:element name="http">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="header" minOccurs="0" maxOccurs="unbounded">
+          <xs:complexType>
+            <xs:attribute name="key" type="xs:string" use="required" />
+            <xs:attribute name="value" type="xs:string" use="required" />
+          </xs:complexType>
+        </xs:element>
+      </xs:sequence>
+      <xs:attribute name="url" type="xs:string" use="required" />
+    </xs:complexType>
+  </xs:element>
+
+  <!-- ─── Transport: sse ────────────────────────────────── -->
+  <xs:element name="sse">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="header" minOccurs="0" maxOccurs="unbounded">
+          <xs:complexType>
+            <xs:attribute name="key" type="xs:string" use="required" />
+            <xs:attribute name="value" type="xs:string" use="required" />
+          </xs:complexType>
+        </xs:element>
+      </xs:sequence>
+      <xs:attribute name="url" type="xs:string" use="required" />
+    </xs:complexType>
+  </xs:element>
+
+</xs:schema>

@@ -1,90 +1,62 @@
 # Infrastructure
 
-InteractKit uses pluggable adapters for database, pub/sub, and observability. All infrastructure is configured globally in `interactkit.config.ts`. Entities default to local (in-process) communication -- mark them `detached: true` to use remote pubsub.
+InteractKit uses pluggable adapters for database and observability. All infrastructure is configured via `graph.configure()` in `app.ts`.
 
 ## Setup
 
 ```typescript
-// interactkit.config.ts
-import { Agent } from './src/entities/agent.js';
+import { graph } from '../interactkit/.generated/graph.js';
 import { PrismaDatabaseAdapter } from '@interactkit/prisma';
-import { RedisPubSubAdapter } from '@interactkit/redis';
 import { DashboardObserver } from '@interactkit/observer';
 import { DevObserver } from '@interactkit/sdk';
-import type { InteractKitConfig } from '@interactkit/sdk';
 
-export default {
-  root: Agent,
-  database: new PrismaDatabaseAdapter({ url: 'file:./app.db' }),
-  pubsub: new RedisPubSubAdapter({ host: 'localhost', port: 6379 }),
+const app = graph.configure({
+  database: new PrismaDatabaseAdapter({ url: 'file:./interactkit.db' }),
   observers: [new DevObserver(), new DashboardObserver()],
   timeout: 15_000,
   stateFlushMs: 50,
-} satisfies InteractKitConfig;
+});
+```
+
+## RuntimeConfig
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `database` | In-memory | Database adapter for state persistence |
+| `vectorStore` | `undefined` | Vector store adapter for long-term-memory entities |
+| `observers` | `[]` | Observer adapters for event logging |
+| `timeout` | `30000` | Event bus request timeout (ms) |
+| `stateFlushMs` | `50` | State persistence debounce (ms) |
+| `handlers` | `{}` | Handler overrides keyed by entity class name or path |
+
+---
+
+## Database
+
+### In-Memory (Default)
+
+No configuration needed. State lives in memory and is lost on restart. Good for development and testing.
+
+### Prisma
+
+```bash
+pnpm add @interactkit/prisma
 ```
 
 ```typescript
-import { Entity, BaseEntity, Component, type Remote } from '@interactkit/sdk';
+import { PrismaDatabaseAdapter } from '@interactkit/prisma';
 
-@Entity()
-class Agent extends BaseEntity {
-  @Component() private brain!: Remote<Brain>;   // local -- same process
-  @Component() private worker!: Remote<Worker>; // detached -- can scale independently
-}
-
-@Entity()  // local, co-located with parent
-class Brain extends BaseEntity { /* ... */ }
-
-@Entity({ detached: true })  // uses remote pubsub from config
-class Worker extends BaseEntity { /* ... */ }
+const app = graph.configure({
+  database: new PrismaDatabaseAdapter({ url: 'file:./interactkit.db' }),
+});
 ```
 
-## Built-in Adapters
-
-### Pub/Sub
-
-`PubSubAdapter` is an abstract base class with two subclass families:
-
-| Base class | Adapter | Latency | Scaling | Use case |
-|------------|---------|---------|---------|----------|
-| `LocalPubSubAdapter` | `InProcessBusAdapter` | ~0ms | Single process | Default. Dev mode, real-time voice, hot loops |
-| `RemotePubSubAdapter` | `RedisPubSubAdapter` | ~1-5ms | Horizontal | Cross-process entity communication, replicas |
-
-- **Local** -- values pass by reference. Functions, class instances, everything works natively. Zero overhead.
-- **Remote** -- values serialize to JSON. Functions and class instances returned from remote calls become live proxies you can call across machines. Cleanup is automatic.
-
-`Remote<T>` is required on all `@Component` and `@Ref` properties -- the build enforces this. See [Distributed Entities](./entities.md#distributed-entities).
-
-The pub/sub adapter has two delivery modes:
-
-| Method | Behavior | Used for |
-|--------|----------|----------|
-| `publish` / `subscribe` | Broadcast -- all subscribers get every message | Reply channels, state sync |
-| `enqueue` / `consume` | Queue -- one consumer picks each message | Tool calls, hooks, work distribution |
-
-Entities with `detached: true` get competing consumer semantics. Run 3 replicas and each request goes to exactly one:
-
-```typescript
-import { Entity, BaseEntity, Tool } from '@interactkit/sdk';
-
-@Entity({ detached: true })
-class Worker extends BaseEntity {
-  @Tool({ description: 'Process task' })
-  async process(input: { task: string }) {
-    return { result: input.task.toUpperCase(), pid: process.pid };
-  }
-}
-// Run 3 instances -> tasks distribute across all 3
-```
-
-### Database
-
-`PrismaDatabaseAdapter` (from `@interactkit/prisma`) stores entity state as JSON. Needs an `EntityState` model:
+Requires an `EntityState` model in your Prisma schema:
 
 ```prisma
 datasource db {
   provider = "sqlite"   // or "postgresql"
-  url      = "file:./app.db"
+  url      = "file:./interactkit.db"
 }
 
 model EntityState {
@@ -93,67 +65,9 @@ model EntityState {
 }
 ```
 
-State persistence is automatic:
-- `@State` properties save to DB via reactive proxy (debounced, configurable via `stateFlushMs`)
-- State restores on entity restart
-- State changes broadcast to other replicas via pub/sub
+State persistence is automatic -- entity state saves to DB on mutation (debounced) and restores on boot.
 
-### Observer
-
-| Adapter | Package | Output |
-|---------|---------|--------|
-| `ConsoleObserver` | `@interactkit/sdk` | Plain stdout/stderr |
-| `DevObserver` | `@interactkit/sdk` | Colored, formatted (used in `pnpm dev`) |
-| `DashboardObserver` | `@interactkit/observer` | WebSocket server + web dashboard UI on `http://localhost:4200` |
-
-Multiple observers can run simultaneously via the `observers` array. The `DashboardObserver` serves the `@interactkit/observer-ui` dashboard which provides an interactive entity graph, live event feed, state inspector, and method caller.
-
-Observers see all events flowing through the entity tree -- tool calls, hook events, errors. They can also control the runtime via `setState()`, `getState()`, `callMethod()`, and `getEntityTree()`.
-
-### Vector Store
-
-`VectorStoreAdapter` (from `@interactkit/sdk`) enables semantic memory for `LongTermMemory` entities. Configured globally:
-
-```typescript
-import { ChromaDBVectorStoreAdapter } from '@interactkit/chromadb';
-
-export default {
-  // ...
-  vectorStore: new ChromaDBVectorStoreAdapter({ collection: 'agent-memory' }),
-} satisfies InteractKitConfig;
-```
-
-| Package | Adapter | Constructor config |
-|---------|---------|-------------------|
-| `@interactkit/chromadb` | `ChromaDBVectorStoreAdapter` | `{ collection, url?, tenant?, database? }` |
-| `@interactkit/pinecone` | `PineconeVectorStoreAdapter` | `{ apiKey, index, embed? or embeddings?, namespace? }` |
-| `@interactkit/langchain` | `LangChainVectorStoreAdapter` | `{ store }` (any LangChain VectorStore) |
-
-ChromaDB includes built-in embeddings (no API key needed). Pinecone requires an embedding function or a LangChain `Embeddings` instance. The LangChain adapter wraps any existing LangChain VectorStore.
-
-See [LLM Entities > Context and Memory](./llm.md#context-and-memory) for usage with `LongTermMemory`.
-
-## Custom Adapters
-
-### Pub/Sub
-
-Extend `LocalPubSubAdapter` for same-process adapters, or `RemotePubSubAdapter` for cross-process (you get automatic function/object proxying for free):
-
-```typescript
-import { RemotePubSubAdapter } from '@interactkit/sdk';
-
-class NatsPubSub extends RemotePubSubAdapter {
-  // Implement raw string transport -- proxy handling is built-in
-  protected async publishRaw(channel: string, message: string) { /* ... */ }
-  protected async subscribeRaw(channel: string, handler: (msg: string) => void) { /* ... */ }
-  protected async unsubscribeRaw(channel: string) { /* ... */ }
-  protected async enqueueRaw(channel: string, message: string) { /* ... */ }
-  protected async consumeRaw(channel: string, handler: (msg: string) => void) { /* ... */ }
-  protected async stopConsumingRaw(channel: string) { /* ... */ }
-}
-```
-
-### Database
+### Custom Database Adapter
 
 ```typescript
 import type { DatabaseAdapter } from '@interactkit/sdk';
@@ -165,7 +79,29 @@ class MyDatabase implements DatabaseAdapter {
 }
 ```
 
-### Observer
+---
+
+## Observers
+
+Observers see all events flowing through the entity tree -- tool calls, errors, state changes.
+
+| Observer | Package | Output |
+|----------|---------|--------|
+| `DevObserver` | `@interactkit/sdk` | Colored terminal output |
+| `DashboardObserver` | `@interactkit/observer` | Web dashboard on `http://localhost:4200` |
+
+```typescript
+import { DevObserver } from '@interactkit/sdk';
+import { DashboardObserver } from '@interactkit/observer';
+
+const app = graph.configure({
+  observers: [new DevObserver(), new DashboardObserver({ port: 4200 })],
+});
+```
+
+Multiple observers can run simultaneously.
+
+### Custom Observer
 
 ```typescript
 import { BaseObserver } from '@interactkit/sdk';
@@ -173,77 +109,90 @@ import type { EventEnvelope } from '@interactkit/sdk';
 
 class MyObserver extends BaseObserver {
   event(envelope: EventEnvelope): void {
-    /* log/process every event */
-    this.emit('event', envelope); // notify subscribers
+    // Log or process every event
   }
   error(envelope: EventEnvelope, error: Error): void {
-    /* log/process failed events */
-    this.emit('error', envelope, error);
+    // Log or process errors
   }
 }
 ```
 
-### Vector Store
+---
+
+## Vector Store
+
+For semantic memory (RAG), configure a vector store adapter:
+
+```typescript
+import { ChromaDBVectorStoreAdapter } from '@interactkit/chromadb';
+
+const app = graph.configure({
+  vectorStore: new ChromaDBVectorStoreAdapter({ collection: 'agent-memory' }),
+});
+```
+
+| Package | Adapter | Notes |
+|---------|---------|-------|
+| `@interactkit/chromadb` | `ChromaDBVectorStoreAdapter` | Built-in embeddings, zero config |
+| `@interactkit/pinecone` | `PineconeVectorStoreAdapter` | Requires embedding function |
+| `@interactkit/langchain` | `LangChainVectorStoreAdapter` | Wraps any LangChain VectorStore |
+
+### VectorStoreAdapter Interface
+
+```typescript
+interface VectorDocument {
+  id?: string;
+  content: string;
+  metadata?: Record<string, unknown>;
+}
+
+interface ScoredDocument {
+  id: string;
+  content: string;
+  score: number;
+  metadata?: Record<string, unknown>;
+}
+
+interface DeleteParams {
+  ids?: string[];
+  filter?: Record<string, unknown>;
+}
+
+interface VectorStoreAdapter {
+  add(docs: VectorDocument[]): Promise<string[]>;
+  search(query: string, k: number, filter?: Record<string, unknown>): Promise<ScoredDocument[]>;
+  delete(params: DeleteParams): Promise<void>;
+}
+```
+
+### Custom Vector Store
 
 ```typescript
 import type { VectorStoreAdapter, VectorDocument, ScoredDocument, DeleteParams } from '@interactkit/sdk';
 
 class MyVectorStore implements VectorStoreAdapter {
-  async add(docs: VectorDocument[]): Promise<string[]> { /* embed + store, return IDs */ }
-  async search(query: string, k: number, filter?: Record<string, unknown>): Promise<ScoredDocument[]> { /* embed query + similarity search */ }
-  async delete(params: DeleteParams): Promise<void> { /* delete by IDs or filter */ }
+  async add(docs: VectorDocument[]): Promise<string[]> { /* ... */ }
+  async search(query: string, k: number, filter?: Record<string, unknown>): Promise<ScoredDocument[]> { /* ... */ }
+  async delete(params: DeleteParams): Promise<void> { /* ... */ }
 }
 ```
 
+When a `vectorStore` is configured, the runtime auto-registers handlers for any `type="long-term-memory"` entities. See [Entities](entities.md) for details.
+
+---
+
 ## What the Adapters Control
 
-| Feature | Adapter | How it works |
-|---------|---------|-------------|
-| Tool calls between entities | Pub/Sub | `enqueue`/`consume` on entity channels |
-| Hook events from hook server | Pub/Sub | `enqueue`/`consume` on hook channels |
-| State sync between replicas | Pub/Sub | `publish`/`subscribe` on state channels |
-| Stream data (child to parent) | Pub/Sub | `publish`/`subscribe` on stream channels (Redis), or direct in-memory (InProcess) |
-| State persistence | Database | Auto-save on mutation, restore on boot |
-| Semantic memory (RAG) | Vector Store | `LongTermMemory` entities use it for memorize/recall/forget |
-| Event observability | Observer | All events + errors flowing through the bus |
-
-## Config
-
-All infrastructure is configured in `interactkit.config.ts` at the project root. The `root` field specifies the root entity class (making `--root` optional on the CLI). Adapters take connection config via their constructors:
-
-```typescript
-// interactkit.config.ts
-import { Agent } from './src/entities/agent.js';
-import { PrismaDatabaseAdapter } from '@interactkit/prisma';
-import { RedisPubSubAdapter } from '@interactkit/redis';
-import { DashboardObserver } from '@interactkit/observer';
-import { DevObserver } from '@interactkit/sdk';
-import type { InteractKitConfig } from '@interactkit/sdk';
-
-export default {
-  root: Agent,
-  database: new PrismaDatabaseAdapter({ url: 'file:./app.db' }),
-  pubsub: new RedisPubSubAdapter({ host: 'localhost', port: 6379 }),
-  observers: [new DevObserver(), new DashboardObserver()],
-  timeout: 15_000,      // event bus request timeout (default: 30000)
-  stateFlushMs: 50,     // state persistence debounce (default: 10)
-} satisfies InteractKitConfig;
-```
-
-| Package | Adapter | Constructor config |
-|---------|---------|-------------------|
-| `@interactkit/redis` | `RedisPubSubAdapter` | `{ host: string, port: number }` or `{ url: string }` |
-| `@interactkit/prisma` | `PrismaDatabaseAdapter` | `{ url: string }` |
-| `@interactkit/observer` | `DashboardObserver` | `{ port?: number, token?: string }` |
-| `@interactkit/chromadb` | `ChromaDBVectorStoreAdapter` | `{ collection, url? }` |
-| `@interactkit/pinecone` | `PineconeVectorStoreAdapter` | `{ apiKey, index, embed? or embeddings? }` |
-| `@interactkit/langchain` | `LangChainVectorStoreAdapter` | `{ store }` |
-
-Missing config throws a clear error at startup.
+| Feature | Adapter |
+|---------|---------|
+| State persistence | Database |
+| Semantic memory (RAG) | Vector Store |
+| Event observability | Observer |
+| Tool calls between entities | Event Bus (built-in) |
 
 ---
 
 ## What's Next?
 
-- [Deployment](./deployment.md): scaling and deploying your agents
-- [Extensions](./extensions.md): custom hooks and adapter packages
+- [Deployment](deployment.md) -- HTTP API, Docker, remote entities
+- [Extensions](extensions.md) -- available adapter packages

@@ -1,184 +1,70 @@
 # Hooks
 
-Hooks let entities react to things: startup, timers, HTTP requests, cron schedules, and more.
+Hooks let entities run code at specific lifecycle points. Currently, the primary hook is **init** -- run when an entity boots.
 
-Add `@Hook(Runner)` to a method. The runner tells InteractKit *when* to call it. Config goes in `Runner(config)`.
+## Init Handler
 
-## Built-in Hooks
-
-### Init: Run on Startup
+Register an init handler in `app.ts` or pass it via `graph.configure()`:
 
 ```typescript
-import { Hook, Init } from '@interactkit/sdk';
-
-@Hook(Init.Runner())
-async onInit(input: Init.Input) {
-  console.log(`Ready! First boot: ${input.firstBoot}`);
-}
+const app = graph.configure({
+  handlers: {
+    Agent: {
+      init: async (entity) => {
+        console.log('Agent booted!', entity.id);
+        // Subscribe to child streams
+        entity.components.sensor.readings.on('data', (value) => {
+          entity.state.sensorReadings.push(value);
+        });
+      },
+    },
+  },
+});
 ```
 
-Runs once when the entity starts. `firstBoot` tells you if this is a fresh start or a restart with saved state.
-
-### Tick: Run on an Interval
+Or register after configuration:
 
 ```typescript
-import { Hook, Tick, type Remote } from '@interactkit/sdk';
-
-@Hook(Tick.Runner({ intervalMs: 5000 }))
-async onTick(input: Remote<Tick.Input>) {
-  console.log(`Tick #${input.tick}`);
-}
+app.Agent.init(async (entity) => {
+  console.log('Agent ready');
+});
 ```
 
-Runs every 5 seconds. Default is 60 seconds if you don't specify.
+Init handlers run bottom-up -- children initialize before parents.
 
----
+## Init via `src`
 
-## Extension Hooks
+You can also define init handlers as tool files if your XML defines an init hook:
 
-Extension packages provide additional hook types. Install the package and use the namespace:
-
-### Cron: Run on a Schedule
+```xml
+<hooks>
+  <hook type="init" src="hooks/agent-init.ts" />
+</hooks>
+```
 
 ```typescript
-import { Hook, type Remote } from '@interactkit/sdk';
-import { Cron } from '@interactkit/cron';
+// interactkit/hooks/agent-init.ts
+import type { AgentEntity } from '../.generated/types.js';
 
-@Hook(Cron.Runner({ expression: '0 * * * *' }))
-async onSchedule(input: Remote<Cron.Input>) {
-  console.log('Runs every hour');
-}
+export default async (entity: AgentEntity): Promise<void> => {
+  console.log(`Agent ${entity.state.name} booted`);
+};
 ```
 
-Standard cron expressions, powered by `node-cron`. Install: `pnpm add @interactkit/cron`.
+## HTTP and WebSocket
 
-Timezone can be set globally in `interactkit.config.ts`:
+HTTP and WebSocket are handled by `app.serve()` instead of hooks. See [Deployment](deployment.md).
 
 ```typescript
-export default {
-  // ...
-  hooks: { cron: { timezone: 'America/New_York' } },
-} satisfies InteractKitConfig;
+await app.serve({
+  http: { port: 3000 },
+  ws: { port: 3001 },
+});
 ```
-
-### HttpRequest: Run on HTTP
-
-```typescript
-import { Hook, type Remote } from '@interactkit/sdk';
-import { HttpRequest } from '@interactkit/http';
-
-@Hook(HttpRequest.Runner({ path: '/webhook' }))
-async onRequest(input: Remote<HttpRequest.Input>) {
-  input.respond(200, JSON.stringify({ ok: true }));
-}
-```
-
-Install: `pnpm add @interactkit/http`.
-
----
-
-## Multiple Hooks
-
-One entity can have as many hooks as it needs:
-
-```typescript
-import { Entity, BaseEntity, Hook, Init, Tick, type Remote } from '@interactkit/sdk';
-import { Cron } from '@interactkit/cron';
-
-@Entity()
-class Worker extends BaseEntity {
-  @Hook(Init.Runner())
-  async onInit(input: Init.Input) { /* setup */ }
-
-  @Hook(Tick.Runner({ intervalMs: 10000 }))
-  async onTick(input: Remote<Tick.Input>) { /* periodic work */ }
-
-  @Hook(Cron.Runner({ expression: '0 9 * * 1' }))
-  async onSchedule(input: Remote<Cron.Input>) { /* every Monday 9am */ }
-}
-```
-
-## Local vs Remote Hooks
-
-- **Local** (`inProcess: true`): Init hooks run in the entity process. The runner is created, init'd, and register'd all in one place.
-- **Remote** (`inProcess: false`): Tick, Cron, HTTP, WebSocket hooks run in a separate `_hooks.ts` process. The hook process calls `init()` to set up shared resources, then listens for entity registrations via pubsub. Each entity sends a register event on boot; the hook process calls `register(emit, config)` per entity.
-
-For detached entities, use `Remote<T>` on the input type for type-safe proxy access:
-
-```typescript
-import { Hook, type Remote } from '@interactkit/sdk';
-import { HttpRequest } from '@interactkit/http';
-
-@Hook(HttpRequest.Runner({ path: '/webhook' }))
-async onRequest(input: Remote<HttpRequest.Input>) {
-  const method = await input.method;    // property access returns Promise
-  await input.respond(200, 'ok');       // function calls work transparently
-}
-```
-
----
-
-## HookRunner Interface
-
-Every hook (built-in or extension) implements the `HookRunner` interface:
-
-```typescript
-interface HookRunner<T> {
-  init(config: Record<string, unknown>): Promise<void>;
-  register(emit: (data: T) => void, config: Record<string, unknown>): void;
-  stop(): Promise<void>;
-}
-```
-
-- `init(config)` -- set up shared resources. Config = defaults from `initConfig` merged with overrides from `interactkit.config.ts` `hooks` field.
-- `register(emit, config)` -- add an emit callback per entity. Config = per-entity run config from `@Hook(Runner(config))`.
-- `stop()` -- tear down resources.
-
----
-
-## Custom Hooks
-
-You can build your own hooks as extension packages. Export a namespace with `Input` + `Runner`:
-
-```typescript
-import type { HookRunner, HookHandler } from '@interactkit/sdk';
-
-export namespace Sms {
-  export interface Input {
-    from: string;
-    body: string;
-  }
-
-  class RunnerImpl implements HookRunner<Input> {
-    async init(config: Record<string, unknown>) {
-      // Set up shared resources
-    }
-    register(emit: (data: Input) => void, config: Record<string, unknown>) {
-      // Register per-entity emit callback
-    }
-    async stop() { /* cleanup */ }
-  }
-
-  export function Runner(config: { phoneNumber: string }): HookHandler<Input> {
-    return { __hookHandler: true, runnerClass: RunnerImpl, config };
-  }
-}
-```
-
-Use it like any other hook:
-
-```typescript
-@Hook(Sms.Runner({ phoneNumber: '+1234567890' }))
-async onSms(input: Sms.Input) {
-  console.log(`SMS from ${input.from}: ${input.body}`);
-}
-```
-
-See [Extensions](./extensions.md) for full details on building hook packages.
 
 ---
 
 ## What's Next?
 
-- [Extensions](./extensions.md): build custom hook types as packages
-- [Infrastructure](./infrastructure.md): database, pub/sub, and observer adapters
+- [Deployment](deployment.md) -- HTTP API via `app.serve()`
+- [Infrastructure](infrastructure.md) -- database, observers

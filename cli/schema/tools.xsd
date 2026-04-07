@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Tool definitions, autotools, and parameters.
+-->
+<xs:schema
+  xmlns:xs="http://www.w3.org/2001/XMLSchema"
+  xmlns:ik="https://interactkit.dev/schema/v1"
+  targetNamespace="https://interactkit.dev/schema/v1"
+  elementFormDefault="qualified">
+
+  <!-- ════════════════════════════════════════════════════════════
+       Tool (callable method) — input and output required.
+       Every tool is (input) => Promise<output>.
+       ════════════════════════════════════════════════════════════ -->
+  <xs:element name="tool">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="input">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element ref="ik:param" minOccurs="0" maxOccurs="unbounded" />
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+        <xs:element name="output">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element ref="ik:param" minOccurs="0" maxOccurs="unbounded" />
+            </xs:sequence>
+            <xs:attribute name="type" type="ik:fieldType" />
+            <xs:attribute name="items" type="ik:fieldType" />
+          </xs:complexType>
+        </xs:element>
+      </xs:sequence>
+
+      <xs:attribute name="name" type="xs:string" use="required" />
+      <xs:attribute name="description" type="xs:string" use="required" />
+      <xs:attribute name="llm-callable" type="xs:boolean" default="false" />
+      <xs:attribute name="peerVisible" type="xs:boolean" default="false" />
+      <!-- Path to handler implementation file (relative to interactkit/ dir) -->
+      <xs:attribute name="src" type="xs:string" />
+    </xs:complexType>
+  </xs:element>
+
+  <!-- ════════════════════════════════════════════════════════════
+       Autotool — auto-generated CRUD tool referencing a fieldGroup.
+       Input/output inferred from fieldGroup fields + op.
+       ════════════════════════════════════════════════════════════ -->
+  <xs:element name="autotool">
+    <xs:complexType>
+      <xs:attribute name="name" type="xs:string" use="required" />
+      <xs:attribute name="on" type="xs:string" use="required" />
+      <xs:attribute name="op" type="ik:autoOp" use="required" />
+      <xs:attribute name="key" type="xs:string" />
+      <xs:attribute name="peerVisible" type="xs:boolean" default="false" />
+      <xs:attribute name="llm-callable" type="xs:boolean" default="false" />
+    </xs:complexType>
+  </xs:element>
+
+  <!-- ════════════════════════════════════════════════════════════
+       Parameter (used by tools, streams, and output shapes)
+       ════════════════════════════════════════════════════════════ -->
+  <xs:element name="param">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element ref="ik:validate" minOccurs="0" />
+        <!-- Nested params for object types -->
+        <xs:element ref="ik:param" minOccurs="0" maxOccurs="unbounded" />
+      </xs:sequence>
+
+      <xs:attribute name="name" type="xs:string" use="required" />
+      <xs:attribute name="type" type="ik:fieldType" use="required" />
+      <xs:attribute name="description" type="xs:string" />
+      <xs:attribute name="optional" type="xs:boolean" default="false" />
+      <!-- For array types: element type -->
+      <xs:attribute name="items" type="ik:fieldType" />
+      <!-- For record types: value type -->
+      <xs:attribute name="values" type="ik:fieldType" />
+    </xs:complexType>
+  </xs:element>
+
+</xs:schema>

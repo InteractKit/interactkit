@@ -1,0 +1,12 @@
+{
+  "name": "test-34-multi-tenant",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@interactkit/sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "@interactkit/cli": "workspace:*",
+    "typescript": "^5.5.0"
+  }
+}

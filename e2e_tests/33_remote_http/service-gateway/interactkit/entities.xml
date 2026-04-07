@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graph xmlns="https://interactkit.dev/schema/v1" version="1" root="Gateway">
+  <entity name="Gateway" type="base" description="Gateway that delegates to remote worker">
+    <components>
+      <component name="worker" entity="Worker" />
+    </components>
+  </entity>
+
+  <!-- Remote entity — tools/state fetched from http://localhost:4100/schema at compile time -->
+  <entity name="Worker" type="base" description="Remote worker" remote="http://localhost:4100" />
+</graph>

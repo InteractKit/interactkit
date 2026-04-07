@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  State fields, validation constraints, and secrets.
+-->
+<xs:schema
+  xmlns:xs="http://www.w3.org/2001/XMLSchema"
+  xmlns:ik="https://interactkit.dev/schema/v1"
+  targetNamespace="https://interactkit.dev/schema/v1"
+  elementFormDefault="qualified">
+
+  <!-- ════════════════════════════════════════════════════════════
+       State field
+       ════════════════════════════════════════════════════════════ -->
+  <xs:element name="field">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element ref="ik:validate" minOccurs="0" />
+        <!-- For object types: nested fields -->
+        <xs:element ref="ik:field" minOccurs="0" maxOccurs="unbounded" />
+      </xs:sequence>
+
+      <xs:attribute name="name" type="xs:string" use="required" />
+      <xs:attribute name="type" type="ik:fieldType" use="required" />
+      <xs:attribute name="description" type="xs:string" use="required" />
+      <xs:attribute name="default" type="xs:string" />
+      <xs:attribute name="optional" type="xs:boolean" default="false" />
+      <xs:attribute name="configurable" type="xs:boolean" default="false" />
+      <xs:attribute name="configurable-label" type="xs:string" />
+      <xs:attribute name="configurable-group" type="xs:string" />
+      <!-- For array types: element type -->
+      <xs:attribute name="items" type="ik:fieldType" />
+      <!-- For record types: value type -->
+      <xs:attribute name="values" type="ik:fieldType" />
+    </xs:complexType>
+  </xs:element>
+
+  <!-- ════════════════════════════════════════════════════════════
+       Validation constraints
+       ════════════════════════════════════════════════════════════ -->
+  <xs:element name="validate">
+    <xs:complexType>
+      <!-- String constraints -->
+      <xs:attribute name="min-length" type="xs:nonNegativeInteger" />
+      <xs:attribute name="max-length" type="xs:nonNegativeInteger" />
+      <xs:attribute name="pattern" type="xs:string" />
+      <xs:attribute name="format" type="ik:stringFormat" />
+
+      <!-- Number constraints -->
+      <xs:attribute name="min" type="xs:decimal" />
+      <xs:attribute name="max" type="xs:decimal" />
+      <xs:attribute name="integer" type="xs:boolean" />
+
+      <!-- Array constraints -->
+      <xs:attribute name="min-items" type="xs:nonNegativeInteger" />
+      <xs:attribute name="max-items" type="xs:nonNegativeInteger" />
+
+      <!-- Enum constraint (pipe-separated values) -->
+      <xs:attribute name="enum" type="xs:string" />
+    </xs:complexType>
+  </xs:element>
+
+  <!-- ════════════════════════════════════════════════════════════
+       Field Group — a keyed collection of records.
+       Autotools reference this by name to generate CRUD operations.
+       ════════════════════════════════════════════════════════════ -->
+  <xs:element name="fieldGroup">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element ref="ik:field" maxOccurs="unbounded" />
+      </xs:sequence>
+      <xs:attribute name="name" type="xs:string" use="required" />
+      <xs:attribute name="key" type="xs:string" use="required" />
+      <xs:attribute name="description" type="xs:string" />
+    </xs:complexType>
+  </xs:element>
+
+  <!-- ════════════════════════════════════════════════════════════
+       Secret
+       ════════════════════════════════════════════════════════════ -->
+  <xs:element name="secret">
+    <xs:complexType>
+      <xs:attribute name="name" type="xs:string" use="required" />
+      <xs:attribute name="description" type="xs:string" />
+      <!-- Env var to read from at runtime -->
+      <xs:attribute name="env" type="xs:string" />
+    </xs:complexType>
+  </xs:element>
+
+</xs:schema>

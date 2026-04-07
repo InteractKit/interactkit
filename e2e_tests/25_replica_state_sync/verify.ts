@@ -1,37 +1,32 @@
-import { execSync, spawn } from 'child_process';
+import { execSync } from 'child_process';
+import { resolve } from 'path';
+
 const cwd = import.meta.dirname;
-const pids: number[] = [];
-function cleanup() { for (const pid of pids) { try { process.kill(pid, 'SIGTERM'); } catch {} } }
-process.on('exit', cleanup);
+const cliDist = resolve(cwd, '../../cli/dist/index.js');
+
+const expected = [
+  'all found: true',
+  'getAll: 5 settings',
+  'synced: true',
+  'DONE',
+];
 
 try {
-  execSync('interactkit build --root=src/agent:Agent', { stdio: 'pipe', cwd });
-  execSync('redis-cli flushall', { stdio: 'pipe' });
+  execSync(`node ${cliDist} compile`, { stdio: 'pipe', cwd });
 
-  // Start 3 replicas of ConfigStore
-  for (let i = 0; i < 3; i++) {
-    const w = spawn('node', ['.interactkit/build/src/_unit-config-store.js'], { cwd, stdio: 'pipe' });
-    pids.push(w.pid!);
-  }
-  await new Promise(r => setTimeout(r, 2000));
+  const output = execSync('npx tsx src/app.ts', {
+    timeout: 15000, cwd,
+  }).toString();
 
-  const output = execSync('node .interactkit/build/src/_unit-agent.js', { timeout: 30000, cwd }).toString();
-
-  const expected = [
-    'all found: true',
-    'getAll: 5 settings',
-    'synced: true',
-    'DONE',
-  ];
+  let pass = 0;
   for (const exp of expected) {
-    if (!output.includes(exp)) { console.error(`  FAIL: missing "${exp}"\n${output}`); process.exit(1); }
-    console.log(`  ok ${exp}`);
+    if (output.includes(exp)) { pass++; console.log(`  ok ${exp}`); }
+    else { console.error(`  FAIL: missing "${exp}"`); console.error(output); process.exit(1); }
   }
-
-  // Check reads came from multiple replicas
-  const pidMatch = output.match(/(\d+) replicas/);
-  if (pidMatch) console.log(`  ok reads from ${pidMatch[1]} replicas`);
-
-  console.log('25_replica_state_sync: PASS');
-} catch (e: any) { console.error('FAIL', e.stdout?.toString(), e.stderr?.toString()); process.exit(1); }
-finally { cleanup(); }
+  console.log(`25_replica_state_sync: PASS (${pass}/${expected.length})`);
+} catch (e: any) {
+  console.error('25_replica_state_sync: FAIL');
+  if (e.stdout) console.error(e.stdout.toString());
+  if (e.stderr) console.error(e.stderr.toString());
+  process.exit(1);
+}

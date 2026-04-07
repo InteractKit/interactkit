@@ -1,6 +1,6 @@
 {
   "name": "@interactkit/langchain",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "LangChain vector store adapter for InteractKit — wraps any LangChain VectorStore",
   "type": "module",
   "license": "MIT",
@@ -19,7 +19,7 @@
     "prepublishOnly": "pnpm build"
   },
   "peerDependencies": {
-    "@interactkit/sdk": "^0.2.0",
+    "@interactkit/sdk": "^0.3.0",
     "@langchain/core": "^1.1.0"
   },
   "devDependencies": {

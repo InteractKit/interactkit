@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  InteractKit Entity Graph Schema — master file.
+  Includes all domain-specific schema fragments.
+-->
+<xs:schema
+  xmlns:xs="http://www.w3.org/2001/XMLSchema"
+  xmlns:ik="https://interactkit.dev/schema/v1"
+  targetNamespace="https://interactkit.dev/schema/v1"
+  elementFormDefault="qualified">
+
+  <xs:include schemaLocation="types.xsd" />
+  <xs:include schemaLocation="state.xsd" />
+  <xs:include schemaLocation="tools.xsd" />
+  <xs:include schemaLocation="structure.xsd" />
+  <xs:include schemaLocation="llm.xsd" />
+  <xs:include schemaLocation="mcp.xsd" />
+
+  <!-- ════════════════════════════════════════════════════════════
+       Root element: <graph>
+       ════════════════════════════════════════════════════════════ -->
+  <xs:element name="graph">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element ref="ik:entity" maxOccurs="unbounded" />
+      </xs:sequence>
+      <xs:attribute name="version" type="xs:string" use="required" />
+    </xs:complexType>
+  </xs:element>
+
+  <!-- ════════════════════════════════════════════════════════════
+       Entity
+       ════════════════════════════════════════════════════════════ -->
+  <xs:element name="entity">
+    <xs:complexType>
+      <xs:all>
+        <xs:element name="state" minOccurs="0">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element ref="ik:field" minOccurs="0" maxOccurs="unbounded" />
+              <xs:element ref="ik:fieldGroup" minOccurs="0" maxOccurs="unbounded" />
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+
+        <xs:element name="secrets" minOccurs="0">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element ref="ik:secret" maxOccurs="unbounded" />
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+
+        <xs:element name="components" minOccurs="0">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element ref="ik:component" maxOccurs="unbounded" />
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+
+        <xs:element name="refs" minOccurs="0">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element ref="ik:ref" maxOccurs="unbounded" />
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+
+        <xs:element name="tools" minOccurs="0">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element ref="ik:tool" minOccurs="0" maxOccurs="unbounded" />
+              <xs:element ref="ik:autotool" minOccurs="0" maxOccurs="unbounded" />
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+
+        <xs:element name="streams" minOccurs="0">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element ref="ik:stream" maxOccurs="unbounded" />
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+
+        <xs:element ref="ik:describe" minOccurs="0" />
+        <xs:element ref="ik:executor" minOccurs="0" />
+        <xs:element ref="ik:thinking-loop" minOccurs="0" />
+        <xs:element ref="ik:mcp" minOccurs="0" />
+      </xs:all>
+
+      <xs:attribute name="name" type="xs:string" use="required" />
+      <xs:attribute name="type" type="ik:entityType" use="required" />
+      <xs:attribute name="description" type="xs:string" />
+      <!-- Remote entity URL — calls are proxied over HTTP instead of in-process -->
+      <xs:attribute name="remote" type="xs:string" />
+    </xs:complexType>
+  </xs:element>
+
+</xs:schema>

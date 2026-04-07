@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graph xmlns="https://interactkit.dev/schema/v1" version="1" root="Agent">
+  <entity name="Agent" type="base" description="Array mutation test">
+    <describe>Agent: {{items.length}} items</describe>
+    <state>
+      <field name="items" type="array" description="Items" items="string" />
+      <field name="nums" type="array" description="Numbers" items="number" />
+    </state>
+    <tools>
+      <tool name="testArrayMutations" description="Test all array mutations">
+        <input />
+        <output type="string" />
+      </tool>
+    </tools>
+  </entity>
+</graph>

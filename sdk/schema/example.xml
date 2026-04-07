@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graph xmlns="https://interactkit.dev/schema/v1" version="1">
+
+  <!-- ─── Agent ─────────────────────────────────────────── -->
+  <entity name="Agent" type="base" description="Root research assistant">
+    <describe>Research assistant with {{requestCount}} requests handled</describe>
+    <components>
+      <component name="planner" entity="Planner" />
+      <component name="researcher" entity="Researcher" />
+      <component name="memory" entity="Memory" />
+      <component name="reporter" entity="Reporter" />
+    </components>
+    <state>
+      <field name="requestCount" type="number" description="Total requests handled" default="0">
+        <validate min="0" integer="true" />
+      </field>
+    </state>
+  </entity>
+
+  <!-- ─── Planner ───────────────────────────────────────── -->
+  <entity name="Planner" type="llm" description="Decomposes queries into sub-questions">
+    <describe>Research planner with {{planCount}} plans created</describe>
+    <executor provider="openai" model="gpt-4o-mini" />
+    <refs>
+      <ref name="memory" entity="Memory" />
+    </refs>
+    <state>
+      <field name="planCount" type="number" description="Plans generated" default="0" />
+    </state>
+    <tools>
+      <tool name="savePlan" description="Save a plan to memory for future reference">
+        <input><param name="plan" type="string" /></input>
+        <output type="void" />
+      </tool>
+      <tool name="recallPlans" description="Recall previous plans">
+        <input />
+        <output type="array" items="string" />
+      </tool>
+    </tools>
+  </entity>
+
+  <!-- ─── Researcher ────────────────────────────────────── -->
+  <entity name="Researcher" type="base" description="Orchestrates search and fact-checking">
+    <describe>Research orchestrator with {{investigationCount}} investigations completed</describe>
+    <components>
+      <component name="searcher" entity="WebSearcher" />
+      <component name="factChecker" entity="FactChecker" />
+    </components>
+    <state>
+      <field name="investigationCount" type="number" description="Investigations completed" default="0" />
+    </state>
+    <tools>
+      <tool name="investigate" description="Investigate a topic by searching and fact-checking">
+        <input><param name="topic" type="string" /></input>
+        <output type="string" />
+      </tool>
+    </tools>
+  </entity>
+
+  <!-- ─── WebSearcher ───────────────────────────────────── -->
+  <entity name="WebSearcher" type="llm" description="Simulates web search and summarizes results">
+    <describe>Web searcher with {{searchCount}} searches performed. Last query: {{lastQuery}}</describe>
+    <executor provider="openai" model="gpt-4o-mini" />
+    <state>
+      <field name="searchCount" type="number" description="Searches performed" default="0">
+        <validate min="0" />
+      </field>
+      <field name="lastQuery" type="string" description="Most recent search query" default="" />
+    </state>
+    <tools>
+      <tool name="search" description="Simulate a web search and return results">
+        <input><param name="query" type="string" /></input>
+        <output type="string" />
+      </tool>
+    </tools>
+  </entity>
+
+  <!-- ─── FactChecker ───────────────────────────────────── -->
+  <entity name="FactChecker" type="llm" description="Verifies claims and flags uncertainty">
+    <describe>Fact checker with {{claimsChecked}} claims verified at {{confidenceThreshold}}% threshold</describe>
+    <executor provider="openai" model="gpt-4o-mini" />
+    <state>
+      <field name="claimsChecked" type="number" description="Claims checked" default="0" />
+      <field name="confidenceThreshold" type="number" description="Min confidence %" default="70">
+        <validate min="0" max="100" />
+      </field>
+    </state>
+    <tools>
+      <tool name="rateClaim" description="Rate confidence in a claim from 0-100">
+        <input><param name="claim" type="string" /></input>
+        <output type="object">
+          <param name="claim" type="string" />
+          <param name="confidence" type="number" />
+          <param name="reliable" type="boolean" />
+        </output>
+      </tool>
+    </tools>
+  </entity>
+
+  <!-- ─── Memory ────────────────────────────────────────── -->
+  <entity name="Memory" type="base" description="Tagged memory store with search">
+    <describe>Memory store with {{entries.length}}/{{maxEntries}} entries</describe>
+    <state>
+      <fieldGroup name="entries" key="id">
+        <field name="text" type="string" description="Entry content" />
+        <field name="tag" type="string" description="Category tag" />
+      </fieldGroup>
+      <field name="maxEntries" type="number" description="Max entries before pruning" default="1000"
+             configurable="true" configurable-label="Max Entries" configurable-group="Limits">
+        <validate min="10" max="10000" integer="true" />
+      </field>
+    </state>
+    <tools>
+      <autotool name="store" on="entries" op="create" peerVisible="true" />
+      <autotool name="search" on="entries" op="search" key="query" peerVisible="true" />
+      <autotool name="getAll" on="entries" op="list" peerVisible="true" />
+      <autotool name="count" on="entries" op="count" peerVisible="true" />
+      <tool name="searchByTag" description="Get all entries matching a tag" peerVisible="true">
+        <input><param name="tag" type="string" /></input>
+        <output type="array" items="string" />
+      </tool>
+      <tool name="clearTag" description="Clear all entries for a given tag">
+        <input><param name="tag" type="string" /></input>
+        <output type="number" />
+      </tool>
+    </tools>
+  </entity>
+
+  <!-- ─── Reporter ──────────────────────────────────────── -->
+  <entity name="Reporter" type="llm" description="Generates polished reports from findings">
+    <describe>Report writer with {{reportsGenerated}} reports generated</describe>
+    <executor provider="openai" model="gpt-4o-mini" />
+    <refs>
+      <ref name="memory" entity="Memory" />
+    </refs>
+    <streams>
+      <stream name="progress" type="string" description="Report generation progress" />
+    </streams>
+    <state>
+      <field name="reportsGenerated" type="number" description="Reports generated" default="0" />
+    </state>
+    <tools>
+      <tool name="saveReport" description="Save the final report to memory">
+        <input><param name="report" type="string" /></input>
+        <output type="void" />
+      </tool>
+      <tool name="getPreviousReports" description="Get previous reports">
+        <input />
+        <output type="array" items="string" />
+      </tool>
+    </tools>
+  </entity>
+
+</graph>

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graph xmlns="https://interactkit.dev/schema/v1" version="1" root="Agent">
+  <entity name="Agent" type="base" description="Per-tenant agent">
+    <describe>Agent: {{messageCount}} messages</describe>
+    <components>
+      <component name="memory" entity="Memory" />
+    </components>
+    <state>
+      <field name="messageCount" type="number" description="Messages handled" default="0" />
+    </state>
+    <tools>
+      <tool name="chat" description="Chat with the agent">
+        <input><param name="message" type="string" /></input>
+        <output type="string" />
+      </tool>
+      <tool name="getCount" description="Get message count">
+        <input />
+        <output type="number" />
+      </tool>
+    </tools>
+  </entity>
+
+  <entity name="Memory" type="base" description="Per-tenant memory">
+    <state>
+      <field name="entries" type="array" items="string" description="Stored entries" />
+    </state>
+    <tools>
+      <tool name="store" description="Store an entry" peerVisible="true">
+        <input><param name="text" type="string" /></input>
+        <output type="number" />
+      </tool>
+      <tool name="getAll" description="Get all entries" peerVisible="true">
+        <input />
+        <output type="array" items="string" />
+      </tool>
+    </tools>
+  </entity>
+</graph>

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graph xmlns="https://interactkit.dev/schema/v1" version="1" root="Agent">
+  <entity name="Agent" type="base" description="State reactivity test">
+    <describe>Agent: count={{count}}, name={{name}}</describe>
+    <state>
+      <field name="count" type="number" description="Counter" default="0" />
+      <field name="name" type="string" description="Name" default="default" />
+      <field name="data" type="object" description="Nested data">
+        <field name="x" type="number" description="X" />
+        <field name="y" type="number" description="Y" />
+      </field>
+    </state>
+    <tools>
+      <tool name="setCount" description="Set count"><input><param name="value" type="number" /></input><output type="number" /></tool>
+      <tool name="setName" description="Set name"><input><param name="value" type="string" /></input><output type="string" /></tool>
+      <tool name="setData" description="Set data"><input><param name="x" type="number" /><param name="y" type="number" /></input><output type="object"><param name="x" type="number" /><param name="y" type="number" /></output></tool>
+      <tool name="getState" description="Get state"><input /><output type="object"><param name="count" type="number" /><param name="name" type="string" /></output></tool>
+    </tools>
+  </entity>
+</graph>

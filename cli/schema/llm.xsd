@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  LLM-specific: executor config and thinking loop.
+  Only applicable to entities with type="llm".
+-->
+<xs:schema
+  xmlns:xs="http://www.w3.org/2001/XMLSchema"
+  xmlns:ik="https://interactkit.dev/schema/v1"
+  targetNamespace="https://interactkit.dev/schema/v1"
+  elementFormDefault="qualified">
+
+  <!-- ════════════════════════════════════════════════════════════
+       Executor (LLM model configuration)
+       ════════════════════════════════════════════════════════════ -->
+  <xs:element name="executor">
+    <xs:complexType>
+      <xs:attribute name="provider" type="ik:llmProvider" use="required" />
+      <xs:attribute name="model" type="xs:string" use="required" />
+      <xs:attribute name="temperature" type="xs:decimal" />
+      <xs:attribute name="max-tokens" type="xs:positiveInteger" />
+    </xs:complexType>
+  </xs:element>
+
+  <!-- ════════════════════════════════════════════════════════════
+       Thinking Loop configuration
+       ════════════════════════════════════════════════════════════ -->
+  <xs:element name="thinking-loop">
+    <xs:complexType>
+      <xs:attribute name="interval-ms" type="xs:positiveInteger" default="5000" />
+      <xs:attribute name="soft-timeout-ms" type="xs:positiveInteger" default="30000" />
+      <xs:attribute name="hard-timeout-ms" type="xs:positiveInteger" default="60000" />
+      <xs:attribute name="context-window" type="xs:positiveInteger" default="50" />
+      <xs:attribute name="inner-monologue" type="xs:boolean" default="true" />
+      <xs:attribute name="max-sleep-ticks" type="xs:positiveInteger" default="12" />
+      <xs:attribute name="min-interval-ms" type="xs:positiveInteger" default="1000" />
+      <xs:attribute name="max-interval-ms" type="xs:positiveInteger" default="60000" />
+      <xs:attribute name="max-defers" type="xs:positiveInteger" default="2" />
+    </xs:complexType>
+  </xs:element>
+
+</xs:schema>

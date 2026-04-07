@@ -1,18 +1,15 @@
-import { execSync, spawn } from 'child_process';
+import { execSync } from 'child_process';
+import { resolve } from 'path';
+
 const cwd = import.meta.dirname;
-const pids: number[] = [];
-function cleanup() { for (const pid of pids) { try { process.kill(pid, 'SIGTERM'); } catch {} } }
-process.on('exit', cleanup);
+const cliDist = resolve(cwd, '../../cli/dist/index.js');
 
 try {
-  execSync('interactkit build --root=src/agent:Agent', { stdio: 'pipe', cwd });
-  execSync('redis-cli flushall', { stdio: 'pipe' });
+  // Compile XML
+  execSync(`node ${cliDist} compile`, { stdio: 'pipe', cwd });
 
-  const worker = spawn('node', ['.interactkit/build/src/_unit-worker.js'], { cwd, stdio: 'pipe' });
-  pids.push(worker.pid!);
-  await new Promise(r => setTimeout(r, 2000));
-
-  const output = execSync('node .interactkit/build/src/_unit-agent.js', { timeout: 30000, cwd }).toString();
+  // Run the app
+  const output = execSync('npx tsx src/app.ts', { timeout: 30000, cwd }).toString();
 
   const expected = [
     'sequential: 50', 'parallel 100: 100 results',
@@ -24,5 +21,9 @@ try {
     console.log(`  ok ${exp}`);
   }
   console.log('22_scalability_fanout: PASS');
-} catch (e: any) { console.error('FAIL', e.stdout?.toString(), e.stderr?.toString()); process.exit(1); }
-finally { cleanup(); }
+} catch (e: any) {
+  console.error('FAIL');
+  if (e.stdout) console.error(e.stdout.toString());
+  if (e.stderr) console.error(e.stderr.toString());
+  process.exit(1);
+}

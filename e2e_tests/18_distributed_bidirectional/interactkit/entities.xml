@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graph xmlns="https://interactkit.dev/schema/v1" version="1" root="Agent">
+  <entity name="Agent" type="base" description="Agent">
+    <components>
+      <component name="ping" entity="Ping" />
+      <component name="pong" entity="Pong" />
+    </components>
+  </entity>
+  <entity name="Ping" type="base" description="Ping">
+    <tools>
+      <tool name="ping" description="Ping">
+        <input><param name="n" type="number" /></input>
+        <output type="string" />
+      </tool>
+    </tools>
+  </entity>
+  <entity name="Pong" type="base" description="Pong">
+    <tools>
+      <tool name="pong" description="Pong">
+        <input><param name="n" type="number" /></input>
+        <output type="string" />
+      </tool>
+    </tools>
+  </entity>
+</graph>

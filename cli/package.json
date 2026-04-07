@@ -1,6 +1,6 @@
 {
   "name": "@interactkit/cli",
-  "version": "0.2.16",
+  "version": "0.3.0",
   "description": "CLI for InteractKit — codegen, scaffolding, build, and dev server",
   "type": "module",
   "license": "MIT",
@@ -15,6 +15,7 @@
   },
   "files": [
     "dist",
+    "schema",
     "README.md",
     "LICENSE"
   ],
@@ -30,6 +31,7 @@
     "@inquirer/prompts": "^8.3.2",
     "@modelcontextprotocol/sdk": "^1.28.0",
     "commander": "^14.0.3",
+    "fast-xml-parser": "^5.5.10",
     "ts-morph": "^24.0.0"
   },
   "devDependencies": {

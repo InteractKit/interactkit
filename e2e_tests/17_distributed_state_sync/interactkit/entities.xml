@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graph xmlns="https://interactkit.dev/schema/v1" version="1" root="Agent">
+  <entity name="Agent" type="base" description="Agent">
+    <components>
+      <component name="store" entity="Store" />
+    </components>
+  </entity>
+  <entity name="Store" type="base" description="Store">
+    <state>
+      <field name="entries" type="record" values="string" description="entries" default="{}" />
+    </state>
+    <tools>
+      <tool name="write" description="Write entry">
+        <input><param name="key" type="string" /><param name="value" type="string" /></input>
+        <output type="boolean" />
+      </tool>
+      <tool name="read" description="Read entry">
+        <input><param name="key" type="string" /></input>
+        <output type="string" />
+      </tool>
+    </tools>
+  </entity>
+</graph>

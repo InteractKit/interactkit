@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graph xmlns="https://interactkit.dev/schema/v1" version="1" root="Agent">
+  <entity name="Agent" type="base" description="Agent with memory and counter components">
+    <describe>Agent</describe>
+    <components>
+      <component name="memory" entity="Memory" />
+      <component name="counter" entity="Counter" />
+    </components>
+  </entity>
+  <entity name="Memory" type="base" description="Memory store">
+    <state>
+      <field name="entries" type="array" description="Entries" items="string" />
+    </state>
+    <tools>
+      <tool name="store" description="Store"><input><param name="text" type="string" /></input><output type="object"><param name="total" type="number" /></output></tool>
+      <tool name="getAll" description="Get all"><input /><output type="array" items="string" /></tool>
+      <tool name="search" description="Search"><input><param name="query" type="string" /></input><output type="array" items="string" /></tool>
+      <tool name="count" description="Count"><input /><output type="number" /></tool>
+      <tool name="clear" description="Clear"><input /><output type="object"><param name="cleared" type="boolean" /></output></tool>
+    </tools>
+  </entity>
+  <entity name="Counter" type="base" description="Counter">
+    <state>
+      <field name="value" type="number" description="Value" default="0" />
+    </state>
+    <tools>
+      <tool name="increment" description="Increment"><input><param name="by" type="number" /></input><output type="object"><param name="value" type="number" /></output></tool>
+      <tool name="get" description="Get"><input /><output type="number" /></tool>
+    </tools>
+  </entity>
+</graph>

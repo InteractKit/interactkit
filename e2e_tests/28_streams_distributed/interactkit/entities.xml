@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graph xmlns="https://interactkit.dev/schema/v1" version="1" root="Agent">
+  <entity name="Agent" type="base" description="Agent subscribing to sensor streams">
+    <describe>Agent</describe>
+    <components>
+      <component name="sensor" entity="Sensor" />
+    </components>
+  </entity>
+
+  <entity name="Sensor" type="base" description="Sensor with readings stream">
+    <describe>Sensor: {{emitted}} emitted</describe>
+    <streams>
+      <stream name="readings" type="object" description="Sensor readings" />
+    </streams>
+    <state>
+      <field name="emitted" type="number" description="emitted" default="0" />
+    </state>
+    <tools>
+      <tool name="read" description="Read">
+        <input><param name="value" type="number" /></input>
+        <output type="object"><param name="emitted" type="number" /></output>
+      </tool>
+      <tool name="batchRead" description="Batch read">
+        <input><param name="values" type="array" items="number" /></input>
+        <output type="object"><param name="emitted" type="number" /></output>
+      </tool>
+    </tools>
+  </entity>
+</graph>

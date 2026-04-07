@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graph xmlns="https://interactkit.dev/schema/v1" version="1" root="Agent">
+  <entity name="Agent" type="base" description="Agent">
+    <components>
+      <component name="worker" entity="Worker" />
+    </components>
+  </entity>
+  <entity name="Worker" type="base" description="Worker">
+    <state>
+      <field name="tasks" type="number" description="tasks" default="0" />
+    </state>
+    <tools>
+      <tool name="work" description="Work">
+        <input><param name="task" type="string" /></input>
+        <output type="number" />
+      </tool>
+    </tools>
+  </entity>
+</graph>

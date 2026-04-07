@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graph xmlns="https://interactkit.dev/schema/v1" version="1" root="Agent">
+
+  <entity name="Agent" type="base" description="Agent with brain, mouth, memory, and sensor">
+    <describe>Agent "{{name}}" — {{transcripts.length}} transcripts, {{sensorReadings.length}} readings</describe>
+    <components>
+      <component name="brain" entity="Brain" />
+      <component name="mouth" entity="Mouth" />
+      <component name="memory" entity="Memory" />
+      <component name="sensor" entity="Sensor" />
+    </components>
+    <state>
+      <field name="name" type="string" description="Agent name" default="Agent">
+        <validate min-length="2" max-length="50" />
+      </field>
+      <field name="transcripts" type="array" description="Speech transcripts" items="string" />
+      <field name="sensorReadings" type="array" description="Sensor readings" items="number" />
+    </state>
+    <tools>
+      <tool name="ask" description="Ask the agent a question" src="tools/ask.ts">
+        <input><param name="question" type="string" /></input>
+        <output type="string" />
+      </tool>
+      <tool name="readSensor" description="Take a sensor reading" src="tools/agent-read-sensor.ts">
+        <input />
+        <output type="number" />
+      </tool>
+      <tool name="chat" description="Chat with the agent" src="tools/chat.ts">
+        <input><param name="message" type="string" /></input>
+        <output type="string" />
+      </tool>
+    </tools>
+  </entity>
+
+  <entity name="Brain" type="llm" description="LLM-powered brain for reasoning">
+    <describe>Brain with {{personality}} personality</describe>
+    <executor provider="anthropic" model="claude-sonnet-4-20250514" />
+    <state>
+      <field name="personality" type="string" description="Brain personality" default="helpful and curious"
+             configurable="true" configurable-label="Personality" />
+    </state>
+    <tools>
+      <tool name="think" description="Think about something" peerVisible="true">
+        <input><param name="query" type="string" /></input>
+        <output type="string" />
+      </tool>
+    </tools>
+  </entity>
+
+  <entity name="Mouth" type="base" description="Speech output with transcript history">
+    <describe>Mouth — {{history.length}} spoken messages</describe>
+    <state>
+      <fieldGroup name="history" key="id">
+        <field name="message" type="string" description="Spoken text" />
+      </fieldGroup>
+    </state>
+    <streams>
+      <stream name="transcript" type="string" description="Spoken text stream" />
+    </streams>
+    <tools>
+      <tool name="speak" description="Speak a message" peerVisible="true" src="tools/speak.ts">
+        <input><param name="message" type="string" /></input>
+        <output type="void" />
+      </tool>
+      <autotool name="getHistory" on="history" op="list" peerVisible="true" />
+    </tools>
+  </entity>
+
+  <entity name="Memory" type="base" description="Key-value memory store">
+    <describe>Memory — {{entries.length}} entries (capacity: {{capacity}})</describe>
+    <state>
+      <field name="capacity" type="number" description="Max entries" default="100"
+             configurable="true" configurable-label="Capacity" configurable-group="Limits">
+        <validate min="1" max="1000" />
+      </field>
+      <fieldGroup name="entries" key="id">
+        <field name="text" type="string" description="Entry content" />
+      </fieldGroup>
+    </state>
+    <tools>
+      <autotool name="store" on="entries" op="create" peerVisible="true" />
+      <autotool name="search" on="entries" op="search" key="query" peerVisible="true" />
+      <autotool name="getAll" on="entries" op="list" peerVisible="true" />
+      <autotool name="count" on="entries" op="count" peerVisible="true" />
+    </tools>
+  </entity>
+
+  <entity name="Sensor" type="base" description="Simulated sensor with readings stream">
+    <describe>Sensor "{{label}}" — {{readingCount}} readings</describe>
+    <state>
+      <field name="label" type="string" description="Sensor label" default="temperature"
+             configurable="true" configurable-label="Label" />
+      <field name="readingCount" type="number" description="Total readings" default="0" />
+    </state>
+    <streams>
+      <stream name="readings" type="number" description="Sensor readings stream" />
+    </streams>
+    <tools>
+      <tool name="read" description="Take a sensor reading" peerVisible="true" src="tools/read-sensor.ts">
+        <input />
+        <output type="number" />
+      </tool>
+      <tool name="getReadingCount" description="Get total reading count" peerVisible="true" src="tools/get-reading-count.ts">
+        <input />
+        <output type="number" />
+      </tool>
+    </tools>
+  </entity>
+
+</graph>

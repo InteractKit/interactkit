@@ -1,654 +1,363 @@
 # @interactkit/sdk
 
-Framework package -- reusable, app-agnostic entity system. Zero business logic.
+XML-driven entity graph runtime. Zero decorators, zero ts-morph. Entities are defined in XML, compiled by the CLI, and executed by this runtime.
 
 ## Overview
 
-The SDK has three layers: **Authoring** (what devs write), **Codegen** (pre-build analysis), and **Runtime** (execution).
-
 ```
- Authoring              Codegen                  Runtime
- ---------              -------                  -------
- @Entity                 ts-morph extracts        Event bus routes calls
- BaseEntity              types, hooks,            between entity instances
- Wrapper types      -->  methods, streams    -->  State hydration
- Hook types              Generates Zod            & persistence
- Streams                 registry + schemas       Sub-entities inherit
-                                                  infra from config
+ XML (authored)         CLI Compiler             SDK Runtime
+ --------------         ------------             -----------
+ <entity>               parse XML → IR           InteractKitRuntime boots
+ <state>                validate                  entity graph from generated
+ <tools>           →    expand autotools     →    tree.ts + registry.ts
+ <executor>             infer refs                Entity instances, reactive
+ <component>            generate TS               state, event bus, LLM loops
 ```
 
 ---
 
-## 1. Authoring -- what devs write
+## 1. Core Classes
 
-### Decorators
+### InteractKitRuntime
 
-**Structural** (define what entities are and how they behave):
-
-| Decorator | Target | Purpose |
-|-----------|--------|---------|
-| `@Entity({ type?, description?, persona?, detached? })` | class | Marks a class as an entity. `type` is auto-derived from class name (PascalCase to kebab-case) if omitted. `detached: true` means entity communicates via remote pubsub from config. |
-| `@State({ description, validate? })` | property | Required on all state properties (must be `private`) -- describes what the state holds. Optional `validate` accepts a Zod schema for inline validation. |
-| `@Component()` | property | Marks a property as a child entity component (must be `private`). Must use `Remote<T>` type -- build enforces this. |
-| `@Ref()` | property | Marks a sibling reference (must be `private`). Must use `Remote<T>` type -- build enforces this. |
-| `@Stream()` | property | Marks an `EntityStream<T>` property. Streams are always public -- parent entities can subscribe to them after boot |
-| `@Tool({ description })` | method | Required on all public async methods -- describes what the method does |
-| `@Hook(Runner)` | method | Marks a hook handler -- runner passed explicitly (e.g. `@Hook(Init.Runner())`) |
-| `@Configurable({ label, group? })` | property | Marks state as UI-editable (used alongside `@State`) |
-| `@Describe()` | method | Returns a string describing the entity's current state |
-
-**LLM-specific** (only used on classes extending `LLMEntity`):
-
-| Decorator | Target | Purpose |
-|-----------|--------|---------|
-| `@SystemPrompt()` | property/getter | Marks a string property or getter as the system prompt. Evaluated before each LLM invocation. |
-| `@Executor()` | property | Marks the LLM executor instance (e.g. `new ChatAnthropic(...)`) |
-| `@Tool({ description, llmCallable? })` | method | Exposes a method as a tool. On LLMEntity, own `@Tool` methods are external-only by default. Set `llmCallable: true` to also expose them to the LLM during the thinking loop. Ref/component tools are always LLM-visible. |
-| `@ThinkingLoop(options?)` | property | Configures the LLM thinking loop. Property type is `LLMThinkingLoop` -- hydrated at runtime for real-time control. Optional: all LLMEntities get a thinking loop with defaults even without this decorator. |
-| `@MaxIterations(n)` | property | Max LLM tool-use iterations per thinking tick or forced invoke (default: 20). |
-| `@Describe()` | method | Returns a string describing current state. Re-evaluated each thinking tick as the system prompt. |
-
-**Validation** -- inline Zod via the `validate` option on `@State()`, plus SDK's `@Secret()`:
-
-| Decorator / Option | Source | Purpose |
-|-----------|--------|---------|
-| `Remote<T>` | `@interactkit/sdk` | Type wrapper for distributed components/refs -- makes all access async. Required on ALL `@Component`/`@Ref` properties (build enforces this). |
-| `@Secret()` | `@interactkit/sdk` | Marks field as sensitive (masked in UI/logs) |
-| `@State({ validate: z.string().min(2) })` | `@interactkit/sdk` | Inline Zod validation on any state property -- `z` is re-exported from the SDK |
-
-### BaseEntity
-
-All entities extend `BaseEntity`. The SDK hydrates state, wires components, and sets up streams. `BaseEntity` has a `protected` constructor -- entities must not define their own constructors. Use `@Hook(Init.Runner())` for initialization logic. Codegen enforces this at build time.
-
-### LLMEntity (extends BaseEntity)
-
-LLM-powered entities extend `LLMEntity` (from `sdk/src/llm/base.ts`) instead of `BaseEntity`. Every LLMEntity runs a **thinking loop** -- a continuous inner monologue where the LLM thinks, acts, and responds to tasks.
-
-**Core concepts:**
-
-- **Thinking loop** -- ticks on an interval (default 5s). Each tick, the LLM sees pending tasks, its tools, and its context. It can use tools, respond to tasks, or just think. Skips automatically when idle (zero token cost).
-- **`invoke()` pushes tasks** -- callers get back a promise that resolves when the LLM calls `respond(taskId, result)` from within the thinking loop. Soft timeout (30s) adds an urgency reminder. Hard timeout (60s) forces a direct LLM call as fallback.
-- **Inner monologue** -- the LLM's text responses between tool calls are the monologue. Stored in context, emitted as `thought` events on the observer.
-- **Tool visibility** -- own `@Tool` methods need `llmCallable: true` to be visible during the loop. Ref/component tools are always visible. Built-in tools (`respond`, `idle`, `sleep`, `set_interval`, `defer`) are always available.
-
-**Built-in thinking loop tools:**
-
-| Tool | Purpose |
-|------|---------|
-| `respond({ taskId, result })` | Return a result for a pending task. Resolves the `invoke()` promise. |
-| `idle()` | Do nothing this tick. |
-| `sleep({ ticks })` | Skip N ticks. Wakes early if a new task arrives. Max configurable. |
-| `set_interval({ ms })` | Change thinking speed. Clamped to configurable bounds. |
-| `defer({ taskId })` | Push a task back. Resets timeout. Max defers per task configurable. |
-
-**`@ThinkingLoop` decorator** (optional -- configures the loop and exposes runtime handle):
+Constructed with a generated entity tree and registry. Manages entity lifecycle, handler registration, event routing, and the typed proxy system.
 
 ```typescript
-@Entity({ description: 'Autonomous NPC' })
-class Npc extends LLMEntity {
-  @Executor()
-  private llm = new ChatOpenAI({ model: 'gpt-4o-mini' });
-
-  @ThinkingLoop({
-    intervalMs: 5000,        // think every 5s
-    softTimeoutMs: 30000,    // remind after 30s
-    hardTimeoutMs: 60000,    // force-invoke after 60s
-    contextWindow: 50,       // keep last 50 messages
-    innerMonologue: true,    // default: on
-    maxSleepTicks: 12,       // max sleep duration
-    minIntervalMs: 1000,     // fastest thinking speed
-    maxIntervalMs: 60000,    // slowest thinking speed
-    maxDefers: 2,            // max defers per task
-  })
-  private thinkingLoop!: LLMThinkingLoop;
-
-  @Describe()
-  describe() { return `I am an NPC...`; }
-
-  // LLM can use this during thinking
-  @Tool({ description: 'Move somewhere', llmCallable: true })
-  async move(input: { direction: string }) { ... }
-
-  // External callers use this -- pushes task to thinking loop
-  @Tool({ description: 'Someone talks to this NPC' })
-  async talk(input: { from: string; message: string }) {
-    return this.invoke({ message: `${input.from} says: "${input.message}"` });
-  }
-}
-```
-
-**Runtime control** via the `LLMThinkingLoop` object:
-
-```typescript
-this.thinkingLoop.pause();              // pause the loop
-this.thinkingLoop.resume();             // resume
-this.thinkingLoop.tick();               // force immediate tick
-this.thinkingLoop.intervalMs = 2000;    // think faster
-this.thinkingLoop.innerMonologue = false; // switch to classic invoke
-this.thinkingLoop.pending;              // number of pending tasks
-this.thinkingLoop.isThinking;           // is LLM running right now
-
-// Subscribe to events
-this.thinkingLoop.on((event) => {
-  // event.type: 'tick' | 'respond' | 'timeout' | 'idle' | 'error' | 'task_pushed' | 'thought'
+const runtime = new InteractKitRuntime(entityTree, Registry);
+const app = runtime.configure({
+  database: db,
+  observers: [new DevObserver()],
+  timeout: 15_000,
+  stateFlushMs: 50,
+  handlers: {
+    Worker: { process: async (entity, input) => { ... } },
+  },
 });
 ```
 
-**Without `@ThinkingLoop`:** the entity still gets a thinking loop with defaults. You just don't get the runtime handle to control it. `invoke()` still pushes tasks to the loop.
+### InteractKitApp
 
-### ConversationContext (shared LLM context)
+Returned by `runtime.configure()`. The bootable, handler-registrable instance.
 
-`ConversationContext` (from `sdk/src/llm/conversation.ts`) is an entity that provides opt-in shared conversation context between multiple `LLMEntity` instances. Composed as a `@Component` on a parent entity, then referenced via `@Ref` in each LLM entity that needs shared context.
+| Method | Purpose |
+|--------|---------|
+| `boot(opts?)` | Hydrate state, wire refs/components, init LLM executors, call init handlers (bottom-up) |
+| `stop()` | Flush state, destroy event bus |
+| `serve(config)` | Auto-expose tools as HTTP endpoints + WebSocket streams |
+| `instance(tenantId)` | Create isolated tenant with namespaced entity IDs and independent state |
+| `call(path, method, input?)` | Call any entity method through the event bus (or HTTP for remote entities) |
+| `addHandler(entity, method, fn)` | Register handler by entity type or entity path (path overrides type) |
+| `on(entity, method, fn)` | Subscribe to events on an entity method |
+| `onStream(path, streamName, fn)` | Subscribe to a stream on an entity |
+
+### Entity
+
+Thin runtime object for each node in the entity graph. Handlers receive this.
 
 ```typescript
-// Parent owns the shared context and multiple LLM entities
-class Agent extends BaseEntity {
-  @Component() private context!: Remote<ConversationContext>;
-  @Component() private researchBrain!: Remote<ResearchBrain>;
-  @Component() private writingBrain!: Remote<WritingBrain>;
-}
-
-// Each LLM entity overrides its built-in context with the shared one
-class ResearchBrain extends LLMEntity {
-  @Ref() protected override context!: Remote<ConversationContext>;
-  // ... executor, tools, etc.
-}
-
-class WritingBrain extends LLMEntity {
-  @Ref() protected override context!: Remote<ConversationContext>;
-  // ... executor, tools, etc.
+class Entity {
+  readonly id: string;       // e.g. "agent" or "agent.brain"
+  readonly type: string;     // kebab-case entity type
+  state: Record<string, any>;
+  refs: Record<string, any>;
+  components: Record<string, any>;
+  streams: Record<string, { emit(data: any): void }>;
+  secrets: Record<string, string>;
+  async call(target, method, input?);  // dynamic routing via event bus
+  async save();                        // force-persist state to DB
 }
 ```
 
-### LongTermMemory (RAG)
-
-`LongTermMemory` (from `sdk/src/vectorstore/entity.ts`) is an entity that provides semantic memory via a `VectorStoreAdapter`. Configured globally in `interactkit.config.ts` -- no subclassing needed. Use as a `@Component` or `@Ref` on any entity.
-
-When attached to an `LLMEntity`, the tools are automatically exposed as `memory_memorize()`, `memory_recall()`, `memory_forget()`.
+### RuntimeConfig
 
 ```typescript
-// interactkit.config.ts
-import { ChromaDBVectorStoreAdapter } from '@interactkit/chromadb';
-
-export default {
-  // ...
-  vectorStore: new ChromaDBVectorStoreAdapter({ collection: 'agent-memory' }),
-} satisfies InteractKitConfig;
-```
-
-```typescript
-// Entity usage
-class ResearchAgent extends LLMEntity {
-  @Executor() private llm = new ChatOpenAI({ model: 'gpt-4o' });
-  @Component() private memory!: Remote<LongTermMemory>;
-  // LLM sees: memory_memorize, memory_recall, memory_forget
-}
-
-// Shared memory across multiple LLM entities
-class AgentHub extends BaseEntity {
-  @Component() private memory!: Remote<LongTermMemory>;
-  @Component() private researcher!: Remote<ResearchAgent>;
-  @Component() private writer!: Remote<WriterAgent>;
-}
-
-class ResearchAgent extends LLMEntity {
-  @Ref() private memory!: Remote<LongTermMemory>;
-}
-```
-
-Namespace is derived from the entity ID automatically — multiple instances sharing the same vector store are isolated by default.
-
-**Tools:**
-
-| Tool | Input | Output |
-|------|-------|--------|
-| `memorize` | `{ content, tags?, metadata? }` | `{ id }` |
-| `recall` | `{ query, k?, tags?, scoreThreshold? }` | `Memory[]` (id, content, tags, metadata, score, storedAt) |
-| `forget` | `{ ids? }` | `{ deleted }` |
-
-**VectorStoreAdapter interface** (from `sdk/src/vectorstore/adapter.ts`):
-
-```typescript
-interface VectorStoreAdapter<TMeta extends Record<string, unknown> = Record<string, unknown>> {
-  add(docs: VectorDocument<TMeta>[]): Promise<string[]>;
-  search(query: string, k: number, filter?: Partial<TMeta>): Promise<ScoredDocument<TMeta>[]>;
-  delete(params: DeleteParams): Promise<void>;
-}
-```
-
-**Available adapters:**
-
-| Package | Store | Embeddings |
-|---------|-------|------------|
-| `@interactkit/chromadb` | ChromaDB | Built-in (no config needed) |
-| `@interactkit/pinecone` | Pinecone | Bring your own (`embed` fn or LangChain `Embeddings`) |
-| `@interactkit/langchain` | Any LangChain VectorStore | Whatever the store uses |
-
-### Validation
-
-Validation is inline via the `validate` option on `@State()`. The SDK re-exports Zod as `z`. `@Secret()` remains a separate decorator for UI masking. If no `validate` is provided, codegen auto-derives the Zod type from the TypeScript type.
-
-```typescript
-import { z, Secret } from '@interactkit/sdk';
-
-@Entity({ type: 'user' })
-class User extends BaseEntity {
-  @State({ description: 'API authentication key' })
-  @Secret()
-  private apiKey!: string;
-
-  @State({ description: 'User bio', validate: z.string().max(600) })
-  private bio!: string;
-
-  @State({ description: 'Account username', validate: z.string().min(3).max(50) })
-  private username!: string;
-
-  @State({ description: 'Contact email', validate: z.string().email() })
-  private email!: string;
-
-  @State({ description: 'User score', validate: z.number().min(0).max(100) })
-  private score = 0;
-}
-```
-
-Codegen reads the `validate` Zod schema from `@State()` + `@Secret()` metadata to generate validators for the registry. If `validate` is omitted, the Zod type is auto-derived from the TypeScript type.
-
-### Hook namespaces
-
-Each hook is a namespace with `.Input` (the data your method receives) and `.Runner(config)` (tells the runtime when to fire). Config goes in the Runner call.
-
-```typescript
-// Built-in (shipped with @interactkit/sdk)
-Init.Input    { entityId: string; firstBoot: boolean; }      Init.Runner()                          // inProcess — use as-is
-Tick.Input    { tick: number; elapsed: number; }              Tick.Runner({ intervalMs: 5000 })      // use as Remote<Tick.Input>
-
-// Extensions (separate packages) — all non-Init inputs are used as Remote<T>
-Cron.Input    { lastRun: Date; expression: string; }         Cron.Runner({ expression: '...' })     // @interactkit/cron   → Remote<Cron.Input>
-HttpRequest.Input  { method, path, body, respond, ... }      HttpRequest.Runner({ path: '/' })      // @interactkit/http   → Remote<HttpRequest.Input>
-WsMessage.Input    { data, clientId, send, close }           WsMessage.Runner()                     // @interactkit/websocket → Remote<WsMessage.Input>
-WsConnection.Input { clientId, send, close }                 WsConnection.Runner()                  // @interactkit/websocket → Remote<WsConnection.Input>
-```
-
-Hook types are not hardcoded -- extension packages export their own namespaces with `.Input` + `.Runner(config)`. The runner is explicit in `@Hook(Runner)`, so no codegen type-tracing is needed. This enables recursive package usage.
-
-### EntityRef\<T\>
-
-Typed cross-reference to a sibling or cousin entity. Parent sets the ref -- codegen validates at build time that the referenced type exists in the same entity tree. Runtime auto-wires during instantiation.
-
-```typescript
-class Person extends BaseEntity {
-  @Component() private brain!: Remote<Brain>;
-  @Component() private phone!: Remote<Phone>;
-}
-
-class Brain extends BaseEntity {
-  @Ref() private phone!: Remote<Phone>;  // must be private -- codegen validates
-
-  @Tool({ description: 'Handle a query' })
-  async handleQuery(text: string) {
-    await this.phone.speak("thinking...");  // same this.x.method() pattern
-  }
-}
-```
-
-**Build-time validation:** codegen walks the component tree and confirms the ref target is reachable from `Brain`'s parent. Both components and refs must be `private` -- codegen enforces this to prevent multi-hop chaining (e.g. `this.brain.memory.recall()` is not possible). If validation fails, build fails.
-
-**Runtime wiring:** parent owns both children, so it auto-wires the ref during instantiation. No manual assignment.
-
-### EntityStream\<T\>
-
-Typed upstream data flow from child to parent. Has `start/data/end` lifecycle. `emit(data)` is a convenience shortcut for start+data+end. Streams MUST be ended (runtime warns).
-
-Streams are marked with `@Stream()` and are **always public** -- the parent entity can subscribe to child streams via the component proxy (e.g. `this.mouth.transcript.on('data', ...)`). The runtime auto-wires stream access on the component proxy after boot.
-
-```typescript
-// Child entity defines a stream
-class Mouth extends BaseEntity {
-  @Stream() transcript!: EntityStream<string>;
-
-  @Tool({ description: 'Speak a message' })
-  async speak(input: { message: string }): Promise<void> {
-    this.transcript.emit(input.message);
-  }
-}
-
-// Parent subscribes to child stream
-class Agent extends BaseEntity {
-  @Component() private mouth!: Remote<Mouth>;
-
-  @Hook(Init.Runner())
-  async onInit(input: Init.Input) {
-    this.mouth.transcript.on('data', (text: unknown) => {
-      // handle transcript data
-    });
-  }
-}
-```
-
-```typescript
-interface EntityStream<T> {
-  start(): void;
-  data(payload: T): void;
-  end(): void;
-  emit(payload: T): void;  // start + data + end in one call
-  on(event: 'start' | 'data' | 'end', handler: Function): void;
+interface RuntimeConfig {
+  database: DatabaseAdapter;
+  vectorStore?: VectorStoreAdapter;  // for long-term-memory entities
+  observers?: ObserverAdapter[];
+  timeout?: number;          // event bus request timeout (default: 30000ms)
+  stateFlushMs?: number;     // reactive state flush debounce (default: 50ms)
+  handlers?: HandlerMap;     // keyed by entity type (e.g. 'Worker') or path (e.g. 'agent.worker')
 }
 ```
 
 ---
 
-## 2. Codegen -- pre-build analysis (ts-morph)
+## 2. EntityNode Tree Structure
 
-`cli/src/codegen/parser/index.ts` reads decorated entity source files and generates `.interactkit/generated/type-registry.ts`.
-
-**What it extracts:**
-
-| Source | Output |
-|--------|--------|
-| `@Entity` metadata | type (auto-derived from class name PascalCase to kebab-case if omitted), persona flag |
-| Primitive/wrapper-typed properties | State -- Zod validators |
-| Entity-typed properties | Components -- proxy wrappers for event bus |
-| `@Stream()` or `EntityStream<T>` properties | Streams (always public) |
-| `@Ref()` properties | Cross-entity refs -- build-time validated against component tree |
-| `@Hook(Runner)` methods | Hook dispatch table (runner + input type from decorator) |
-| `@Configurable()` properties | UI schema (label, group, type, validation) |
-| Public async methods (non-hook) | Auto-named `entityType.methodName` events |
-| Method param/return types | Event input/result Zod schemas |
-| `@State({ validate })` + `@Secret()` | Zod validators + fieldMeta (`@Secret()` -> `secret: true`, `validate: z.string().max(600)` -> `.max(600)`) |
-| Union literals, optionals, arrays, nested objects | `z.enum()`, `.optional()`, `z.array()`, `z.object()` |
-
-**Generated output:**
+The generated `tree.ts` defines the full entity graph as a nested `EntityNode`. This is the runtime's source of truth for entity structure.
 
 ```typescript
-export const Registry = {
-  entities: {
-    [entityType: string]: {
-      state: ZodObject,
-      persona: boolean,
-      methods: {
-        [entityType.methodName: string]: {
-          input: ZodObject,
-          result: ZodObject,
-          fieldMeta: Record<string, { secret?, maxLength?, ... }>,
-        }
-      },
-      components: string[],
-    }
-  }
+interface EntityNode {
+  id: string;                // dot-separated path (e.g. "agent.brain")
+  type: string;              // kebab-case type
+  className: string;
+  describe?: string;         // template with {{state.field}} interpolation
+  infra: { remote?: string };
+  state: Array<{ name: string; id: string; default?: any }>;
+  refs: Array<{ propertyName: string; targetEntityType: string; id: string }>;
+  components: Array<{ id: string; propertyName: string; entityType: string; entity?: EntityNode }>;
+  streams: Array<{ propertyName: string; id: string }>;
+  methods: Array<{ methodName: string; eventName: string; id: string; description?: string; auto?: string; on?: string; key?: string }>;
+  hooks: Array<{ methodName: string; hookTypeName: string; inProcess: boolean; id: string }>;
+  executor?: ExecutorConfig;
 }
-
-export const ConfigurableFields = {
-  [entityType]: Array<{ key, label, group, type, validation }>
-}
-
-export type EntityType = keyof typeof Registry.entities;
-export type MethodName = ...;
 ```
 
 ---
 
-## 3. Infrastructure -- configured in interactkit.config.ts
+## 3. Reactive State
 
-All infrastructure is configured globally in `interactkit.config.ts` at the project root. No per-entity infrastructure config.
+Entity state is wrapped in a reactive proxy that auto-flushes to the database on mutation. Tracks shallow property sets and intercepts array mutators (push, pop, splice, etc.). For deep nested mutations, call `entity.save()` manually.
 
 ```typescript
-// interactkit.config.ts
-import { Agent } from './src/entities/agent.js';
-import { PrismaDatabaseAdapter } from '@interactkit/prisma';
-import { RedisPubSubAdapter } from '@interactkit/redis';
-import { DashboardObserver } from '@interactkit/observer';
-import { DevObserver } from '@interactkit/sdk';
-import type { InteractKitConfig } from '@interactkit/sdk';
-
-export default {
-  root: Agent,
-  database: new PrismaDatabaseAdapter({ url: 'file:./app.db' }),
-  pubsub: new RedisPubSubAdapter({ host: 'localhost', port: 6379 }),
-  observers: [new DevObserver(), new DashboardObserver()],
-  vectorStore: new ChromaDBVectorStoreAdapter({ collection: 'memory' }), // optional, for LongTermMemory
-  timeout: 15_000,       // event bus request timeout (default: 30000)
-  stateFlushMs: 50,      // state persistence debounce (default: 10)
-} satisfies InteractKitConfig;
+createReactiveState(initial, { entityId, db, flushMs, observer });
+flushReactiveState(state, entityId, db);  // immediate flush (used at shutdown)
 ```
 
+---
+
+## 4. app.serve() — HTTP + WebSocket
+
+Auto-exposes entity tools as HTTP endpoints.
+
+**Auto-generated routes:**
+- `POST /:entityPath/:method` -- tools with input params
+- `GET /:entityPath/:method` -- tools without input params
+- `POST /:entityPath/invoke` -- LLM entity invoke
+
+**Built-in endpoints:**
+- `GET /schema` -- entity tree schema for remote discovery
+- `POST /_rpc` -- single endpoint for remote entity calls (`{ entity, method, input }`)
+
+**WebSocket** (requires `ws` package):
+- `ws://host:port/streams/:entityPath/:streamName` -- live stream data
+- `ws://host:port/call/:entityPath/:method` -- tool call over WebSocket
+
+**Multi-tenant via `tenantFrom`:**
+
+`tenantFrom` in serve config extracts a tenant ID from each request. Each tenant gets an isolated entity tree with namespaced state, managed in an LRU pool.
+
 ```typescript
-@Entity({ persona: true })
-class Person extends BaseEntity {
-  @Component() private brain!: Remote<Brain>;   // local -- same process
-  @Component() private phone!: Remote<Phone>;   // detached -- can run on another machine
+await app.serve({
+  http: {
+    port: 3000,
+    tenantFrom: (req) => req.headers['x-user-id'],
+    shared: ['KnowledgeBase'],
+    maxTenants: 1000,
+    tenantIdleMs: 300_000,
+  },
+});
+```
+
+- `tenantFrom` can be async (JWT verification, DB lookup)
+- No tenant header = uses parent app
+- WebSocket tenant-scoped: `ws://host/tenantId/streams/...`
+
+**ServeConfig:**
+
+```typescript
+interface ServeConfig {
+  http?: { port?, host?, cors?, expose?, exclude?, routes?, tenantFrom?, shared?, maxTenants?, tenantIdleMs? } | number;
+  ws?: { port? } | number;
 }
-
-@Entity()  // local, co-located with parent
-class Brain extends BaseEntity { }
-
-@Entity({ detached: true })  // communicates via remote pubsub from config
-class Phone extends BaseEntity { }
 ```
 
-### Detached entities
+Custom routes override auto-generated ones. Route aliases map to entity methods (`'POST /research': 'pipeline.process'`). Route handlers receive `ServeRequest { method, path, body, headers, query }`.
 
-Entities marked `detached: true` communicate via the remote pubsub adapter configured in `interactkit.config.ts`. Non-detached entities use `InProcessBusAdapter` (local, zero-latency). Database is global (from config).
+---
 
-| Adapter | Latency | Scaling | Use case |
-|---------|---------|---------|----------|
-| `InProcessBusAdapter` | ~0ms | Single process | Default for all non-detached entities |
-| `RedisPubSubAdapter` | ~1-5ms | Horizontal | Detached entities -- cross-instance communication |
-| `PrismaDatabaseAdapter` | ~5-20ms | Horizontal | Durable state persistence (global, via config) |
+## 5. Remote Entities
 
-### Adapter interfaces
+Entities with `remote` attribute in XML are proxied over HTTP. At runtime, calls to remote entities go through `/_rpc` on the remote service. Schema is fetched at compile time from the remote's `/schema` endpoint.
 
-`PubSubAdapter` is an abstract base class with two subclass families:
-- **`LocalPubSubAdapter`** -- passes values by reference, no serialization, no proxy. `InProcessBusAdapter` extends this.
-- **`RemotePubSubAdapter`** -- JSON serialization + automatic proxy for non-serializable values. `RedisPubSubAdapter` extends this. Non-serializable values (functions, class instances) are automatically proxied across machines. `FinalizationRegistry` cleans up proxies when garbage collected. `ProxyReceiver` handles get/set/call/dispose operations.
+```typescript
+// Runtime auto-routes: if entity or any ancestor has remote set,
+// calls go via HTTP POST to remote_url/_rpc
+async callRemote(baseUrl, entityPath, method, input);
+```
+
+---
+
+## 6. Multi-Tenant — app.instance(tenantId)
+
+Creates an isolated tenant with namespaced entity IDs (`tenantId:entityPath`) and independent state. Handlers are shared, state is isolated.
+
+```typescript
+const alice = await app.instance('alice');
+const bob = await app.instance('bob');
+await alice.call('agent', 'chat', { message: 'hi' }); // alice's state
+await bob.call('agent', 'chat', { message: 'hi' });   // bob's state
+```
+
+---
+
+## 7. LLM Support
+
+LLM entities (type="llm" in XML) get an auto-created executor and an `invoke` handler.
+
+**Executor creation** (`createExecutor`): dynamically imports LangChain package based on provider (openai, anthropic, google, ollama).
+
+**Tool collection** (`collectLLMTools`): gathers all tools visible to the LLM entity -- own methods, ref tools (prefixed `refName_method`), and component tools (prefixed `compName_method`).
+
+**Invoke handler** (`createInvokeHandler`): receives a message, builds system prompt from `describe` template, runs the LLM tool-use loop with collected tools, returns the result. Context persists across invocations per entity.
+
+**LLMContext**: manages conversation history (system prompt + messages). Used by the invoke handler.
+
+**runLLMLoop**: executes the LLM tool-use loop -- binds tools to executor, calls LLM, processes tool calls, repeats until text response or max iterations.
+
+---
+
+## 8. Long-Term Memory Handlers
+
+Entities with `type="long-term-memory"` get auto-registered handlers at boot when `vectorStore` is in RuntimeConfig. The runtime creates three handlers:
+
+| Handler | VectorStoreAdapter method |
+|---------|--------------------------|
+| `memorize` | `add()` |
+| `recall` | `search()` |
+| `forget` | `delete()` |
+
+No user code needed. Typed signatures are generated by the compiler (`{Entity}MemorizeInput`, `{Entity}RecallInput`, `{Entity}ForgetInput`). State is tenant-isolated via entity ID namespacing.
+
+When attached as a component to an LLM entity, tools become LLM-visible with prefixed names (`memory_memorize`, `memory_recall`, `memory_forget`).
+
+---
+
+## 9. Auto Handlers (CRUD)
+
+Tools with `auto` attribute get built-in CRUD handlers that operate on entity state arrays:
+
+| Operation | Behavior |
+|-----------|----------|
+| `create` | Push new item with auto-generated ID + timestamps |
+| `read` | Find item by key field |
+| `update` | Merge input into existing item by key |
+| `delete` | Filter out item by key |
+| `list` | Return copy of array |
+| `search` | Case-insensitive substring search |
+| `count` | Return array length |
+
+---
+
+## 10. Event Bus
+
+Request/response event bus over a PubSubAdapter. Uses correlation IDs for matching replies. Separate channels for error and payload responses. Configurable timeout (default 30s).
+
+```typescript
+class EventBus {
+  request(envelope: EventEnvelope): Promise<unknown>;
+  listen(entityId, handler): Promise<void>;
+  publish(envelope): Promise<void>;
+  destroy(): Promise<void>;
+}
+```
+
+---
+
+## 11. Adapter Interfaces
+
+### PubSubAdapter
 
 ```typescript
 abstract class PubSubAdapter {
-  abstract publish(channel: string, message: string): Promise<void>;
-  abstract subscribe(channel: string, handler: (message: string) => void): Promise<void>;
-  abstract unsubscribe(channel: string): Promise<void>;
+  abstract publish(channel, message): Promise<void>;
+  abstract subscribe(channel, handler): Promise<void>;
+  abstract unsubscribe(channel): Promise<void>;
+  abstract enqueue(channel, message): Promise<void>;
+  abstract consume(channel, handler): Promise<void>;
+  abstract stopConsuming(channel): Promise<void>;
 }
+```
 
+- **LocalPubSubAdapter** -- passes values by reference, no serialization. `InProcessBusAdapter` extends this.
+- **RemotePubSubAdapter** -- JSON serialization. Subclasses implement raw string transport methods (`publishRaw`, `subscribeRaw`, etc.). No proxy system in v4 -- all values must be JSON-serializable.
+
+### DatabaseAdapter
+
+```typescript
 interface DatabaseAdapter {
   get(entityId: string): Promise<Record<string, unknown> | null>;
   set(entityId: string, state: Record<string, unknown>): Promise<void>;
   delete(entityId: string): Promise<void>;
 }
+```
 
+### ObserverAdapter
+
+```typescript
 interface ObserverAdapter {
-  event(envelope: EventEnvelope): void;   // every event flowing through the entity tree
-  error(envelope: EventEnvelope, error: Error): void;  // failed events
-  on(event: string, handler: (...args: unknown[]) => void): void;   // subscribe to observer events
-  off(event: string, handler: (...args: unknown[]) => void): void;  // unsubscribe
-  setState(entityId: string, field: string, value: unknown): void;  // set entity state remotely
-  getState(entityId: string, field: string): Promise<unknown>;      // read entity state remotely
-  callMethod(entityId: string, method: string, payload?: unknown): Promise<unknown>;  // invoke method remotely
-  getEntityTree(): Promise<EntityTree>;                             // get full entity tree structure
-}
-
-interface VectorStoreAdapter<TMeta extends Record<string, unknown> = Record<string, unknown>> {
-  add(docs: VectorDocument<TMeta>[]): Promise<string[]>;           // store documents, return IDs
-  search(query: string, k: number, filter?: Partial<TMeta>): Promise<ScoredDocument<TMeta>[]>;  // semantic search
-  delete(params: DeleteParams): Promise<void>;                     // delete by IDs or filter
+  event(envelope: EventEnvelope): void;
+  error(envelope: EventEnvelope, error: Error): void;
+  on(event: string, handler: Function): void;
+  off(event: string, handler: Function): void;
+  setState(entityId: string, field: string, value: unknown): void;
+  getState(entityId: string, field: string): Promise<unknown>;
+  callMethod(entityId: string, method: string, payload?: unknown): Promise<unknown>;
+  getEntityTree(): Promise<EntityNode>;
 }
 ```
 
 ---
 
-## 4. Runtime
-
-| Module | Responsibility |
-|--------|---------------|
-| `entity/runner/` | Entity instantiation, state hydration from DB, component wiring, ref wiring (second pass after all instances exist), stream setup |
-| `entity/proxy/` | Transparent proxy system for `RemotePubSubAdapter`. `ProxyReceiver` handles get/set/call/dispose operations. `FinalizationRegistry` cleans up proxies when GC'd. |
-| `entity/wrappers/` | `Remote<T>` type definition -- makes all method calls return `Promise<...>` and property access `Promise<T>` |
-| `events/bus.ts` | PubSub adapter-based event bus (request/response pattern) |
-| `events/dispatcher.ts` | Routes events to entity instances by ID, validates payloads via generated registry |
-
----
-
-## 5. Extensions -- hook packages
-
-The SDK is open by design. External packages export hook namespaces (`.Input` + `.Runner(config)`). Users attach them to their own entities with `@Hook`. No plugin registry, no config files.
-
-Extension packages live in `extensions/` in the monorepo. Each is published independently to npm under `@interactkit/*`. They declare `@interactkit/sdk` as a **peerDependency**.
-
-### Extension packages
-
-| Package | What it provides |
-|---------|-----------------|
-| `@interactkit/redis` | `RedisPubSubAdapter` -- horizontal scaling via Redis |
-| `@interactkit/prisma` | `PrismaDatabaseAdapter` -- Prisma-backed state persistence |
-| `@interactkit/cron` | `Cron` hook -- cron scheduling via node-cron |
-| `@interactkit/http` | `HttpRequest` hook -- HTTP server |
-| `@interactkit/websocket` | `WsMessage`, `WsConnection` hooks -- WebSocket server |
-| `@interactkit/chromadb` | `ChromaDBVectorStoreAdapter` -- ChromaDB with built-in embeddings |
-| `@interactkit/pinecone` | `PineconeVectorStoreAdapter` -- Pinecone (bring your own embeddings) |
-| `@interactkit/langchain` | `LangChainVectorStoreAdapter` -- wraps any LangChain VectorStore |
-
-### Example -- using `@interactkit/http`
+## 12. Testing — createTestApp()
 
 ```typescript
-import { HttpRequest } from '@interactkit/http';
+import { createTestApp } from '@interactkit/sdk/test';
 
-@Entity({ description: 'Webhook receiver' })
-class Webhook extends BaseEntity {
-  @State({ description: 'Received payloads' })
-  private payloads: string[] = [];
+const app = await createTestApp(graph, {
+  handlers: { Worker: { process: async (e, i) => 'mocked' } },
+  state: { 'agent.worker': { count: 5 } },
+});
 
-  @Hook(HttpRequest.Runner({ port: 3100, path: '/webhook' }))
-  async onRequest(input: Remote<HttpRequest.Input>) {
-    this.payloads.push(input.body);
-    input.respond(200, JSON.stringify({ ok: true }));
-  }
-
-  @Tool({ description: 'Get received payloads' })
-  async getPayloads(): Promise<string[]> { return this.payloads; }
-}
+const result = await app.call('agent.worker', 'worker.process', { data: 'test' });
+await app.stop();
 ```
 
-### Writing an extension
-
-A package exports a **namespace** containing `.Input` (interface) and `.Runner(config)` (factory):
-
-```typescript
-import type { HookRunner, HookHandler } from '@interactkit/sdk';
-
-export namespace MyHook {
-  export interface Input { data: string; }
-
-  class RunnerImpl implements HookRunner<Input> {
-    async init(config: Record<string, unknown>) {
-      // set up shared resources (server, connection) using config from interactkit.config.ts
-    }
-    register(emit: (data: Input) => void, config: Record<string, unknown>) {
-      // add emit callback with per-entity run config
-    }
-    async stop() { /* tear down */ }
-  }
-
-  export function Runner(config: { /* per-entity run config */ }): HookHandler<Input> {
-    return {
-      __hookHandler: true, runnerClass: RunnerImpl,
-      config: config as any,
-      initConfig: { /* defaults, overridable via interactkit.config.ts hooks */ },
-    };
-  }
-}
-```
-
-### What this means for codegen
-
-- **Codegen follows imports into node_modules** -- ts-morph resolves types across packages. When it sees `phone: TwilioPhone`, it finds the `@Entity` decorator and extracts hooks/methods/state.
-- **Hook types are not hardcoded** -- codegen treats any interface used as a `@Hook(Runner)` parameter as a valid hook type.
-- **Runner is explicit** -- the `@Hook` decorator receives the runner directly. No scanning node_modules for `HookRunner<T>` implementations. This is simpler and enables recursive package usage.
-- **No special extension API** -- the extension model is just TypeScript imports + namespaces.
-
-### HookRunner interface
-
-```typescript
-interface HookRunner<T> {
-  init(config: Record<string, unknown>): Promise<void>;
-  register(emit: (data: T) => void, config: Record<string, unknown>): void;
-  stop(): Promise<void>;
-}
-
-interface HookHandler<T = any> {
-  readonly __hookHandler: true;
-  readonly runnerClass: new (...args: any[]) => HookRunner<T>;
-  readonly config: Record<string, unknown>;        // per-entity run config
-  readonly initConfig?: Record<string, unknown>;   // defaults, merged with interactkit.config.ts hooks
-  readonly inProcess?: boolean;
-}
-```
-
-- `init(config)` -- set up shared resources. Config = defaults from `initConfig` merged with overrides from `interactkit.config.ts` `hooks` field.
-- `register(emit, config)` -- add an emit callback per entity. Config = per-entity run config from `@Hook(Runner(config))` + runtime additions (entityId).
-- `stop()` -- tear down resources.
-- **Local hooks** (`inProcess: true`): init + register + stop all in the entity process.
-- **Remote hooks** (`inProcess: false`): `_hooks.ts` process calls init, then listens for register events from entity processes via pubsub.
+Uses an in-memory database (Map-based). Returns the app with a `db` property for state inspection in tests.
 
 ---
 
-## Design rules
+## 13. Design Rules
 
-1. **Events are internal** -- devs call `this.component.method(input)`, codegen compiles it to event bus calls. No event names/envelopes exposed.
-2. **Zod only in `@State({ validate })`** -- devs write plain TS types for method params/returns (codegen generates Zod for those). Inline Zod is only used in the `validate` option on `@State()` for explicit validation constraints.
-3. **Only `@Tool` methods and `@Stream` properties are public** -- state, components, and refs must be `private`. Streams are always public (parent subscribes to child streams). Only `@Tool`-decorated async methods can be public. This enforces encapsulation and single-hop communication (no `this.brain.memory.recall()`).
-4. **State requires `@State({ description })`** -- every state property must have `@State({ description: '...' })` and be `private`. This ensures all state is documented and discoverable.
-5. **All public methods require `@Tool`** -- every public async method must have `@Tool({ description: '...' })`. Hook methods are exempt.
-6. **Validation via inline Zod** -- `@State({ validate: z.string().min(2) })` for inline validation, plus SDK's `@Secret()` for UI masking. If `validate` is omitted, codegen auto-derives the Zod type from the TypeScript type.
-7. **Entity IDs are auto-generated** -- runtime assigns unique IDs on instantiation. Sub-entity IDs are scoped to their parent (e.g. `person:abc123/brain:def456`). Devs never manage IDs manually.
-8. **Errors propagate upward naturally** -- when `this.brain.think()` throws, the caller gets the error just like a normal function call. Devs use standard try/catch. The event bus serializes errors back through the same request/response path.
-9. **Entity set is static** -- all entity instances are defined at build time. No dynamic spawning at runtime.
-10. **No custom constructors** -- `BaseEntity` has a `protected` constructor. Entities must not define their own constructors -- codegen enforces this at build time. Use `@Hook(Init.Runner())` for initialization logic.
-11. **Entity type auto-derived** -- when `type` is not specified in `@Entity()`, codegen derives it from the class name (PascalCase to kebab-case, e.g. `ResearchBrain` becomes `research-brain`).
-12. **LLM entities extend `LLMEntity`, not `BaseEntity`** -- `LLMEntity` provides `invoke()`, built-in context, built-in streams, and automatic LLM visibility. No `@LLMEntity()` decorator, no `@LLMVisible()`, no `@LLMExecutionTrigger()`, no `@Context()` needed.
-13. **`Remote<T>` on all components and refs** -- the build enforces that every `@Component` and `@Ref` property uses `Remote<T>`. The mutator strips this at compile time so `design:type` metadata stays correct.
+1. **No decorators** -- entities are defined in XML, not TypeScript classes.
+2. **No base classes** -- entity handlers are plain functions `(entity: Entity, input?) => result`.
+3. **Handlers by type or path** -- type handlers are shared across instances, path handlers override for specific instances.
+4. **Entity IDs are dot-separated paths** -- e.g. `agent.brain.memory`. Scoped to parent.
+5. **State is reactive** -- mutations auto-flush to database with configurable debounce.
+6. **Remote entities use HTTP** -- calls go through `/_rpc`, schema fetched at compile time.
+7. **LLM entities auto-invoke** -- tools without handlers on LLM entities automatically route to the `invoke` handler.
+8. **Entity set is static** -- all entity instances are defined at build time. No dynamic spawning.
+9. **Init handlers run bottom-up** -- children initialize before parents.
 
 ---
 
-## File structure
+## File Structure
 
 ```
 src/
-  index.ts                   # Barrel export
-  entity/
-    decorators/              # @Entity, @Hook, @Configurable, etc.
-    wrappers/                # Remote<T> type, proxy wrappers
-    proxy/                   # Transparent proxy system (ProxyReceiver, get/set/call/dispose ops)
-    runner/                  # Entity runner -- instantiation, ref wiring (second pass), state hydration
-    context/                 # Entity context management
-    infra/                   # Infrastructure resolution (adapter inheritance)
-    stream/                  # EntityStream<T> implementation (in-process + Redis)
+  index.ts               # Barrel exports
+  runtime.ts             # InteractKitRuntime, InteractKitApp, EntityNode, RuntimeConfig
+  serve.ts               # app.serve() — HTTP endpoints, /_rpc, /schema, WebSocket streams
+  entity.ts              # Entity class (id, type, state, refs, components, streams, secrets)
+  reactive.ts            # createReactiveState, flushReactiveState (dirty tracking + debounced DB flush)
+  test.ts                # createTestApp, createMemoryDb, assertEq, assert
   llm/
-    base.ts                  # LLMEntity class -- thinking loop, invoke(), context/streams
-    thinking-loop.ts         # LLMThinkingLoop runtime class -- tick, sleep, defer, events
-    conversation.ts          # ConversationContext entity -- shared context between LLM entities
-    decorators.ts            # @SystemPrompt(), @Executor(), @ThinkingLoop(), @MaxIterations()
-  hooks/
-    init.ts                  # Init namespace (Input + Runner)
-    tick.ts                  # Tick namespace (Input + Runner)
-    runner.ts                # HookRunner<T> + HookHandler<T> interfaces
-  settings.ts                # InteractKitConfig type
+    llm.ts               # createExecutor, collectLLMTools, createInvokeHandler
+    context.ts           # LLMContext (conversation history management)
+    utils.ts             # runLLMLoop (tool-use loop execution)
   events/
-    bus.ts                   # PubSub adapter-based event bus
-    dispatcher.ts            # Event routing + validation
-    types.ts                 # EventEnvelope
+    bus.ts               # EventBus (request/response over PubSubAdapter)
+    types.ts             # EventEnvelope type
   pubsub/
-    adapter.ts               # PubSubAdapter abstract base, LocalPubSubAdapter, RemotePubSubAdapter
-    in-process.ts            # InProcessBusAdapter (extends LocalPubSubAdapter) -- zero-latency, single process
-  vectorstore/
-    adapter.ts               # VectorStoreAdapter interface (add, search, delete)
-    entity.ts                # LongTermMemory entity (memorize, recall, forget tools)
+    adapter.ts           # PubSubAdapter, LocalPubSubAdapter, RemotePubSubAdapter
+    in-process.ts        # InProcessBusAdapter (extends LocalPubSubAdapter)
   database/
-    adapter.ts               # DatabaseAdapter interface
+    adapter.ts           # DatabaseAdapter interface
   observer/
-    adapter.ts               # ObserverAdapter interface (event, error, setState, getState, callMethod, getEntityTree)
-    base.ts                  # BaseObserver -- abstract base with event emitter + pubsub control plane
-    bridge.ts                # ObserverBridge -- sits in entity process, forwards events over pubsub
-    composite.ts             # CompositeObserver -- combines multiple observers into one
-    console.ts               # ConsoleObserver -- default stdout
-    dev.ts                   # DevObserver -- colored dev-mode output
+    adapter.ts           # ObserverAdapter interface
+    base.ts              # BaseObserver abstract base
+    dev.ts               # DevObserver (colored dev-mode output)
 ```
 
 ## Dependencies
@@ -657,22 +366,14 @@ src/
 
 | Package | Role |
 |---------|------|
-| `zod` | Runtime validation (generated code, re-exported as `z`) |
+| `zod` | Re-exported as `z` for generated code |
 | `@langchain/core` | LLM integration (BaseChatModel, bindTools, invoke) |
-| `@modelcontextprotocol/sdk` | MCP client for tool discovery |
 
-**Peer dependencies (users install alongside SDK):**
+**Optional peer dependencies (for LLM providers):**
 
-| Package | Role |
-|---------|------|
-| `reflect-metadata` | Decorator metadata -- must be loaded before any entity code |
-
-## Build
-
-```bash
-interactkit build                                  # codegen + tsc + boot -> .interactkit/ (reads root from config)
-interactkit build --root=src/entities/agent:Agent  # override root entity from CLI
-interactkit start                                  # run the built app
-interactkit dev                                    # build + run + watch for changes (auto-restarts)
-pnpm build                                         # tsc only (no codegen)
-```
+| Package | Provider |
+|---------|----------|
+| `@langchain/openai` | OpenAI |
+| `@langchain/anthropic` | Anthropic |
+| `@langchain/google-genai` | Google |
+| `@langchain/ollama` | Ollama |

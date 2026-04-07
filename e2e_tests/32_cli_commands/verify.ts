@@ -1,120 +1,99 @@
 import { execSync } from 'child_process';
-import { readFileSync, writeFileSync, existsSync, rmSync } from 'fs';
-import { join } from 'path';
+import { readFileSync, existsSync } from 'fs';
+import { join, resolve } from 'path';
 
 const cwd = import.meta.dirname;
-const entities = join(cwd, 'src/entities');
+const cliDist = resolve(cwd, '../../cli/dist/index.js');
+const generated = join(cwd, 'interactkit/.generated');
 
 function assert(condition: boolean, msg: string) {
   if (!condition) { console.error(`  FAIL: ${msg}`); process.exit(1); }
   console.log(`  ok ${msg}`);
 }
 
-function read(file: string) { return readFileSync(join(entities, file), 'utf-8'); }
-function run(cmd: string) { return execSync(cmd, { cwd, encoding: 'utf-8', stdio: 'pipe' }); }
-
-// Clean up any previous run
-if (existsSync(entities)) rmSync(entities, { recursive: true });
-if (existsSync(join(cwd, '.interactkit'))) rmSync(join(cwd, '.interactkit'), { recursive: true });
-execSync('mkdir -p src/entities', { cwd });
+function read(file: string) { return readFileSync(join(generated, file), 'utf-8'); }
 
 try {
-  // ─── Test 1: interactkit add (basic entity) ───────────
-  console.log('[32] === Test 1: interactkit add MyAgent ===');
-  run('interactkit add MyAgent');
-  assert(existsSync(join(entities, 'my-agent.ts')), 'my-agent.ts created');
+  // ─── Test 1: compile produces output files ─────────────
+  console.log('[32] === Test 1: interactkit compile produces files ===');
+  execSync(`node ${cliDist} compile`, { stdio: 'pipe', cwd });
 
-  const agent = read('my-agent.ts');
-  assert(agent.includes('export class MyAgent extends BaseEntity'), 'class MyAgent extends BaseEntity');
-  assert(agent.includes('@Entity({})'), '@Entity decorator');
-  assert(agent.includes('@Hook(Init.Runner())'), 'has Init hook');
-  assert(!agent.includes('detached'), 'no detached (local)');
+  assert(existsSync(join(generated, 'registry.ts')), 'registry.ts created');
+  assert(existsSync(join(generated, 'types.ts')), 'types.ts created');
+  assert(existsSync(join(generated, 'graph.ts')), 'graph.ts created');
+  assert(existsSync(join(generated, 'tree.ts')), 'tree.ts created');
+  assert(existsSync(join(generated, 'handlers.ts')), 'handlers.ts created (tools have src)');
 
-  // ─── Test 2: interactkit add --detached ────────────────
-  console.log('[32] === Test 2: interactkit add Worker --detached ===');
-  run('interactkit add Worker --detached');
-  assert(existsSync(join(entities, 'worker.ts')), 'worker.ts created');
+  // ─── Test 2: registry.ts has correct entity names ──────
+  console.log('[32] === Test 2: registry.ts entity names ===');
+  const registry = read('registry.ts');
+  assert(registry.includes("'my-agent'"), "registry has 'my-agent' entity");
+  assert(registry.includes("'worker'"), "registry has 'worker' entity");
+  assert(registry.includes("'cache'"), "registry has 'cache' entity");
 
-  const worker = read('worker.ts');
-  assert(worker.includes('detached: true'), 'detached: true in @Entity');
-  assert(worker.includes('export class Worker extends BaseEntity'), 'class Worker');
+  // ─── Test 3: registry.ts has correct tool method names ─
+  console.log('[32] === Test 3: registry.ts tool names ===');
+  assert(registry.includes('my-agent.dispatch'), 'registry has my-agent.dispatch method');
+  assert(registry.includes('worker.process'), 'registry has worker.process method');
+  assert(registry.includes('worker.getStats'), 'registry has worker.getStats method');
+  assert(registry.includes('cache.get'), 'registry has cache.get method');
+  assert(registry.includes('cache.put'), 'registry has cache.put method');
 
-  // ─── Test 3: interactkit add --llm --detached ─────────
-  console.log('[32] === Test 3: interactkit add Brain --llm --detached ===');
-  run('interactkit add Brain --llm --detached');
-  assert(existsSync(join(entities, 'brain.ts')), 'brain.ts created');
+  // ─── Test 4: types.ts has correct interfaces ──────────
+  console.log('[32] === Test 4: types.ts type interfaces ===');
+  const types = read('types.ts');
+  assert(types.includes('interface MyAgentEntity'), 'types has MyAgentEntity interface');
+  assert(types.includes('interface WorkerEntity'), 'types has WorkerEntity interface');
+  assert(types.includes('interface CacheEntity'), 'types has CacheEntity interface');
+  assert(types.includes('interface MyAgentProxy'), 'types has MyAgentProxy interface');
+  assert(types.includes('interface WorkerProxy'), 'types has WorkerProxy interface');
+  assert(types.includes('interface CacheProxy'), 'types has CacheProxy interface');
 
-  const brain = read('brain.ts');
-  assert(brain.includes('detached: true'), 'detached in LLM @Entity');
-  assert(brain.includes('extends LLMEntity'), 'extends LLMEntity');
-  assert(brain.includes('@Executor()'), 'has @Executor');
+  // ─── Test 5: types.ts has input/output types ──────────
+  console.log('[32] === Test 5: types.ts input/output types ===');
+  assert(types.includes('MyAgentDispatchInput'), 'types has MyAgentDispatchInput');
+  assert(types.includes('WorkerProcessInput'), 'types has WorkerProcessInput');
+  assert(types.includes('CachePutInput'), 'types has CachePutInput');
 
-  // ─── Test 4: interactkit add (nested dot-path) ─────────
-  console.log('[32] === Test 4: interactkit add MyAgent.Memory ===');
-  run('interactkit add MyAgent.Memory');
-  assert(existsSync(join(entities, 'my-agent/memory.ts')), 'nested memory.ts created');
+  // ─── Test 6: types.ts has handlers config ─────────────
+  console.log('[32] === Test 6: types.ts HandlersConfig ===');
+  assert(types.includes('HandlersConfig'), 'types has HandlersConfig');
+  assert(types.includes('MyAgentHandlers'), 'types has MyAgentHandlers');
+  assert(types.includes('WorkerHandlers'), 'types has WorkerHandlers');
+  assert(types.includes('CacheHandlers'), 'types has CacheHandlers');
 
-  // ─── Test 5: interactkit add --llm (local) ─────────────
-  console.log('[32] === Test 5: interactkit add Helper --llm ===');
-  run('interactkit add Helper --llm');
-  const helper = read('helper.ts');
-  assert(!helper.includes('detached'), 'local LLM has no detached');
-  assert(helper.includes('extends LLMEntity'), 'extends LLMEntity');
+  // ─── Test 7: types.ts has component and ref wiring ────
+  console.log('[32] === Test 7: types.ts component/ref wiring ===');
+  assert(types.includes('components:'), 'types has components in entity');
+  assert(types.includes('refs:'), 'types has refs in entity');
 
-  // ─── Test 6: interactkit add Cache ─────────────────────
-  console.log('[32] === Test 6: interactkit add Cache ===');
-  run('interactkit add Cache');
-  assert(existsSync(join(entities, 'cache.ts')), 'cache.ts created');
+  // ─── Test 8: tree.ts has correct structure ────────────
+  console.log('[32] === Test 8: tree.ts structure ===');
+  const tree = read('tree.ts');
+  assert(tree.includes('"my-agent"'), 'tree has my-agent as root');
+  assert(tree.includes('"worker"'), 'tree has worker component');
+  assert(tree.includes('"cache"'), 'tree has cache component');
+  assert(tree.includes('className: "MyAgent"'), 'tree has MyAgent className');
+  assert(tree.includes('className: "Worker"'), 'tree has Worker className');
+  assert(tree.includes('className: "Cache"'), 'tree has Cache className');
 
-  // ─── Test 7: interactkit attach (always Remote<T>) ─────
-  console.log('[32] === Test 7: interactkit attach Helper MyAgent ===');
-  run('interactkit attach Helper MyAgent');
+  // ─── Test 9: graph.ts has app class with proxies ──────
+  console.log('[32] === Test 9: graph.ts app class ===');
+  const graphFile = read('graph.ts');
+  assert(graphFile.includes('class App'), 'graph has App class');
+  assert(graphFile.includes('InteractKitRuntime'), 'graph uses InteractKitRuntime');
+  assert(graphFile.includes('MyAgentProxy'), 'graph has MyAgentProxy reference');
 
-  const agentAfter7 = read('my-agent.ts');
-  assert(agentAfter7.includes("import { Helper } from './helper.js';"), 'import Helper added');
-  assert(agentAfter7.includes('@Component() private helper!: Remote<Helper>;'), '@Component always uses Remote<T>');
-  assert(agentAfter7.includes('Component'), 'Component in imports');
-  assert(agentAfter7.includes('type Remote'), 'Remote type imported');
-
-  // ─── Test 8: interactkit attach more components to MyAgent ──
-  console.log('[32] === Test 8: interactkit attach Worker & Cache to MyAgent ===');
-  run('interactkit attach Worker MyAgent');
-  run('interactkit attach Cache MyAgent');
-
-  const agentAfter8 = read('my-agent.ts');
-  assert(agentAfter8.includes('@Component() private worker!: Remote<Worker>;'), 'Worker attached as Remote');
-  assert(agentAfter8.includes('@Component() private cache!: Remote<Cache>;'), 'Cache attached as Remote');
-
-  // ─── Test 9: interactkit attach --ref ──
-  console.log('[32] === Test 9: interactkit attach --ref ===');
-  run('interactkit attach Cache Worker --ref');
-
-  const workerAfter9 = read('worker.ts');
-  assert(workerAfter9.includes("import { Cache } from './cache.js';"), 'import Cache added to Worker');
-  assert(workerAfter9.includes('@Ref() private cache!: Remote<Cache>;'), '@Ref with Remote<T>');
-  assert(workerAfter9.includes('type Remote'), 'Remote type imported');
-  assert(workerAfter9.includes('Ref'), 'Ref in imports');
-
-  // ─── Test 10: interactkit attach component on detached parent ──
-  console.log('[32] === Test 10: interactkit attach component on detached parent ===');
-  run('interactkit attach Cache Brain');
-
-  const brainAfter10 = read('brain.ts');
-  assert(brainAfter10.includes('@Component() private cache!: Remote<Cache>;'), '@Component with Remote on detached parent');
-
-  // ─── Test 11: verify the project builds ────────────────
-  // Remove LLM entities (need @langchain/openai which isn't installed here)
-  rmSync(join(entities, 'helper.ts'));
-  rmSync(join(entities, 'brain.ts'));
-  // Remove Helper component from MyAgent since we deleted helper.ts
-  const agentForBuild = read('my-agent.ts')
-    .replace(/import \{ Helper \}.*\n/, '')
-    .replace(/.*@Component\(\) private helper!: Remote<Helper>;.*\n/, '');
-  writeFileSync(join(entities, 'my-agent.ts'), agentForBuild);
-
-  console.log('[32] === Test 11: full build succeeds ===');
-  run('interactkit build --root=src/entities/my-agent:MyAgent');
-  assert(existsSync(join(cwd, '.interactkit/build')), 'build output exists');
+  // ─── Test 10: handlers.ts imports from src tool files ──
+  console.log('[32] === Test 10: handlers.ts imports ===');
+  const handlers = read('handlers.ts');
+  assert(handlers.includes('worker-process'), 'handlers imports worker-process');
+  assert(handlers.includes('cache-put'), 'handlers imports cache-put');
+  assert(handlers.includes('HandlersConfig'), 'handlers references HandlersConfig');
+  assert(handlers.includes('Worker'), 'handlers has Worker entity entry');
+  assert(handlers.includes('Cache'), 'handlers has Cache entity entry');
+  assert(handlers.includes('process:'), 'handlers maps process tool');
+  assert(handlers.includes('put:'), 'handlers maps put tool');
 
   console.log('32_cli_commands: PASS');
 } catch (e: any) {

@@ -1,4 +1,6 @@
 import { execSync } from 'child_process';
+const cwd = import.meta.dirname;
+const cli = `node ${cwd}/../../cli/dist/index.js`;
 const expected = [
   'after push 3: 3', 'after push 50 more: 53', 'popped: item-49, length: 52',
   'after unshift: [0]=first', 'shifted: first', 'after splice(0,5): length=47',
@@ -6,11 +8,11 @@ const expected = [
   '["fresh","start"]', 'DONE',
 ];
 try {
-  execSync('interactkit build --root=src/agent:Agent', { stdio: 'pipe', cwd: import.meta.dirname });
-  const output = execSync('node .interactkit/build/src/_entry.js', { timeout: 15000, cwd: import.meta.dirname }).toString();
+  execSync(`${cli} compile`, { stdio: 'pipe', cwd });
+  const output = execSync('npx tsx src/app.ts', { timeout: 15000, cwd }).toString();
   for (const exp of expected) {
     if (!output.includes(exp)) { console.error(`  FAIL: missing "${exp}"\n${output}`); process.exit(1); }
     console.log(`  ok ${exp}`);
   }
   console.log('06_state_array_mutations: PASS');
-} catch (e: any) { console.error('FAIL', e.stdout?.toString(), e.stderr?.toString()); process.exit(1); }
+} catch (e: any) { console.error('06: FAIL', e.stdout?.toString(), e.stderr?.toString()); process.exit(1); }

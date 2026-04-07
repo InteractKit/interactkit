@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graph xmlns="https://interactkit.dev/schema/v1" version="1" root="Game">
+
+  <entity name="Game" type="base" description="Werewolf game orchestrator with 6 AI players">
+    <describe>Werewolf game — round {{round}}, phase: {{phase}}</describe>
+    <components>
+      <component name="player1" entity="Player" />
+      <component name="player2" entity="Player" />
+      <component name="player3" entity="Player" />
+      <component name="player4" entity="Player" />
+      <component name="player5" entity="Player" />
+      <component name="player6" entity="Player" />
+    </components>
+    <state>
+      <field name="phase" type="string" description="Current game phase" default="setup" />
+      <field name="round" type="number" description="Current round" default="0" />
+      <field name="gameLog" type="array" description="Game event log" items="string" />
+      <field name="humanPlayerName" type="string" description="Human player name" default="" />
+      <field name="humanPlayerRole" type="string" description="Human player role" default="" />
+    </state>
+    <tools>
+      <tool name="getStatus" description="Get current game status" src="tools/get-status.ts">
+        <input />
+        <output type="object">
+          <param name="phase" type="string" />
+          <param name="round" type="number" />
+          <param name="alivePlayers" type="number" />
+        </output>
+      </tool>
+    </tools>
+  </entity>
+
+  <entity name="Player" type="llm" description="AI werewolf player with memory and role-based behavior">
+    <describe>{{name}} ({{role}}) — alive: {{alive}}</describe>
+    <executor provider="openai" model="gpt-4o-mini" />
+    <components>
+      <component name="memory" entity="PlayerMemory" />
+    </components>
+    <state>
+      <field name="name" type="string" description="Player name" default="" />
+      <field name="role" type="string" description="Assigned role" default="" />
+      <field name="personality" type="string" description="Personality trait" default="" />
+      <field name="alive" type="boolean" description="Whether player is alive" default="true" />
+    </state>
+    <tools>
+      <tool name="configure" description="Set player name, role, and personality" src="tools/configure-player.ts">
+        <input>
+          <param name="name" type="string" />
+          <param name="role" type="string" />
+          <param name="personality" type="string" />
+        </input>
+        <output type="void" />
+      </tool>
+      <tool name="getRole" description="Get player role" peerVisible="true" src="tools/get-role.ts">
+        <input />
+        <output type="string" />
+      </tool>
+      <tool name="eliminate" description="Eliminate this player" src="tools/eliminate.ts">
+        <input />
+        <output type="boolean" />
+      </tool>
+      <tool name="discuss" description="Participate in day discussion" peerVisible="true">
+        <input><param name="context" type="string" /></input>
+        <output type="string" />
+      </tool>
+      <tool name="vote" description="Vote to eliminate a player" peerVisible="true">
+        <input><param name="candidates" type="array" items="string" /></input>
+        <output type="string" />
+      </tool>
+      <tool name="nightAction" description="Perform night action based on role" peerVisible="true">
+        <input><param name="alivePlayers" type="array" items="string" /></input>
+        <output type="string" />
+      </tool>
+    </tools>
+  </entity>
+
+  <entity name="PlayerMemory" type="base" description="Player memory storage">
+    <describe>Memory with {{memories.length}} entries</describe>
+    <state>
+      <fieldGroup name="memories" key="id">
+        <field name="text" type="string" description="Memory content" />
+      </fieldGroup>
+    </state>
+    <tools>
+      <autotool name="add" on="memories" op="create" peerVisible="true" />
+      <autotool name="getAll" on="memories" op="list" peerVisible="true" />
+      <tool name="getRecent" description="Get recent memories" peerVisible="true" src="tools/get-recent.ts">
+        <input><param name="count" type="number" /></input>
+        <output type="array" items="string" />
+      </tool>
+    </tools>
+  </entity>
+
+</graph>

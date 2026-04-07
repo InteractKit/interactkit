@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graph xmlns="https://interactkit.dev/schema/v1" version="1" root="World">
+  <entity name="World" type="base" description="World root">
+    <describe>World</describe>
+    <components>
+      <component name="sensor" entity="Sensor" />
+      <component name="alarm" entity="Alarm" />
+      <component name="store" entity="Store" />
+    </components>
+  </entity>
+
+  <entity name="Sensor" type="base" description="Sensor with readings stream">
+    <describe>Sensor: {{emitted}} emitted</describe>
+    <streams>
+      <stream name="readings" type="object" description="Sensor readings" />
+    </streams>
+    <state>
+      <field name="emitted" type="number" description="emitted" default="0" />
+    </state>
+    <tools>
+      <tool name="read" description="Read">
+        <input><param name="value" type="number" /></input>
+        <output type="object"><param name="emitted" type="number" /></output>
+      </tool>
+    </tools>
+  </entity>
+
+  <entity name="Alarm" type="base" description="Alarm with alerts stream">
+    <describe>Alarm: {{triggered}} triggered</describe>
+    <streams>
+      <stream name="alerts" type="string" description="Alarm alerts" />
+    </streams>
+    <state>
+      <field name="triggered" type="number" description="triggered" default="0" />
+    </state>
+    <tools>
+      <tool name="trigger" description="Trigger alarm">
+        <input><param name="level" type="string" /></input>
+        <output type="object"><param name="triggered" type="number" /></output>
+      </tool>
+    </tools>
+  </entity>
+
+  <entity name="Store" type="base" description="Event store">
+    <describe>Store: {{events.length}}</describe>
+    <state>
+      <field name="events" type="array" description="events" items="string" />
+    </state>
+    <tools>
+      <tool name="record" description="Record event">
+        <input><param name="event" type="string" /></input>
+        <output type="number" />
+      </tool>
+      <tool name="getEvents" description="Get events">
+        <input />
+        <output type="array" items="string" />
+      </tool>
+      <tool name="count" description="Count">
+        <input />
+        <output type="number" />
+      </tool>
+    </tools>
+  </entity>
+</graph>
